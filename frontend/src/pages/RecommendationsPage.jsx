@@ -198,6 +198,7 @@ function RecommendationsPage({
             loading={loading}
           />
         }
+        logout={logout}
       />
 
       <main

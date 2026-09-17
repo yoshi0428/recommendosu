@@ -1,4 +1,5 @@
 import {Form, Button} from 'react-bootstrap'
+import {Link} from 'react-router-dom'
 import useTheme from '../hooks/useTheme'
 
 const MOD_VARIANTS = {
@@ -45,6 +46,7 @@ function SiteHeader({
                       onCancelRecommendations,
                       loading,
                       advancedSettingsButton,
+                      logout,
                     }) {
   const {theme, toggleTheme} = useTheme()
   const currentMods = settings?.mods ?? []
@@ -308,6 +310,18 @@ function SiteHeader({
             <div className="d-flex align-items-center justify-content-center justify-content-lg-end gap-2">
               {rightActions}
 
+              {/* About */}
+              <Button
+                as={Link}
+                to="/about"
+                variant="outline-secondary"
+                size="sm"
+              >
+                About
+              </Button>
+
+
+              {/* Theme */}
               <button
                 type="button"
                 className="btn btn-outline-secondary btn-sm"
@@ -316,6 +330,17 @@ function SiteHeader({
               >
                 {theme === 'dark' ? '☀' : '🌙'}
               </button>
+
+              {/* Logout */}
+              {logout && (
+                <Button
+                  variant="outline-danger"
+                  size="sm"
+                  onClick={logout}
+                >
+                  Logout
+                </Button>
+              )}
             </div>
           </div>
 

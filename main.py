@@ -370,9 +370,7 @@ async def recommend_post(
         )
 
     # Register the client-provided ID before starting the worker.
-    recommendation_id, cancel_event = create_cancellation_event(
-        recommendation_id
-    )
+    recommendation_id, cancel_event = create_cancellation_event(recommendation_id)
 
     try:
         recommendations = await recommend_player(
@@ -416,9 +414,7 @@ async def recommend_cancel(
     session_id: str | None = Cookie(default=None),
 ):
     require_player(session_id)
-
     cancelled = cancel_recommendation(recommendation_id)
-
     return {
         "recommendation_id": recommendation_id,
         "cancelled": cancelled,
