@@ -1,6 +1,7 @@
 import os
 import sqlite3
 from concurrent.futures import ProcessPoolExecutor
+from pathlib import Path
 
 from osu_tools import OsuCalculator
 from tqdm import tqdm
@@ -22,9 +23,9 @@ import hashlib
 # ============================================================
 # Configuration
 # ============================================================
-
-DATABASE_PATH = "../recommender.db"
-ROOT_DIR = "../data"
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+DATABASE_PATH = PROJECT_ROOT / "beatmap_recommender/recommender.db"
+ROOT_DIR = PROJECT_ROOT / "beatmap_recommender/data"
 NUM_WORKERS = 8
 BATCH_SIZE = 2500
 

@@ -1,5 +1,7 @@
 import pickle
 import sqlite3
+from pathlib import Path
+
 import numpy as np
 import torch
 import osu_tools
@@ -13,13 +15,12 @@ from dot_osu_indexer import build_osu_file_index
 # ============================================================
 # Configuration
 # ============================================================
-
-DB_PATH = "../recommender.db"
-DATA_ROOT = "./beatmap_recommender/data"
-
-MODEL_FOLDER = "./beatmap_classifier/models/bagged_models"
-LABEL_ENCODER_PATH = "../../beatmap_classifier/models/label_encoder.pkl"
-META_MODEL_PATH = "../../beatmap_classifier/models/meta_model.pkl"
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+DB_PATH = PROJECT_ROOT / "beatmap_recommender/test_recommender.db"
+DATA_ROOT = PROJECT_ROOT / "beatmap_recommender/data"
+MODEL_FOLDER = PROJECT_ROOT / "beatmap_classifier/models/bagged_models"
+LABEL_ENCODER_PATH = PROJECT_ROOT / "beatmap_classifier/models/label_encoder.pkl"
+META_MODEL_PATH = PROJECT_ROOT / "beatmap_classifier/models/meta_model.pkl"
 
 MAX_SEQUENCE_LENGTH = 4096
 MAX_SLIDER_LENGTH = 500.0
@@ -84,9 +85,21 @@ additional_feature_names = (
 )
 
 
+# GROUP 1
+excluded_features = {
+    "pp_speed",
+    "distance_mean",
+    "object_count",
+    "speed_change_std",
+    "angle_90th",
+    "od",
+    "speed_change_max"
+}
+
 selected_features = [
     feature
     for feature in additional_feature_names
+    if feature not in excluded_features
 ]
 
 

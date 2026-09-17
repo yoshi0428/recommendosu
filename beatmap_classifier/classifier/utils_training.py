@@ -115,7 +115,7 @@ def load_pytorch_models(model_folder, model_class, model_kwargs, device):
 
 def pad_sequences_pt(sequences, dtype=torch.float32, maxlen=None):
     # Enforce float32 type and truncate sequences to maxlen if they exceed it
-    processed_seqs = [torch.tensor(seq, dtype=dtype)[:maxlen] for seq in sequences]
+    processed_seqs = [torch.as_tensor(seq, dtype=dtype)[:maxlen] for seq in sequences]
 
     # Pad the truncated sequences
     padded = torch.nn.utils.rnn.pad_sequence(processed_seqs, batch_first=True, padding_value=0.0)

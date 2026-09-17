@@ -36,6 +36,28 @@ class CNNModel(nn.Module):
 
         self.dropout = nn.Dropout(dropout_rate)
 
+        self._initialize_weights()
+
+    def _initialize_weights(self):
+        for module in self.modules():
+            if isinstance(module, (nn.Conv1d, nn.Linear)):
+                nn.init.kaiming_normal_(
+                    module.weight,
+                    mode='fan_out',
+                    nonlinearity='relu'
+                )
+
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
+
+            elif isinstance(module, nn.BatchNorm1d):
+                nn.init.ones_(module.weight)
+                nn.init.zeros_(module.bias)
+
+        # Final classifier has no ReLU after it
+        nn.init.xavier_uniform_(self.fc2.weight)
+        nn.init.zeros_(self.fc2.bias)
+
     def forward(self, x):
         x = self.conv1(x)
         x = self.bn1(x)
