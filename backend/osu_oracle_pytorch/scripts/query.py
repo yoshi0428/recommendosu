@@ -1,7 +1,7 @@
 import sqlite3
 
 # Connect to the database
-conn = sqlite3.connect('beatmaps.db')
+conn = sqlite3.connect('../beatmaps.db')
 
 # Update the time_diff values greater than 1000 to 1000
 cursor = conn.cursor()

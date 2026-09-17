@@ -8,14 +8,12 @@ import copy
 # Configuration
 # ============================================================
 
-DATABASE_PATH = "./beatmaps.db"
-ROOT_DIR = "."
+DATABASE_PATH = "../beatmaps.db"
+ROOT_DIR = "../data"
 
 MAX_SEQUENCE_LENGTH = 3502
 MAX_SLIDER_LENGTH = 500.0
 MAX_TIME_DIFF = 1000.0
-
-DEBUG = 0
 
 # ============================================================
 # Star Rating Calculator
@@ -65,6 +63,8 @@ def flip_beatmap(
     :param beatmap_data: Parsed beatmap dictionary.
     :param horizontal: Flip across the horizontal axis.
     :param vertical: Flip across the vertical axis.
+    :param max_slider_length: Maximum slider length used for normalization.
+    :param max_time_diff: Maximum time difference used for normalization.
     :return: Flipped beatmap dictionary.
     """
 
@@ -153,27 +153,17 @@ def parse_osu_file(
 
     data = {
         "beatmap_id": None,
-
-        # Difficulty
         "hp_drain": None,
         "circle_size": None,
         "od": None,
         "ar": None,
         "slider_multiplier": None,
         "slider_tick": None,
-
-        # Difficulty metadata
         "star_rating": None,
-
-        # BPM
         "bpm": None,
         "min_bpm": None,
         "max_bpm": None,
-
-        # Objects
         "hit_objects": [],
-
-        # Label
         "label": None,
     }
 
@@ -348,12 +338,7 @@ def parse_osu_file(
                     "x": x,
                     "y": y,
                     "time": time,
-
-                    # Keep your existing 500 maximum.
-                    "length": min(
-                        max_slider_length,
-                        slider_length
-                    ),
+                    "length": min(max_slider_length, slider_length), # keep your existing 500 maximum.
                 }
 
                 data["hit_objects"].append(hit_object)
@@ -363,12 +348,7 @@ def parse_osu_file(
     # ========================================================
 
     if timing_points:
-
-        bpms = [
-            bpm
-            for _, bpm in timing_points
-        ]
-
+        bpms = [bpm for _, bpm in timing_points]
         data["bpm"] = bpms[0]
         data["min_bpm"] = min(bpms)
         data["max_bpm"] = max(bpms)
@@ -381,7 +361,6 @@ def parse_osu_file(
     max_y = 384
 
     for obj in data["hit_objects"]:
-
         obj["x_norm"] = obj["x"] / max_x
         obj["y_norm"] = obj["y"] / max_y
 
@@ -393,14 +372,8 @@ def parse_osu_file(
 
         data["hit_objects"][0]["time_diff"] = 0
 
-        for i, obj in enumerate(
-            data["hit_objects"][1:],
-            start=1
-        ):
-            obj["time_diff"] = (
-                obj["time"]
-                - data["hit_objects"][i - 1]["time"]
-            )
+        for i, obj in enumerate(data["hit_objects"][1:], start=1):
+            obj["time_diff"] = (obj["time"] - data["hit_objects"][i - 1]["time"])
 
     # ========================================================
     # Create CNN Vectors
@@ -408,22 +381,11 @@ def parse_osu_file(
 
     vectors = []
 
-    for i, obj in enumerate(
-        data["hit_objects"][1:],
-        start=1
-    ):
+    for i, obj in enumerate(data["hit_objects"][1:], start=1):
         prev_obj = data["hit_objects"][i - 1]
 
-        x_diff = (
-            obj["x_norm"]
-            - prev_obj["x_norm"]
-        )
-
-        y_diff = (
-            obj["y_norm"]
-            - prev_obj["y_norm"]
-        )
-
+        x_diff = (obj["x_norm"] - prev_obj["x_norm"])
+        y_diff = (obj["y_norm"] - prev_obj["y_norm"])
         time_diff = obj["time_diff"]
         length = obj["length"]
 
@@ -547,11 +509,10 @@ def insert_beatmap_data(conn, beatmap_data):
 # ============================================================
 
 def main():
-    root_dir = '.'  # Current directory
     beatmaps_data = []
 
     # Connect to the SQLite database
-    conn = sqlite3.connect('./beatmaps.db')
+    conn = sqlite3.connect(DATABASE_PATH)
 
     # Create the necessary tables
     create_tables(conn)
@@ -566,7 +527,6 @@ def main():
 
     print(f"Found {len(osu_files)} .osu files.")
 
-    # Now tqdm can show total progress
     for file_path in tqdm(osu_files, desc="Processing beatmaps"):
 
         beatmap_data = parse_osu_file(file_path)
@@ -575,17 +535,6 @@ def main():
 
             # Calculate the star rating from the original .osu file.
             beatmap_data['star_rating'] = calculate_star_rating(file_path)
-
-            if DEBUG == 1:
-                print(
-                    f"\n{os.path.basename(file_path)} | "
-                    f"Vectors: {beatmap_data['vectors']} | "
-                    f"BPM: {beatmap_data['bpm']:.2f} | "
-                    f"BPM range: "
-                    f"{beatmap_data['min_bpm']:.2f}-"
-                    f"{beatmap_data['max_bpm']:.2f} | "
-                    f"Stars: {beatmap_data['star_rating']}"
-                )
 
             # Process the data (e.g., insert into the database)
             beatmaps_data.append(beatmap_data)                # Insert the parsed beatmap data into the SQLite database

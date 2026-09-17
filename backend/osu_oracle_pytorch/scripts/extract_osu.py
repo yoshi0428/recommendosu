@@ -8,8 +8,8 @@ from tqdm import tqdm
 # Configuration
 # ============================================================
 
-ROOT_DIR = "."
-OUTPUT_DIR = "./extracted_osu"
+ROOT_DIR = "../data"
+OUTPUT_DIR = "../data/extracted_osu"
 
 
 # ============================================================
