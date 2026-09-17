@@ -1,4 +1,3 @@
-import hashlib
 import os
 import sqlite3
 from concurrent.futures import ProcessPoolExecutor
@@ -17,6 +16,8 @@ from db_insertion import (
     insert_tournament_prediction,
 )
 
+import hashlib
+
 
 # ============================================================
 # Configuration
@@ -32,6 +33,7 @@ BATCH_SIZE = 2500
 # ============================================================
 # Mod variants
 # ============================================================
+
 MOD_VARIANTS = {
     "NM": [],
     "HD": ["HD"],
@@ -43,87 +45,86 @@ MOD_VARIANTS = {
 # Tournament prediction labels
 # ============================================================
 TOURNAMENT_LABELS = {
-    "nm1": {
-        "column": "nm1",
+    "2007": {
+        "column": '"2007"',
         "mods": [],
     },
-
-    "nm2": {
-        "column": "nm2",
+    "2008": {
+        "column": '"2008"',
         "mods": [],
     },
-
-    "nm3": {
-        "column": "nm3",
+    "2009": {
+        "column": '"2009"',
         "mods": [],
     },
-
-    "nm4": {
-        "column": "nm4",
+    "2010": {
+        "column": '"2010"',
         "mods": [],
     },
-
-    "nm5": {
-        "column": "nm5",
+    "2011": {
+        "column": '"2011"',
         "mods": [],
     },
-
-    "nm6": {
-        "column": "nm6",
+    "2012": {
+        "column": '"2012"',
         "mods": [],
     },
-
-    "dt1": {
-        "column": "dt1",
-        "mods": ["DT"],
-    },
-
-    "dt2_and_dt3": {
-        "column": "dt2_and_dt3",
-        "mods": ["DT"],
-    },
-
-    "dt4": {
-        "column": "dt4",
-        "mods": ["DT"],
-    },
-
-    "hr1": {
-        "column": "hr1",
-        "mods": ["HR"],
-    },
-
-    "hr2": {
-        "column": "hr2",
-        "mods": ["HR"],
-    },
-
-    "hr3": {
-        "column": "hr3",
-        "mods": ["HR"],
-    },
-
-    "hd1": {
-        "column": "hd1",
-        "mods": ["HD"],
-    },
-
-    "hd2": {
-        "column": "hd2",
-        "mods": ["HD"],
-    },
-
-    "hd3": {
-        "column": "hd3",
-        "mods": ["HD"],
-    },
-
-    "tiebreaker": {
-        "column": "tiebreaker",
+    "2013": {
+        "column": '"2013"',
         "mods": [],
     },
-
-    # Freemod intentionally omitted for now.
+    "2014": {
+        "column": '"2014"',
+        "mods": [],
+    },
+    "2015": {
+        "column": '"2015"',
+        "mods": [],
+    },
+    "2016": {
+        "column": '"2016"',
+        "mods": [],
+    },
+    "2017": {
+        "column": '"2017"',
+        "mods": [],
+    },
+    "2018": {
+        "column": '"2018"',
+        "mods": [],
+    },
+    "2019": {
+        "column": '"2019"',
+        "mods": [],
+    },
+    "2020": {
+        "column": '"2020"',
+        "mods": [],
+    },
+    "2021": {
+        "column": '"2021"',
+        "mods": [],
+    },
+    "2022": {
+        "column": '"2022"',
+        "mods": [],
+    },
+    "2023": {
+        "column": '"2023"',
+        "mods": [],
+    },
+    "2024": {
+        "column": '"2024"',
+        "mods": [],
+    },
+    "2025": {
+        "column": '"2025"',
+        "mods": [],
+    },
+    "2026": {
+        "column": '"2026"',
+        "mods": [],
+    },
 }
 
 _worker_calculator = None
@@ -297,9 +298,9 @@ def main():
                 print(f"Error: {exc}")
                 skipped += 1
 
-            if processed % BATCH_SIZE == 0:
-                conn.commit()
-                print(f"\nProgress: {processed}/{len(osu_files)} | successful={successful} | skipped={skipped} | failed_variants={failed_variants}")
+            # if processed % BATCH_SIZE == 0:
+            conn.commit()
+            print(f"\nProgress: {processed}/{len(osu_files)} | successful={successful} | skipped={skipped} | failed_variants={failed_variants}")
 
     conn.commit()
     conn.close()

@@ -513,7 +513,11 @@ def get_additional_features(db_path, y, beatmap_ids):
             bv.bpm,
             bv.max_combo,
             bv.length_seconds,
-            bv.object_count
+            bv.object_count,
+            bv.pp,
+            bv.pp_aim,
+            bv.pp_speed,
+            bv.pp_acc
         FROM beatmap_variants bv
     """)
 
@@ -531,6 +535,10 @@ def get_additional_features(db_path, y, beatmap_ids):
         max_combo,
         length_seconds,
         object_count,
+        pp,
+        pp_aim,
+        pp_speed,
+        pp_acc
     ) in cursor.fetchall():
 
         variants[(beatmap_id, mods)] = (
@@ -542,6 +550,10 @@ def get_additional_features(db_path, y, beatmap_ids):
             max_combo,
             length_seconds,
             object_count,
+            pp,
+            pp_aim,
+            pp_speed,
+            pp_acc,
         )
 
     conn.close()
@@ -568,6 +580,10 @@ def get_additional_features(db_path, y, beatmap_ids):
             max_combo,
             length_seconds,
             object_count,
+            pp,
+            pp_aim,
+            pp_speed,
+            pp_acc,
         ) = variants[key]
 
         raw_additional_features[key] = (
@@ -579,6 +595,10 @@ def get_additional_features(db_path, y, beatmap_ids):
             max_combo,
             length_seconds,
             object_count,
+            pp,
+            pp_aim,
+            pp_speed,
+            pp_acc,
         )
 
         normalized_additional_features[key] = (
@@ -590,6 +610,10 @@ def get_additional_features(db_path, y, beatmap_ids):
             max_combo / COMBO_SCALE,
             length_seconds / LENGTH_SCALE,
             object_count / OBJECT_COUNT_SCALE,
+            pp,
+            pp_aim,
+            pp_speed,
+            pp_acc,
         )
 
     return raw_additional_features, normalized_additional_features

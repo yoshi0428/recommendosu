@@ -28,7 +28,7 @@ def create_tables(conn):
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS beatmaps (
-            beatmap_id INTEGER PRIMARY KEY,
+            beatmap_id TEXT PRIMARY KEY,
 
             hp_drain REAL NOT NULL,
             circle_size REAL NOT NULL,
@@ -63,7 +63,7 @@ def create_tables(conn):
         CREATE TABLE IF NOT EXISTS beatmap_vectors (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
         
-            beatmap_id INTEGER NOT NULL,
+            beatmap_id TEXT NOT NULL,
         
             vector_index INTEGER NOT NULL,
         
@@ -102,7 +102,7 @@ def create_tables(conn):
         CREATE TABLE IF NOT EXISTS beatmap_variants (
             variant_id INTEGER PRIMARY KEY AUTOINCREMENT,
 
-            beatmap_id INTEGER NOT NULL,
+            beatmap_id TEXT NOT NULL,
             mods TEXT NOT NULL,
 
             hp_drain REAL NOT NULL,
@@ -119,6 +119,12 @@ def create_tables(conn):
 
             length_seconds REAL NOT NULL,
             object_count INTEGER NOT NULL,
+
+            pp REAL,
+            pp_aim REAL,
+            pp_speed REAL,
+            pp_acc REAL,
+            pp_flashlight REAL,
 
             FOREIGN KEY (beatmap_id)
                 REFERENCES beatmaps(beatmap_id)

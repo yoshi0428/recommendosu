@@ -33,7 +33,7 @@ class OsuAPIClient:
         """
         response = self.session.post(
             TOKEN_URL,
-            json={
+            data={
                 "client_id": int(OSU_CLIENT_ID),
                 "client_secret": OSU_CLIENT_SECRET,
                 "grant_type": "client_credentials",
@@ -86,9 +86,9 @@ class OsuAPIClient:
         for attempt in range(MAX_RETRIES):
             self._rate_limit_wait()
             headers = {
-                "Authorization":
-                    f"Bearer {self.access_token}",
+                "Authorization": f"Bearer {self.access_token}",
                 "Accept": "application/json",
+                "Content-Type": "application/json",
             }
 
             try:

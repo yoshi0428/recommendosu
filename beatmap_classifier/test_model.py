@@ -34,14 +34,14 @@ MAX_SLIDER_LENGTH = 500.0
 NUM_CLASSES = 5
 
 # Same normalization constants used during training
-AR_SCALE = 10.0
-OD_SCALE = 10.0
-CS_SCALE = 5.0
-STAR_SCALE = 10.0
-BPM_SCALE = 250.0
-COMBO_SCALE = 3000.0
-LENGTH_SCALE = 400.0
-OBJECT_COUNT_SCALE = 2500.0
+# AR_SCALE = 10.0
+# OD_SCALE = 10.0
+# CS_SCALE = 5.0
+# STAR_SCALE = 10.0
+# BPM_SCALE = 250.0
+# COMBO_SCALE = 3000.0
+# LENGTH_SCALE = 400.0
+# OBJECT_COUNT_SCALE = 2500.0
 
 
 HEADERS = {
@@ -61,6 +61,10 @@ sql_feature_names = [
     "max_combo",
     "length_seconds",
     "object_count",
+    "pp",
+    "pp_aim",
+    "pp_speed",
+    "pp_acc"
 ]
 
 movement_feature_names = [
@@ -94,7 +98,7 @@ additional_feature_names = (
 selected_features = [
     feature
     for feature in additional_feature_names
-    if feature != "angle_90th"
+    if feature not in ("slider_ratio")
 ]
 
 indices = [
@@ -117,7 +121,7 @@ def download_beatmap(beatmap_id):
 
     return response.content
 
-def get_normalized_metadata(
+def get_metadata(
     beatmap_data,
     difficulty_result,
 ):
@@ -139,14 +143,18 @@ def get_normalized_metadata(
 
     features = np.array(
         [
-            stats["ar"] / AR_SCALE,
-            stats["od"] / OD_SCALE,
-            stats["circle_size"] / CS_SCALE,
-            stats["star_rating"] / STAR_SCALE,
-            beatmap_data["bpm"] / BPM_SCALE,
-            stats["max_combo"] / COMBO_SCALE,
-            beatmap_data["length_seconds"] / LENGTH_SCALE,
-            beatmap_data["object_count"] / OBJECT_COUNT_SCALE,
+            stats["ar"],
+            stats["od"],
+            stats["circle_size"],
+            stats["star_rating"],
+            beatmap_data["bpm"],
+            stats["max_combo"],
+            beatmap_data["length_seconds"],
+            beatmap_data["object_count"],
+            stats["pp"],
+            stats["pp_aim"],
+            stats["pp_speed"],
+            stats["pp_acc"],
         ],
         dtype=np.float32,
     )
@@ -239,7 +247,7 @@ def test_model_on_beatmap_id(
         # Combine metadata + movement features
         movement_features = extract_movement_features_from_X(np.asarray(beatmap_vectors, dtype=np.float32))
         movement_features = np.asarray(movement_features, dtype=np.float32)
-        metadata_features = get_normalized_metadata(beatmap_data, difficulty_result)
+        metadata_features = get_metadata(beatmap_data, difficulty_result)
 
         # MUST have the exact same ordering as training:
         # X_additional = [sql_features, movement_features]
