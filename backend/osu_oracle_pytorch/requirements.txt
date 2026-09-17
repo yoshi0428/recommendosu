@@ -1,0 +1,9 @@
+requests
+numpy
+matplotlib
+scikit-learn
+torch
+tqdm
+joblib
+sqlite3
+osu-tools-py

@@ -1,0 +1,5 @@
+.env
+/scripts/speed
+/scripts/extracted_osu
+/scripts/osz_files
+/scripts/beatmaps.db

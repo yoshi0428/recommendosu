@@ -1,0 +1,60 @@
+<mxfile host="Electron">
+  <diagram name="Page-1" id="54rU2PS59-loB_jVGFoQ">
+    <mxGraphModel dx="975" dy="579" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="rI5VgJAClbKEkrU2F_0h-19" edge="1" parent="1" source="rI5VgJAClbKEkrU2F_0h-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="633" y="360" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="rI5VgJAClbKEkrU2F_0h-1" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Classifier" vertex="1">
+          <mxGeometry height="60" width="120" x="573" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="rI5VgJAClbKEkrU2F_0h-10" edge="1" parent="1" source="rI5VgJAClbKEkrU2F_0h-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" target="rI5VgJAClbKEkrU2F_0h-9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rI5VgJAClbKEkrU2F_0h-3" parent="1" style="ellipse;whiteSpace=wrap;html=1;shapeInside=1;" value="Dataset" vertex="1">
+          <mxGeometry height="80" width="120" x="80" y="530" as="geometry" />
+        </mxCell>
+        <mxCell id="rI5VgJAClbKEkrU2F_0h-4" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="We assign tournament mappool naming conventions to the beatmaps as their labels&lt;br&gt;&lt;br&gt;These are our .osu maps" vertex="1">
+          <mxGeometry height="70" width="206" x="37" y="615" as="geometry" />
+        </mxCell>
+        <mxCell id="rI5VgJAClbKEkrU2F_0h-6" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="We&#39;re going to borrow the guy&#39;s neural network architecture and methodology for osu!Oracle&lt;br&gt;&lt;br&gt;Usual ML pipeline, nothing too special here...&lt;br&gt;&lt;br&gt;Just make sure to batch the data while training/evaluating, since we &quot;only&quot; have 16GB VRAM" vertex="1">
+          <mxGeometry height="130" width="243" x="265" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="rI5VgJAClbKEkrU2F_0h-13" edge="1" parent="1" source="rI5VgJAClbKEkrU2F_0h-9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" target="rI5VgJAClbKEkrU2F_0h-12">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rI5VgJAClbKEkrU2F_0h-9" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="parsecore" vertex="1">
+          <mxGeometry height="60" width="120" x="80" y="360" as="geometry" />
+        </mxCell>
+        <mxCell id="rI5VgJAClbKEkrU2F_0h-11" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="If there are modded labels to a beatmap, apply them using parsecore" vertex="1">
+          <mxGeometry height="80" width="103" x="37" y="435" as="geometry" />
+        </mxCell>
+        <mxCell id="rI5VgJAClbKEkrU2F_0h-15" edge="1" parent="1" source="rI5VgJAClbKEkrU2F_0h-12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="rI5VgJAClbKEkrU2F_0h-1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rI5VgJAClbKEkrU2F_0h-12" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Database" vertex="1">
+          <mxGeometry height="60" width="120" x="80" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="rI5VgJAClbKEkrU2F_0h-14" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="No way in hell you&#39;re storing all of that in memory" vertex="1">
+          <mxGeometry height="40" width="160" x="60" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="rI5VgJAClbKEkrU2F_0h-18" edge="1" parent="1" source="rI5VgJAClbKEkrU2F_0h-16" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="rI5VgJAClbKEkrU2F_0h-1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rI5VgJAClbKEkrU2F_0h-16" parent="1" style="ellipse;whiteSpace=wrap;html=1;shapeInside=1;" value="Test beatmaps" vertex="1">
+          <mxGeometry height="80" width="120" x="573" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="rI5VgJAClbKEkrU2F_0h-20" parent="1" style="ellipse;whiteSpace=wrap;html=1;shapeInside=1;" value="Category Distribution" vertex="1">
+          <mxGeometry height="80" width="120" x="573" y="360" as="geometry" />
+        </mxCell>
+        <mxCell id="rI5VgJAClbKEkrU2F_0h-21" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="This is what we want at the end of this stage.&lt;br&gt;&lt;br&gt;The reason for choosing tournament labels over the maps&#39; User Tags (&quot;aim&quot;, &quot;bursts/streams&quot;, &quot;tech&quot;, ...) is that some mapsets can have multiple tags, each corresponding to a certain difficulty.&lt;br&gt;&lt;br&gt;This makes it much harder to distinguish the maps we&#39;re dealing with in a mapset, unless I go through them manually and sort them by their tags. Even then, the tags themselves may be inconsistent, since they are labeled by the users. There are many maps that are still unlabeled to this day.&lt;br&gt;&lt;br&gt;At least there&#39;s a higher chance (still not guaranteed!) that the tournament mapsets stick to one category. It&#39;s the best we have at the moment, without having to go through every map and categorizing them like the osu!Oracle dev somewhat did." vertex="1">
+          <mxGeometry height="210" width="450" x="408" y="440" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
