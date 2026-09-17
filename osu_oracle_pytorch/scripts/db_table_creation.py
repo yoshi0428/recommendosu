@@ -71,6 +71,10 @@ def create_tables(conn):
             y_diff REAL NOT NULL,
             time_diff REAL NOT NULL,
             length REAL NOT NULL,
+            distance REAL NOT NULL,
+            speed REAL NOT NULL,
+            speed_change REAL NOT NULL,
+            time_diff_change REAL NOT NULL,
         
             FOREIGN KEY (beatmap_id)
                 REFERENCES beatmaps(beatmap_id)
@@ -134,28 +138,28 @@ def create_tables(conn):
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS tournament_predictions (
             variant_id INTEGER PRIMARY KEY,
-
+            
             nm1 REAL,
             nm2 REAL,
             nm3 REAL,
             nm4 REAL,
             nm5 REAL,
             nm6 REAL,
-
+            
             dt1 REAL,
             dt2_and_dt3 REAL,
             dt4 REAL,
-
+            
             hr1 REAL,
             hr2 REAL,
             hr3 REAL,
-
+            
             hd1 REAL,
             hd2 REAL,
             hd3 REAL,
-
+            
             tiebreaker REAL,
-
+            
             FOREIGN KEY (variant_id)
                 REFERENCES beatmap_variants(variant_id)
                 ON DELETE CASCADE

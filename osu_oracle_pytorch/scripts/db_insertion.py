@@ -84,9 +84,13 @@ def insert_vectors(conn, beatmap_id, vectors):
             x_diff,
             y_diff,
             time_diff,
-            length
+            length,
+            distance,
+            speed,
+            speed_change,
+            time_diff_change
         )
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         [
             (
@@ -96,6 +100,10 @@ def insert_vectors(conn, beatmap_id, vectors):
                 vector[1],
                 vector[2],
                 vector[3],
+                vector[4],
+                vector[5],
+                vector[6],
+                vector[7],
             )
             for index, vector in enumerate(vectors)
         ],

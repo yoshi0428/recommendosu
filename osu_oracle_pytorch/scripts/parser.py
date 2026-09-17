@@ -1,3 +1,6 @@
+import math
+
+
 def parse_osu_file(
     file_path,
     max_slider_length=500.0,
@@ -312,34 +315,43 @@ def parse_osu_file(
             obj["y_norm"] = obj["y"] / max_y
 
         vectors = []
+        previous_speed = None
+        previous_time_diff = None
 
         for i in range(1, len(hit_objects)):
 
             obj = hit_objects[i]
             prev_obj = hit_objects[i - 1]
 
-            x_diff = (
-                obj["x_norm"]
-                - prev_obj["x_norm"]
-            )
+            x_diff = obj["x_norm"] - prev_obj["x_norm"]
+            y_diff = obj["y_norm"] - prev_obj["y_norm"]
 
-            y_diff = (
-                obj["y_norm"]
-                - prev_obj["y_norm"]
-            )
-
-            time_diff = (
-                obj["time"]
-                - prev_obj["time"]
-            )
-
+            time_diff = obj["time"] - prev_obj["time"]
             length = obj["length"]
+
+            distance = math.sqrt(x_diff ** 2 + y_diff ** 2)
+
+            if time_diff > 0:
+                speed = distance / time_diff
+            else:
+                speed = 0.0
+
+            if previous_speed is None:
+                speed_change = 0.0
+                time_diff_change = 0.0
+            else:
+                speed_change = speed - previous_speed
+                time_diff_change = time_diff - previous_time_diff
 
             vectors.append((
                 x_diff,
                 y_diff,
                 time_diff,
                 length,
+                distance,
+                speed,
+                speed_change,
+                time_diff_change,
             ))
 
         data["vectors"] = vectors

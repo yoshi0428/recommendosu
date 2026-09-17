@@ -6,10 +6,92 @@ import matplotlib.pyplot as plt
 import torch
 import torch.optim as optim
 from torch import nn
+from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader, TensorDataset
+from osu_oracle_pytorch.oracle.cnn_model import CNNModel
 
-# from backend.osu_oracle_pytorch.oracle.previous_cnn_model import CNN_Model
-from osu_oracle_pytorch.oracle.cnn_model import CNN_Model
+TOURNAMENT_LABELS = {
+    "nm1": {
+        "column": "nm1",
+        "mods": [],
+    },
+
+    "nm2": {
+        "column": "nm2",
+        "mods": [],
+    },
+
+    "nm3": {
+        "column": "nm3",
+        "mods": [],
+    },
+
+    "nm4": {
+        "column": "nm4",
+        "mods": [],
+    },
+
+    "nm5": {
+        "column": "nm5",
+        "mods": [],
+    },
+
+    "nm6": {
+        "column": "nm6",
+        "mods": [],
+    },
+
+    "dt1": {
+        "column": "dt1",
+        "mods": ["DT"],
+    },
+
+    "dt2_and_dt3": {
+        "column": "dt2_and_dt3",
+        "mods": ["DT"],
+    },
+
+    "dt4": {
+        "column": "dt4",
+        "mods": ["DT"],
+    },
+
+    "hr1": {
+        "column": "hr1",
+        "mods": ["HR"],
+    },
+
+    "hr2": {
+        "column": "hr2",
+        "mods": ["HR"],
+    },
+
+    "hr3": {
+        "column": "hr3",
+        "mods": ["HR"],
+    },
+
+    "hd1": {
+        "column": "hd1",
+        "mods": ["HD"],
+    },
+
+    "hd2": {
+        "column": "hd2",
+        "mods": ["HD"],
+    },
+
+    "hd3": {
+        "column": "hd3",
+        "mods": ["HD"],
+    },
+
+    "tiebreaker": {
+        "column": "tiebreaker",
+        "mods": [],
+    },
+    # Freemod intentionally omitted for now.
+}
 
 
 def load_pytorch_models(model_folder, model_class, model_kwargs, device):
@@ -51,8 +133,8 @@ def pad_sequences_pt(sequences, dtype=torch.float32, maxlen=None):
 def train_and_evaluate(
         X_train,
         y_train,
-        X_test,
-        y_test,
+        X_val,
+        y_val,
         input_channels,
         num_classes,
         max_length=3502,
@@ -61,30 +143,32 @@ def train_and_evaluate(
         l2_reg=0.001,
         batch_size=16,
         epochs=50,
-        patience=5
+        patience=5,
 ):
 
     # Determine the device (GPU if available, otherwise CPU)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    model = CNN_Model(input_channels, num_classes, max_length, dropout_rate)
+    model = CNNModel(input_channels, num_classes, max_length, dropout_rate)
     model.to(device)
 
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=l2_reg)
-    criterion = nn.CrossEntropyLoss()
+    # AdamW + Label Smoothing for smooth, regularized optimization
+    optimizer = optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=l2_reg)
+    scheduler = CosineAnnealingLR(optimizer, T_max=epochs, eta_min=1e-5)
+    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
 
     train_dataset = TensorDataset(
         torch.as_tensor(X_train, dtype=torch.float32),
         torch.as_tensor(y_train, dtype=torch.long),
     )
 
-    test_dataset = TensorDataset(
-        torch.as_tensor(X_test, dtype=torch.float32),
-        torch.as_tensor(y_test, dtype=torch.long),
+    val_dataset = TensorDataset(
+        torch.as_tensor(X_val, dtype=torch.float32),
+        torch.as_tensor(y_val, dtype=torch.long),
     )
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
     # --- Setup EarlyStopping & ModelCheckpoint parameters ---
     patience_counter = 0
@@ -122,6 +206,8 @@ def train_and_evaluate(
             train_correct += (predicted == targets).sum().item()
             train_total += targets.size(0)
 
+        scheduler.step()
+
         epoch_loss = train_loss / train_total
         epoch_acc = train_correct / train_total
         history["loss"].append(epoch_loss)
@@ -132,7 +218,7 @@ def train_and_evaluate(
         val_loss, val_correct, val_total = 0.0, 0, 0
 
         with torch.no_grad():  # Turn off gradient calculations for speed/memory efficiency
-            for inputs, targets in test_loader:
+            for inputs, targets in val_loader:
                 inputs, targets = inputs.to(device), targets.to(device)
 
                 outputs = model(inputs)
@@ -281,7 +367,9 @@ def get_data(
     max_time_diff, = cursor.fetchone()
     print(f"Max Time Diff: {max_time_diff}")
 
-    # IMPORTANT
+    # ========================================================
+    # Tournament labels
+    # ========================================================
     labels = get_tournament_labels(cursor)
     print(f"Tournament-labeled beatmaps: {len(labels)}")
 
@@ -306,13 +394,14 @@ def get_data(
             beatmap_id,
             x_diff,
             y_diff,
-            time_diff / ? AS normalized_time_diff,
-            length / ? AS normalized_length
+            time_diff,
+            length,
+            distance,
+            speed,
+            speed_change,
+            time_diff_change
         FROM beatmap_vectors
-    """, (
-        max_time_diff,
-        max_vector_length,
-    ))
+    """)
 
     X = defaultdict(list)
 
@@ -323,10 +412,44 @@ def get_data(
         if not rows:
             break
 
-        for beatmap_id, x_diff, y_diff, normalized_time_diff, normalized_length in rows:
+        for beatmap_id, x_diff, y_diff, time_diff, length, distance, speed, speed_change, time_diff_change in rows:
+
             if beatmap_id not in labels:
                 continue
-            X[beatmap_id].append((x_diff, y_diff, normalized_time_diff, normalized_length))
+
+            label = labels[beatmap_id]
+            tournament_info = TOURNAMENT_LABELS[label]
+            mods = tournament_info["mods"]
+
+            # ------------------------------------------------
+            # Apply mod timing transformation
+            # ------------------------------------------------
+
+            if "DT" in mods:
+                effective_time_diff = time_diff / 1.5
+                effective_speed = speed * 1.5
+                effective_speed_change = speed_change * 1.5
+                effective_time_diff_change = time_diff_change / 1.5
+
+            else:
+                effective_time_diff = time_diff
+                effective_speed = speed
+                effective_speed_change = speed_change
+                effective_time_diff_change = time_diff_change
+
+            normalized_time_diff = effective_time_diff / max_time_diff
+            normalized_length = length / max_vector_length
+
+            X[beatmap_id].append((
+                x_diff,
+                y_diff,
+                normalized_time_diff,
+                normalized_length,
+                distance,
+                effective_speed,
+                effective_speed_change,
+                effective_time_diff_change,
+            ))
 
     conn.close()
 
@@ -339,41 +462,134 @@ def get_data(
 
     return original_X, original_y, beatmap_ids
 
-def get_additional_features(db_path):
+def get_additional_features(db_path, y, beatmap_ids):
     """
     BPM should also be an additional feature
 
     :param db_path:
     :return:
     """
+    # Fixed normalization scales
+    # This was a scale for all mods, but we're just gonna go with NM1-5 for simplicity
+    # AR_SCALE = 11.0
+    # OD_SCALE = 11.0
+    # CS_SCALE = 10.0
+    # STAR_SCALE = 11.0
+    #
+    # BPM_SCALE = 400.0
+    # COMBO_SCALE = 10000.0
+    # LENGTH_SCALE = 1800.0
+    # OBJECT_COUNT_SCALE = 3000.0
+
+    AR_SCALE = 10.0
+    OD_SCALE = 10.0
+    CS_SCALE = 5.0
+    STAR_SCALE = 10.0
+
+    BPM_SCALE = 250.0
+    COMBO_SCALE = 3000.0
+    LENGTH_SCALE = 400.0
+    OBJECT_COUNT_SCALE = 2500.0
+
+    mods = []
+    mods_flattened = []
+    for i in range(len(y)):
+        mods.append(TOURNAMENT_LABELS[y[i]]["mods"])
+    for array in mods:
+        mods_flattened.append(array[0] if array else '')
+
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
-    cursor.execute('''
-        SELECT b.beatmap_id, b.ar, b.od, b.circle_size, bv.star_rating, 
-        b.bpm, b.min_bpm, b.max_bpm, bv.max_combo, bv.length_seconds, bv.object_count
-        FROM beatmaps b
-        JOIN beatmap_variants bv ON b.beatmap_id = bv.beatmap_id
-        ORDER BY b.beatmap_id
-    ''')
+    # For now, let's not take into account min/max BPM and focus on the CNN
+    cursor.execute("""
+        SELECT
+            bv.beatmap_id,
+            bv.mods,
+            bv.ar,
+            bv.od,
+            bv.circle_size,
+            bv.star_rating,
+            bv.bpm,
+            bv.max_combo,
+            bv.length_seconds,
+            bv.object_count
+        FROM beatmap_variants bv
+    """)
 
-    additional_features = {}
+    # Store all DB variants by (beatmap_id, mods)
+    variants = {}
 
-    for (beatmap_id, ar, od, circle_size, star_rating, bpm,
-         min_bpm, max_bpm, max_combo, length_seconds, object_count) in cursor.fetchall():
-        additional_features[beatmap_id] = (
+    for (
+        beatmap_id,
+        mods,
+        ar,
+        od,
+        circle_size,
+        star_rating,
+        bpm,
+        max_combo,
+        length_seconds,
+        object_count,
+    ) in cursor.fetchall():
+
+        variants[(beatmap_id, mods)] = (
             ar,
             od,
             circle_size,
             star_rating,
             bpm,
-            min_bpm,
-            max_bpm,
             max_combo,
             length_seconds,
-            object_count
+            object_count,
         )
 
     conn.close()
 
-    return additional_features
+    raw_additional_features = {}
+    normalized_additional_features = {}
+
+    # Match each beatmap_id with its required mod
+    for beatmap_id, mod in zip(beatmap_ids, mods_flattened):
+
+        mod = mod if mod else "NM"
+        key = (beatmap_id, mod)
+
+        if key not in variants:
+            print(f"WARNING: No variant found for beatmap_id={beatmap_id}, mods='{mod}'")
+            continue
+
+        (
+            ar,
+            od,
+            circle_size,
+            star_rating,
+            bpm,
+            max_combo,
+            length_seconds,
+            object_count,
+        ) = variants[key]
+
+        raw_additional_features[key] = (
+            ar,
+            od,
+            circle_size,
+            star_rating,
+            bpm,
+            max_combo,
+            length_seconds,
+            object_count,
+        )
+
+        normalized_additional_features[key] = (
+            ar / AR_SCALE,
+            od / OD_SCALE,
+            circle_size / CS_SCALE,
+            star_rating / STAR_SCALE,
+            bpm / BPM_SCALE,
+            max_combo / COMBO_SCALE,
+            length_seconds / LENGTH_SCALE,
+            object_count / OBJECT_COUNT_SCALE,
+        )
+
+    return raw_additional_features, normalized_additional_features

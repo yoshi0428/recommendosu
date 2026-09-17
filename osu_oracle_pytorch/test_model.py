@@ -7,7 +7,7 @@ import requests
 import torch
 from scripts.parser import parse_osu_file
 from osu_oracle_pytorch.oracle.utils_training import pad_sequences_pt, load_pytorch_models
-from osu_oracle_pytorch.oracle.cnn_model import CNN_Model
+from osu_oracle_pytorch.oracle.cnn_model import CNNModel
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -115,19 +115,16 @@ def test_model_on_beatmap_id(
         # Sort by confidence
         sorted_predictions = sorted(predictions, key=lambda x: x[1], reverse=True)
 
-        # -----------------------------------------------------
-        # Print predictions above 5%
-        # -----------------------------------------------------
+        # Print predictions
         print("\nPredictions:")
         for category, confidence in sorted_predictions:
-            if confidence > 0.05:
-                print(f"{category} - confidence: {confidence:.2f}")
+            print(f"{category} - confidence: {confidence:.2f}")
 
     finally:
         if temp_file_path is not None and os.path.exists(temp_file_path):
             os.unlink(temp_file_path)
 
-def test_model(folders, label_encoder_path, max_length, num_classes):
+def test_model(model_folder, label_encoder_path, max_length, num_classes):
     """
     Load PyTorch models from each folder and interactively classify
     osu! beatmaps by beatmap ID.
@@ -135,22 +132,20 @@ def test_model(folders, label_encoder_path, max_length, num_classes):
     :param folders: List of model folders.
     :param label_encoder_path: Path to the shared label encoder.
     """
-    models = []
 
     start = time.perf_counter()
 
     model_kwargs = {
-        "input_channels": 4,
+        "input_channels": 8,
         "num_classes": num_classes,
         "max_length": max_length, # tweak this later
         "dropout_rate": 0.5,
     }
 
-    for folder in folders:
-        model_folder = os.path.join('', folder)
-
-        folder_models = load_pytorch_models(model_folder, CNN_Model, model_kwargs, device)
-        models.append(folder_models)
+    models = load_pytorch_models(model_folder, CNNModel, model_kwargs, device)
+    print("----------------------------------------------------")
+    print(f"Model: {models[0]}")
+    print("----------------------------------------------------")
 
     end = time.perf_counter()
 
@@ -160,31 +155,26 @@ def test_model(folders, label_encoder_path, max_length, num_classes):
 
     while True:
         print("----------------------------------------------------")
-        beatmap_id = input("Enter a beatmap ID to classify (or 'exit' to quit): ")
-        print("----------------------------------------------------")
+        beatmap_id = input("Enter a beatmap ID to classify (or 'exit' to quit):\n")
 
         if beatmap_id.lower() == "exit":
             break
 
-        for i, folder_models in enumerate(models):
-            print("----------------------------------------------------")
-            print(f"Model: {folders[i]}")
-            print("----------------------------------------------------")
+        print("----------------------------------------------------")
 
-            test_model_on_beatmap_id(
-                beatmap_id,
-                folder_models,
-                max_sequence_length=max_length,
-                max_slider_length=max_slider_length,
-                label_encoder_path=label_encoder_path,
-            )
+        test_model_on_beatmap_id(
+            beatmap_id,
+            models,
+            max_sequence_length=max_length,
+            max_slider_length=max_slider_length,
+            label_encoder_path=label_encoder_path,
+        )
 
 def main():
-    folders = ["models"]
     label_encoder_path = "models/label_encoder.pkl"
-    max_length = 3406
-    num_classes = 6
-    test_model(folders, label_encoder_path, max_length, num_classes)
+    max_length = 4096
+    num_classes = 5
+    test_model("models/bagged_models", label_encoder_path, max_length, num_classes)
 
-if "__name__" == "__main__":
+if __name__ == "__main__":
     main()

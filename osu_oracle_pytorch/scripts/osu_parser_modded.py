@@ -38,10 +38,31 @@ MOD_VARIANTS = {
     "DT": ["DT"],
 }
 
-
 # ============================================================
 # Tournament prediction labels
 # ============================================================
+
+# TOURNAMENT_LABELS = {
+#     "aim": {
+#         "column": "aim",
+#         "mods": [],
+#     },
+#
+#     "alt": {
+#         "column": "alt",
+#         "mods": [],
+#     },
+#
+#     "stream": {
+#         "column": "stream",
+#         "mods": [],
+#     },
+#
+#     "tech": {
+#         "column": "tech",
+#         "mods": [],
+#     },
+# }
 
 TOURNAMENT_LABELS = {
     "nm1": {
