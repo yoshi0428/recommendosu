@@ -1,0 +1,21 @@
+.git
+.gitignore
+.idea
+.vscode
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.mypy_cache
+
+.env
+*.db
+*.db-shm
+*.db-wal
+
+# COMMENT THESE OUT IF NEEDED
+/_plans
+/osdb_parse
+/beatmap_classifier/data
+/beatmap_recommender/data

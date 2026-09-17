@@ -9,8 +9,8 @@ import torch
 import osu_tools
 
 from beatmap_classifier.classifier.augment_faster import extract_movement_features_from_X
-from beatmap_classifier.dot_osu_db_setup.beatmap_mods import get_modded_stats, calculate_difficulty
-from dot_osu_db_setup.parser import parse_osu_file
+from beatmap_classifier.classifier_db_setup.beatmap_mods import get_modded_stats, calculate_difficulty
+from classifier_db_setup.parser import parse_osu_file
 from beatmap_classifier.classifier.utils_training import (
     pad_sequences_pt,
     load_pytorch_models,

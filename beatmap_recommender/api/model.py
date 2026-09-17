@@ -1,5 +1,4 @@
 from copy import deepcopy
-
 from pydantic import BaseModel, Field
 
 DIFFICULTY_STD_FLOORS = {

@@ -1,4 +1,6 @@
 import sqlite3
+from beatmap_recommender.content_similarity.core_modules.mod_preferences import canonicalize_mods
+
 
 def find_variant_mod_collisions(conn):
     """
