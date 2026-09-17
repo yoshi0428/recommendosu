@@ -1,7 +1,7 @@
 ../.env
-/scripts/speed
-/scripts/extracted_osu
-/scripts/osz_files
+/dot_osu_db_setup/speed
+/dot_osu_db_setup/extracted_osu
+/dot_osu_db_setup/osz_files
 /beatmaps.db
 /data/NM1
 /data/NM2

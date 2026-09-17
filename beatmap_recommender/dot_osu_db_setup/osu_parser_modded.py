@@ -23,7 +23,7 @@ import hashlib
 # Configuration
 # ============================================================
 
-DATABASE_PATH = "../beatmaps.db"
+DATABASE_PATH = "../everything.db"
 ROOT_DIR = "../data"
 
 NUM_WORKERS = 8
@@ -33,12 +33,32 @@ BATCH_SIZE = 2500
 # ============================================================
 # Mod variants
 # ============================================================
-
 MOD_VARIANTS = {
     "NM": [],
+
     "HD": ["HD"],
     "HR": ["HR"],
     "DT": ["DT"],
+    "EZ": ["EZ"],
+    "HT": ["HT"],
+    "FL": ["FL"],
+
+    "HDHR": ["HD", "HR"],
+    "HDDT": ["HD", "DT"],
+    "HDHRDT": ["HD", "HR", "DT"],
+
+    "HRDT": ["HR", "DT"],
+    "EZDT": ["EZ", "DT"],
+    "EZHD": ["EZ", "HD"],
+
+    "EZHT": ["EZ", "HT"],
+    "HDHT": ["HD", "HT"],
+    "HRHT": ["HR", "HT"],
+
+    "HDHRFL": ["HD", "HR", "FL"],
+    "HDFL": ["HD", "FL"],
+    "HRFL": ["HR", "FL"],
+    "DTFL": ["DT", "FL"],
 }
 
 # ============================================================
@@ -272,16 +292,8 @@ def main():
             try:
                 insert_base_beatmap(conn, beatmap_data)
 
-                # --------------------------------------------
-                # Raw vectors
-                #
-                # These should remain completely unmodified.
-                # DT/HT transformation and normalization happen
-                # later in the ML data pipeline.
-                #
-                # We probably don't actually need this for the recsys, but do it just in case
-                # --------------------------------------------
-                insert_vectors(conn, beatmap_id, beatmap_data["vectors"])
+                # NOTE: WE DON'T NEED THIS FOR THE RECSYS
+                # insert_vectors(conn, beatmap_id, beatmap_data["vectors"])
 
                 # --------------------------------------------
                 # Mod variants
@@ -298,9 +310,9 @@ def main():
                 print(f"Error: {exc}")
                 skipped += 1
 
-            # if processed % BATCH_SIZE == 0:
-            conn.commit()
-            print(f"\nProgress: {processed}/{len(osu_files)} | successful={successful} | skipped={skipped} | failed_variants={failed_variants}")
+            if processed % BATCH_SIZE == 0:
+                conn.commit()
+                print(f"\nProgress: {processed}/{len(osu_files)} | successful={successful} | skipped={skipped} | failed_variants={failed_variants}")
 
     conn.commit()
     conn.close()

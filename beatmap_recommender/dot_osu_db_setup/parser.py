@@ -330,61 +330,63 @@ def parse_osu_file(
     # No DT/HT/etc. transformation happens here.
     # ========================================================
 
-    max_x = 512.0
-    max_y = 384.0
+    # NOTE: WE DON'T NEED THIS FOR THE RECSYS
 
-    hit_objects = data["hit_objects"]
-
-    if len(hit_objects) >= 2:
-
-        for obj in hit_objects:
-
-            obj["x_norm"] = obj["x"] / max_x
-            obj["y_norm"] = obj["y"] / max_y
-
-        vectors = []
-        previous_speed = None
-        previous_time_diff = None
-
-        for i in range(1, len(hit_objects)):
-
-            obj = hit_objects[i]
-            prev_obj = hit_objects[i - 1]
-
-            x_diff = obj["x_norm"] - prev_obj["x_norm"]
-            y_diff = obj["y_norm"] - prev_obj["y_norm"]
-
-            time_diff = obj["time"] - prev_obj["time"]
-            length = obj["length"]
-
-            distance = math.sqrt(x_diff ** 2 + y_diff ** 2)
-
-            if time_diff > 0:
-                speed = distance / time_diff
-            else:
-                speed = 0.0
-
-            if previous_speed is None:
-                speed_change = 0.0
-                time_diff_change = 0.0
-            else:
-                speed_change = speed - previous_speed
-                time_diff_change = time_diff - previous_time_diff
-
-            vectors.append((
-                x_diff,
-                y_diff,
-                time_diff,
-                length,
-                distance,
-                speed,
-                speed_change,
-                time_diff_change,
-            ))
-
-        data["vectors"] = vectors
-
-    else:
-        data["vectors"] = []
+    # max_x = 512.0
+    # max_y = 384.0
+    #
+    # hit_objects = data["hit_objects"]
+    #
+    # if len(hit_objects) >= 2:
+    #
+    #     for obj in hit_objects:
+    #
+    #         obj["x_norm"] = obj["x"] / max_x
+    #         obj["y_norm"] = obj["y"] / max_y
+    #
+    #     vectors = []
+    #     previous_speed = None
+    #     previous_time_diff = None
+    #
+    #     for i in range(1, len(hit_objects)):
+    #
+    #         obj = hit_objects[i]
+    #         prev_obj = hit_objects[i - 1]
+    #
+    #         x_diff = obj["x_norm"] - prev_obj["x_norm"]
+    #         y_diff = obj["y_norm"] - prev_obj["y_norm"]
+    #
+    #         time_diff = obj["time"] - prev_obj["time"]
+    #         length = obj["length"]
+    #
+    #         distance = math.sqrt(x_diff ** 2 + y_diff ** 2)
+    #
+    #         if time_diff > 0:
+    #             speed = distance / time_diff
+    #         else:
+    #             speed = 0.0
+    #
+    #         if previous_speed is None:
+    #             speed_change = 0.0
+    #             time_diff_change = 0.0
+    #         else:
+    #             speed_change = speed - previous_speed
+    #             time_diff_change = time_diff - previous_time_diff
+    #
+    #         vectors.append((
+    #             x_diff,
+    #             y_diff,
+    #             time_diff,
+    #             length,
+    #             distance,
+    #             speed,
+    #             speed_change,
+    #             time_diff_change,
+    #         ))
+    #
+    #     data["vectors"] = vectors
+    #
+    # else:
+    #     data["vectors"] = []
 
     return data

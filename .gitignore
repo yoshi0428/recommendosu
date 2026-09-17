@@ -1,7 +1,7 @@
 /.env
-/beatmap_classifier/scripts/speed
-/beatmap_classifier/scripts/extracted_osu
-/beatmap_classifier/scripts/osz_files
+/beatmap_classifier/dot_osu_db_setup/speed
+/beatmap_classifier/dot_osu_db_setup/extracted_osu
+/beatmap_classifier/dot_osu_db_setup/osz_files
 /beatmap_classifier/beatmaps.db
 /beatmap_classifier/data/NM1
 /beatmap_classifier/data/NM2

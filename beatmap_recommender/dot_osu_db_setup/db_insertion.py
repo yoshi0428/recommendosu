@@ -26,7 +26,7 @@ def insert_base_beatmap(
 
     cursor.execute(
         """
-        INSERT OR IGNORE INTO beatmaps (
+        INSERT INTO beatmaps (
             beatmap_id,
             hp_drain,
             circle_size,
@@ -44,6 +44,20 @@ def insert_base_beatmap(
             ?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?, ?, ?
         )
+        
+        ON CONFLICT(beatmap_id)
+        DO UPDATE SET
+            hp_drain = excluded.hp_drain,
+            circle_size = excluded.circle_size,
+            od = excluded.od,
+            ar = excluded.ar,
+            slider_multiplier = excluded.slider_multiplier,
+            slider_tick = excluded.slider_tick,
+            bpm = excluded.bpm,
+            min_bpm = excluded.min_bpm,
+            max_bpm = excluded.max_bpm,
+            length_seconds = excluded.length_seconds,
+            object_count = excluded.object_count
         """,
         (
             beatmap_data["beatmap_id"],
@@ -78,7 +92,7 @@ def insert_vectors(conn, beatmap_id, vectors):
 
     cursor.executemany(
         """
-        INSERT OR REPLACE INTO beatmap_vectors (
+        INSERT OR IGNORE INTO beatmap_vectors (
             beatmap_id,
             vector_index,
             x_diff,

@@ -9,8 +9,8 @@ import torch
 import osu_tools
 
 from beatmap_classifier.classifier.augment_faster import extract_movement_features_from_X
-from beatmap_classifier.scripts.beatmap_mods import get_modded_stats, calculate_difficulty
-from scripts.parser import parse_osu_file
+from beatmap_classifier.dot_osu_db_setup.beatmap_mods import get_modded_stats, calculate_difficulty
+from dot_osu_db_setup.parser import parse_osu_file
 from beatmap_classifier.classifier.utils_training import (
     pad_sequences_pt,
     load_pytorch_models,
@@ -83,6 +83,11 @@ movement_feature_names = [
 ]
 
 cnn_feature_names = [
+    # "CNN_DT1",
+    # "CNN_DT2_AND_DT3",
+    # "CNN_HD2",
+    # "CNN_HR1",
+    # "CNN_HR2",
     "CNN_NM1",
     "CNN_NM2",
     "CNN_NM3",
@@ -98,7 +103,7 @@ additional_feature_names = (
 selected_features = [
     feature
     for feature in additional_feature_names
-    if feature not in ("slider_ratio")
+    # if feature != "rhythm_variance"
 ]
 
 indices = [

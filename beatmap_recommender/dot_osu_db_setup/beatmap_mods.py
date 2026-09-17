@@ -48,40 +48,22 @@ def get_result_attribute(result, *names):
 
 def apply_mod_to_stat(value, mods, stat):
     """
-    Apply an osu! mod transformation to a difficulty stat.
+    Fallback calculation for basic difficulty stats.
 
-    This is primarily a fallback for attributes that are not
-    directly exposed by the installed osu-tools-py version.
-
-    HR:
-        AR / CS / OD / HP are multiplied by 1.4 and capped at 10.
-
-    EZ:
-        AR / CS / OD / HP are multiplied by 0.5.
-
-    DT:
-        AR and OD are transformed according to the clock rate.
-
-    HT:
-        AR and OD are transformed according to the clock rate.
-
-    CS and HP are not affected by DT/HT.
+    Used only when osu-tools-py does not expose the
+    calculated attribute directly.
     """
 
     if value is None:
         return None
 
-    mods = {
-        mod.upper()
-        for mod in mods
-    }
+    mods = {mod.upper() for mod in mods}
 
     # --------------------------------------------------------
-    # Circle Size
+    # CS
     # --------------------------------------------------------
 
     if stat == "cs":
-
         if "HR" in mods:
             return min(10.0, value * 1.4)
 
@@ -91,11 +73,10 @@ def apply_mod_to_stat(value, mods, stat):
         return value
 
     # --------------------------------------------------------
-    # HP Drain
+    # HP
     # --------------------------------------------------------
 
     if stat == "hp":
-
         if "HR" in mods:
             return min(10.0, value * 1.4)
 
@@ -105,38 +86,34 @@ def apply_mod_to_stat(value, mods, stat):
         return value
 
     # --------------------------------------------------------
-    # Approach Rate / Overall Difficulty
+    # AR / OD
     # --------------------------------------------------------
 
     if stat in ("ar", "od"):
 
         result = value
 
-        # HR / EZ first
+        # HR / EZ
         if "HR" in mods:
             result = min(10.0, result * 1.4)
 
         elif "EZ" in mods:
             result *= 0.5
 
-        # Determine clock rate
-        clock_rate = 1.0
-
+        # Clock rate
         if "DT" in mods:
             clock_rate = 1.5
-
         elif "HT" in mods:
             clock_rate = 0.75
+        else:
+            clock_rate = 1.0
 
-        # No clock-rate transformation necessary
         if clock_rate == 1.0:
             return result
 
-        # ----------------------------------------------------
         # AR
-        # ----------------------------------------------------
-
         if stat == "ar":
+
             if result <= 5.0:
                 milliseconds = 1800.0 - 120.0 * result
             else:
@@ -149,15 +126,15 @@ def apply_mod_to_stat(value, mods, stat):
             else:
                 result = 5.0 + (1200.0 - milliseconds) / 150.0
 
-        # ----------------------------------------------------
         # OD
-        # ----------------------------------------------------
         elif stat == "od":
+
             milliseconds = 79.5 - 6.0 * result
             milliseconds /= clock_rate
             result = (79.5 - milliseconds) / 6.0
 
-        return max(0.0, min(11.0, result))
+        max_value = 11.0 if "DT" in mods else 10.0
+        return max(0.0, min(max_value, result))
 
     return value
 
@@ -243,19 +220,20 @@ def apply_length_mod(
     return length_seconds
 
 
-def get_modded_stats(
-    base_data,
-    result,
-    mods,
-):
+def get_modded_stats(base_data, result, mods):
     """
-    Construct the final statistics for a beatmap variant.
+    Construct final statistics for a beatmap + mod combination.
 
-    Prefer values directly calculated by osu-tools-py.
-
-    If an attribute is not exposed by the installed version,
-    fall back to manual mod transformations.
+    osu-tools-py is the primary source for calculated values.
+    Manual transformations are only used when an attribute
+    isn't exposed by the installed version.
     """
+
+    mods = {mod.upper() for mod in mods}
+
+    # --------------------------------------------------------
+    # Base stats
+    # --------------------------------------------------------
 
     base_hp = base_data["hp_drain"]
     base_cs = base_data["circle_size"]
@@ -263,7 +241,7 @@ def get_modded_stats(
     base_ar = base_data["ar"]
 
     # --------------------------------------------------------
-    # Try to get calculated values directly
+    # Difficulty stats
     # --------------------------------------------------------
 
     hp = get_result_attribute(
@@ -365,8 +343,10 @@ def get_modded_stats(
         "circle_size": cs,
         "od": od,
         "ar": ar,
+
         "star_rating": stars,
         "max_combo": max_combo,
+
         "pp": pp,
         "pp_aim": pp_aim,
         "pp_speed": pp_speed,
