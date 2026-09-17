@@ -7,7 +7,6 @@ import numpy as np
 import requests
 import torch
 import osu_tools
-import xgboost as xgb
 
 from beatmap_classifier.classifier.augment_faster import extract_movement_features_from_X
 from beatmap_classifier.scripts.beatmap_mods import get_modded_stats, calculate_difficulty
@@ -53,9 +52,55 @@ HEADERS = {
     )
 }
 
-# ============================================================
-# Download beatmap
-# ============================================================
+sql_feature_names = [
+    "ar",
+    "od",
+    "circle_size",
+    "star_rating",
+    "bpm",
+    "max_combo",
+    "length_seconds",
+    "object_count",
+]
+
+movement_feature_names = [
+    "slider_ratio",
+    "slider_length_std",
+    "speed_std",
+    "speed_change_std",
+    "speed_change_max",
+    "angle_std",
+    "angle_mean",
+    "rhythm_variance",
+    "distance_mean",
+    "speed_change_95th",
+    "angle_90th",
+    "sharp_turn_ratio",
+]
+
+cnn_feature_names = [
+    "CNN_NM1",
+    "CNN_NM2",
+    "CNN_NM3",
+    "CNN_NM4",
+    "CNN_NM5",
+]
+
+additional_feature_names = (
+    sql_feature_names +
+    movement_feature_names
+)
+
+selected_features = [
+    feature
+    for feature in additional_feature_names
+    if feature != "angle_90th"
+]
+
+indices = [
+    additional_feature_names.index(name)
+    for name in selected_features
+]
 
 def download_beatmap(beatmap_id):
     url = f"https://osu.direct/api/osu/{beatmap_id}"
@@ -67,18 +112,10 @@ def download_beatmap(beatmap_id):
     )
 
     if response.status_code != 200:
-        print(
-            f"Failed to download beatmap {beatmap_id}: "
-            f"HTTP {response.status_code}"
-        )
+        print(f"Failed to download beatmap {beatmap_id}: HTTP {response.status_code}")
         return None
 
     return response.content
-
-
-# ============================================================
-# Metadata extraction
-# ============================================================
 
 def get_normalized_metadata(
     beatmap_data,
@@ -98,22 +135,7 @@ def get_normalized_metadata(
         length_seconds
         object_count
     """
-
-    # --------------------------------------------------------
-    # IMPORTANT:
-    #
-    # These attribute names depend on the exact CalculationResult
-    # returned by your version of osu-tools-py.
-    #
-    # Replace these with the same fields you currently use in
-    # get_modded_stats().
-    # --------------------------------------------------------
-
-    stats = get_modded_stats(
-        beatmap_data,
-        difficulty_result,
-        [],
-    )
+    stats = get_modded_stats(beatmap_data, difficulty_result, [],)
 
     features = np.array(
         [
@@ -131,11 +153,6 @@ def get_normalized_metadata(
 
     return features
 
-
-# ============================================================
-# CNN inference
-# ============================================================
-
 def predict_cnn(
     beatmap_vectors,
     bagged_models,
@@ -151,15 +168,11 @@ def predict_cnn(
         maxlen=MAX_SEQUENCE_LENGTH,
     )
 
-    # [batch, sequence, channels]
-    # ->
-    # [batch, channels, sequence]
+    # [batch, sequence, channels] -> [batch, channels, sequence]
     padded = padded.permute(0, 2, 1)
-
     padded = padded.to(DEVICE)
 
     model_predictions = []
-
     for model in bagged_models:
         model = model.to(DEVICE)
         model.eval()
@@ -168,26 +181,15 @@ def predict_cnn(
             outputs = model(padded)
             probabilities = torch.softmax(outputs, dim=1)
 
-        model_predictions.append(
-            probabilities.cpu()
-        )
+        model_predictions.append(probabilities.cpu())
 
-    mean_prediction = torch.stack(
-        model_predictions
-    ).mean(dim=0)
-
+    mean_prediction = torch.stack(model_predictions).mean(dim=0)
     return mean_prediction[0].numpy()
-
-
-# ============================================================
-# Full inference
-# ============================================================
 
 def test_model_on_beatmap_id(
     beatmap_id,
     bagged_models,
     label_encoder,
-    meta_scaler,
     meta_model,
     star_calculator,
 ):
@@ -203,21 +205,9 @@ def test_model_on_beatmap_id(
     temp_file_path = None
 
     try:
-        # ----------------------------------------------------
-        # Save downloaded .osu temporarily
-        # ----------------------------------------------------
-
-        with tempfile.NamedTemporaryFile(
-            delete=False,
-            suffix=".osu",
-        ) as temp_file:
-
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".osu") as temp_file:
             temp_file.write(beatmap_bytes)
             temp_file_path = temp_file.name
-
-        # ----------------------------------------------------
-        # Parse beatmap
-        # ----------------------------------------------------
 
         beatmap_data = parse_osu_file(
             temp_file_path,
@@ -235,18 +225,6 @@ def test_model_on_beatmap_id(
             print("Beatmap contains no usable vectors.")
             return
 
-        # ----------------------------------------------------
-        # Calculate NM difficulty
-        #
-        # This is important:
-        #
-        # The current XGBoost training pipeline uses:
-        #     normalized_additional_features[(b_id, "NM")]
-        #
-        # Therefore inference should calculate the NM/base
-        # metadata here as well.
-        # ----------------------------------------------------
-
         difficulty_result = calculate_difficulty(
             temp_file_path,
             mods=[],
@@ -256,191 +234,57 @@ def test_model_on_beatmap_id(
         if difficulty_result is None:
             return
 
-        # ----------------------------------------------------
-        # CNN prediction
-        # ----------------------------------------------------
+        cnn_probs = predict_cnn(beatmap_vectors, bagged_models)
 
-        cnn_probs = predict_cnn(
-            beatmap_vectors,
-            bagged_models,
-        )
-
-        # ----------------------------------------------------
-        # Movement features
-        #
-        # IMPORTANT:
-        # Use the exact same function used during training.
-        # ----------------------------------------------------
-
-        movement_features = extract_movement_features_from_X(
-            np.asarray(beatmap_vectors, dtype=np.float32)
-        )
-
-        movement_features = np.asarray(
-            movement_features,
-            dtype=np.float32,
-        )
-
-        # ----------------------------------------------------
-        # Metadata features
-        # ----------------------------------------------------
-
-        metadata_features = get_normalized_metadata(
-            beatmap_data,
-            difficulty_result,
-        )
-
-        # ----------------------------------------------------
         # Combine metadata + movement features
-        #
+        movement_features = extract_movement_features_from_X(np.asarray(beatmap_vectors, dtype=np.float32))
+        movement_features = np.asarray(movement_features, dtype=np.float32)
+        metadata_features = get_normalized_metadata(beatmap_data, difficulty_result)
+
         # MUST have the exact same ordering as training:
-        #
-        #     X_additional =
-        #         [sql_features, movement_features]
-        # ----------------------------------------------------
+        # X_additional = [sql_features, movement_features]
+        additional_features = np.hstack([metadata_features, movement_features]).reshape(1, -1)
 
-        additional_features = np.hstack(
-            [
-                metadata_features,
-                movement_features,
-            ]
-        ).reshape(1, -1)
+        # CNN probabilities + SELECTED additional features
+        meta_features = np.hstack([cnn_probs.reshape(1, -1), additional_features[:, indices]])
 
-        # ----------------------------------------------------
-        # Apply TRAINED scaler
-        #
-        # NEVER fit here.
-        # ----------------------------------------------------
-
-        additional_features_scaled = meta_scaler.transform(
-            additional_features
-        )
-
-        # ----------------------------------------------------
-        # CNN probabilities + scaled additional features
-        #
-        # Same structure as:
-        #
-        # X_meta_train =
-        #     np.hstack([oof_cnn_predictions,
-        #                X_add_train_scaled])
-        # ----------------------------------------------------
-
-        meta_features = np.hstack(
-            [
-                cnn_probs.reshape(1, -1),
-                additional_features_scaled,
-            ]
-        )
-
-        # ----------------------------------------------------
         # XGBoost prediction
-        # ----------------------------------------------------
+        final_probabilities = meta_model.predict_proba(meta_features)[0]
+        final_class_index = int(np.argmax(final_probabilities))
+        final_label = label_encoder.inverse_transform([final_class_index])[0]
 
-        final_probabilities = meta_model.predict_proba(
-            meta_features
-        )[0]
-
-        final_class_index = int(
-            np.argmax(final_probabilities)
-        )
-
-        final_label = label_encoder.inverse_transform(
-            [final_class_index]
-        )[0]
-
-        # ----------------------------------------------------
         # Print results
-        # ----------------------------------------------------
-
         print("\nCNN predictions:")
 
-        cnn_labels = label_encoder.inverse_transform(
-            np.arange(len(cnn_probs))
-        )
-
-        cnn_predictions = sorted(
-            zip(cnn_labels, cnn_probs),
-            key=lambda x: x[1],
-            reverse=True,
-        )
+        cnn_labels = label_encoder.inverse_transform(np.arange(len(cnn_probs)))
+        cnn_predictions = sorted(zip(cnn_labels, cnn_probs), key=lambda x: x[1], reverse=True)
 
         for label, probability in cnn_predictions:
-            print(
-                f"  {label:<8} "
-                f"{probability:.4f}"
-            )
+            print(f"  {label:<8} {probability:.4f}")
 
         print("\nFinal XGBoost predictions:")
 
-        final_predictions = sorted(
-            zip(label_encoder.classes_, final_probabilities),
-            key=lambda x: x[1],
-            reverse=True,
-        )
+        final_predictions = sorted(zip(label_encoder.classes_, final_probabilities), key=lambda x: x[1], reverse=True)
 
         for label, probability in final_predictions:
-            print(
-                f"  {label:<8} "
-                f"{probability:.4f}"
-            )
+            print(f"  {label:<8} {probability:.4f}")
 
-        print(
-            f"\nFINAL PREDICTION: "
-            f"{final_label}"
-        )
+        print(f"\nFINAL PREDICTION: {final_label}")
 
     finally:
-        if (
-            temp_file_path is not None
-            and os.path.exists(temp_file_path)
-        ):
+        if temp_file_path is not None and os.path.exists(temp_file_path):
             os.unlink(temp_file_path)
-
-
-# ============================================================
-# Load everything once
-# ============================================================
 
 def main():
 
     start = time.perf_counter()
-
     print(f"Using device: {DEVICE}")
 
-    # --------------------------------------------------------
-    # Label encoder
-    # --------------------------------------------------------
-
-    with open(
-        LABEL_ENCODER_PATH,
-        "rb",
-    ) as f:
+    with open(LABEL_ENCODER_PATH, "rb") as f:
         label_encoder = pickle.load(f)
 
-    # --------------------------------------------------------
-    # Meta scaler
-    # --------------------------------------------------------
-
-    with open(
-        META_SCALER_PATH,
-        "rb",
-    ) as f:
-        meta_scaler = pickle.load(f)
-
-    # --------------------------------------------------------
-    # XGBoost meta model
-    # --------------------------------------------------------
-
-    with open(
-        META_MODEL_PATH,
-        "rb",
-    ) as f:
+    with open(META_MODEL_PATH, "rb") as f:
         meta_model = pickle.load(f)
-
-    # --------------------------------------------------------
-    # CNN models
-    # --------------------------------------------------------
 
     model_kwargs = {
         "input_channels": 8,
@@ -456,37 +300,15 @@ def main():
         DEVICE,
     )
 
-    # --------------------------------------------------------
-    # Star/difficulty calculator
-    #
-    # Create this ONCE rather than once per beatmap.
-    # --------------------------------------------------------
-
     star_calculator = osu_tools.OsuCalculator()
-
     elapsed = time.perf_counter() - start
 
-    print(
-        f"\nLoaded models in {elapsed:.2f}s"
-    )
-
-    print(
-        f"Loaded {len(bagged_models)} CNN models."
-    )
-
-    print(
-        f"Classes: {list(label_encoder.classes_)}"
-    )
-
-    # --------------------------------------------------------
-    # Interactive testing
-    # --------------------------------------------------------
+    print(f"\nLoaded models in {elapsed:.2f}s")
+    print(f"Loaded {len(bagged_models)} CNN models.")
+    print(f"Classes: {list(label_encoder.classes_)}")
 
     while True:
-
-        beatmap_id = input(
-            "\nEnter beatmap ID (or 'exit'): "
-        ).strip()
+        beatmap_id = input("\nEnter beatmap ID (or 'exit'):\n").strip()
 
         if beatmap_id.lower() == "exit":
             break
@@ -501,7 +323,6 @@ def main():
             beatmap_id=beatmap_id,
             bagged_models=bagged_models,
             label_encoder=label_encoder,
-            meta_scaler=meta_scaler,
             meta_model=meta_model,
             star_calculator=star_calculator,
         )
