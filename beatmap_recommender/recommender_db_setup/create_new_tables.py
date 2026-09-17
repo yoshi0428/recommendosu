@@ -2,12 +2,8 @@ import sqlite3
 from pathlib import Path
 from beatmap_recommender.content_similarity.db_modules.db_recommender import create_recommender_tables
 
-# ============================================================
-# Configuration
-# ============================================================
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DB_PATH = PROJECT_ROOT / "beatmap_recommender/test_everything.db"
+DB_PATH = PROJECT_ROOT / "beatmap_recommender/recommender.db"
 
 def main():
     conn = sqlite3.connect(DB_PATH)

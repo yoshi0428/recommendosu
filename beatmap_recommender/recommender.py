@@ -1,6 +1,9 @@
+import os
+import time
 from pathlib import Path
 import asyncio
 import sqlite3
+import requests
 
 from beatmap_recommender.api.model import RecommendationSettings
 from beatmap_recommender.auth.token_manager import get_access_token
@@ -27,15 +30,79 @@ from beatmap_recommender.api.osu_api_client import OsuAPIClient
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DB_PATH = PROJECT_ROOT / "beatmap_recommender/test_everything.db"
+DB_PATH = PROJECT_ROOT / "beatmap_recommender/recommender.db"
 
 # Server-controlled.
-NEIGHBORS_K = 50_000
+NEIGHBORS_K = 20_000
 
 RECOMMENDATION_CONCURRENCY = 4
-_recommendation_semaphore = asyncio.Semaphore(
-    RECOMMENDATION_CONCURRENCY
-)
+_recommendation_semaphore = asyncio.Semaphore(RECOMMENDATION_CONCURRENCY)
+
+OSU_CLIENT_ID = os.getenv("OSU_CLIENT_ID")
+OSU_CLIENT_SECRET = os.getenv("OSU_CLIENT_SECRET")
+
+APPLICATION_TOKEN_REFRESH_BUFFER = 60
+_application_access_token: str | None = None
+_application_token_expires_at: float = 0.0
+_application_token_lock = asyncio.Lock()
+
+
+def get_client_credentials_token(
+    client_id: str,
+    client_secret: str,
+) -> tuple[str, int]:
+    response = requests.post(
+        "https://osu.ppy.sh/oauth/token",
+        data={
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "grant_type": "client_credentials",
+            "scope": "public",
+        },
+        headers={
+            "Accept": "application/json",
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        timeout=30,
+    )
+
+    response.raise_for_status()
+    data = response.json()
+    return data["access_token"], data["expires_in"]
+
+
+async def get_application_access_token() -> str:
+    global _application_access_token
+    global _application_token_expires_at
+
+    if not OSU_CLIENT_ID:
+        raise RuntimeError("OSU_CLIENT_ID is not configured.")
+    if not OSU_CLIENT_SECRET:
+        raise RuntimeError("OSU_CLIENT_SECRET is not configured.")
+
+    now = time.time()
+
+    # Existing token is still valid.
+    if _application_access_token is not None and now < _application_token_expires_at:
+        return _application_access_token
+
+    # Only one request should refresh the token at a time.
+    async with _application_token_lock:
+        now = time.time()
+
+        # Another coroutine may have refreshed the token while we were waiting for the lock.
+        if _application_access_token is not None and now < _application_token_expires_at:
+            return _application_access_token
+
+        token, expires_in = await asyncio.to_thread(
+            get_client_credentials_token,
+            OSU_CLIENT_ID,
+            OSU_CLIENT_SECRET,
+        )
+
+        _application_access_token = token
+        _application_token_expires_at = time.time() + expires_in - APPLICATION_TOKEN_REFRESH_BUFFER
+        return _application_access_token
 
 
 def recommend_player_sync(
@@ -44,13 +111,13 @@ def recommend_player_sync(
     update_scores=True,
 ):
     recommendation_config = settings.recommendation_config
-
     if settings.goal not in recommendation_config:
-        raise ValueError(
-            f"Unknown recommendation goal: {settings.goal}"
-        )
+        raise ValueError(f"Unknown recommendation goal: {settings.goal}")
 
-    requested_mods = canonicalize_mods(settings.mods)
+    # Match test_recommender.py behavior directly:
+    # If settings.mods is empty/falsy or None, pass None directly to canonicalize_mods/rank_variants
+    # or handle it identically to test_recommender.py.
+    requested_mods = canonicalize_mods(settings.mods) if settings.mods else None
 
     conn = sqlite3.connect(DB_PATH)
 
@@ -64,7 +131,7 @@ def recommend_player_sync(
 
         if update_scores:
             if access_token is None:
-                raise ValueError("An OAuth access token is required to update player scores.")
+                raise ValueError("An osu! API access token is required to update player scores.")
 
             api = OsuAPIClient(access_token=access_token)
             update_player_scores(
@@ -100,6 +167,9 @@ def recommend_player_sync(
             recent_weight=settings.recent_weight,
             pp_weight=settings.pp_weight,
         )
+        print(f"\nPlayer {settings.player_id} mod preferences:")
+        for mods, preference in preferred_mods:
+            print(f"  {mods}: {preference:.3f}")
 
         mod_preferences = dict(preferred_mods)
 
@@ -117,18 +187,35 @@ def recommend_player_sync(
             ability_pp_weight=settings.ability_pp_weight,
         )
 
+        print(f"\nPlayer {settings.player_id} difficulty profile:")
+
+        for feature in ("star_rating", "ar", "od", "bpm",):
+            mean = difficulty_profile.get(f"{feature}_mean")
+            std = difficulty_profile.get(f"{feature}_std")
+            if mean is None or std is None:
+                continue
+
+            print(f"  {feature}: mean={mean:.3f}, std={std:.3f}")
+
         # --------------------------------------------------------
         # Classifier preferences
         # --------------------------------------------------------
+        classifier_weight = recommendation_config[settings.goal]["weights"]["classifier"]
+        if classifier_weight <= 0:
+            category_preferences = {}
+        else:
+            category_preferences = get_player_category_preferences(
+                conn,
+                settings.player_id,
+                recency_half_life_days=settings.recency_half_life_days,
+                ability_top_weight=settings.ability_top_weight,
+                ability_recent_weight=settings.ability_recent_weight,
+                ability_pp_weight=settings.ability_pp_weight,
+            )
 
-        category_preferences = get_player_category_preferences(
-            conn,
-            settings.player_id,
-            recency_half_life_days=settings.recency_half_life_days,
-            ability_top_weight=settings.ability_top_weight,
-            ability_recent_weight=settings.ability_recent_weight,
-            ability_pp_weight=settings.ability_pp_weight,
-        )
+            print()
+            for label, probability in category_preferences.items():
+                print(f"{label}: {float(probability) * 100:.2f}%")
 
         # --------------------------------------------------------
         # Final ranking
@@ -142,7 +229,6 @@ def recommend_player_sync(
             category_preferences=category_preferences,
             top_k=settings.limit,
             requested_mods=requested_mods,
-
             min_stars=settings.min_stars,
             max_stars=settings.max_stars,
             min_bpm=settings.min_bpm,
@@ -153,16 +239,36 @@ def recommend_player_sync(
             max_ar=settings.max_ar,
             min_od=settings.min_od,
             max_od=settings.max_od,
-
+            min_length=settings.min_length,
+            max_length=settings.max_length,
             recommendation_goal=settings.goal,
             recommendation_config=recommendation_config,
-
             difficulty_std_floors=settings.difficulty_std_floors,
             difficulty_feature_weights=settings.difficulty_feature_weights,
-
             pp_push_target_z=settings.pp_push_target_z,
             pp_push_max_z=settings.pp_push_max_z,
         )
+
+        print(f"\nRecommendation goal: {settings.goal}")
+        print(f"\nTop {len(ranked_variants)} recommendations:")
+
+        for i, variant in enumerate(ranked_variants, start=1):
+            print(
+                f"{i:2d}. "
+                f"beatmap={variant['beatmap_id']}, "
+                f"variant={variant['variant_id']}, "
+                f"mods={variant['mods']}, "
+                f"star={variant['star_rating']:.2f}, "
+                f"bpm={variant['bpm']:.1f}, "
+                f"AR={variant['ar']:.1f}, "
+                f"OD={variant['od']:.1f}, "
+                f"content={variant['content_similarity']:.4f}, "
+                f"mod_pref={variant['mod_preference']:.4f}, "
+                f"difficulty={variant['difficulty_score']:.4f}, "
+                f"pp={variant['pp']:.4f}, "
+                f"pp_potential={variant['pp_potential']:.4f}, "
+                f"score={variant['final_score']:.4f}"
+            )
 
         return ranked_variants
 
@@ -172,12 +278,19 @@ def recommend_player_sync(
 
 async def recommend_player(
     settings: RecommendationSettings,
+    session_player_id: int,
     update_scores=True,
 ):
     async with _recommendation_semaphore:
         access_token = None
+
         if update_scores:
-            access_token = await get_access_token(settings.player_id)
+            if settings.player_id == session_player_id:
+                # Logged-in player: use their OAuth token.
+                access_token = await get_access_token(session_player_id)
+            else:
+                # Other player: use application credentials to access their public scores.
+                access_token = await get_application_access_token()
 
         return await asyncio.to_thread(
             recommend_player_sync,

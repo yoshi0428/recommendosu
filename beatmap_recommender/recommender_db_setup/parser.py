@@ -32,6 +32,7 @@ def parse_osu_file(
 
     data = {
         "beatmap_id": None,
+        "beatmapset_id": None,
         "mode": 0,  # Default to standard
 
         "title": "",
@@ -142,6 +143,12 @@ def parse_osu_file(
                     data["beatmap_id"] = int(value)
                 except ValueError:
                     data["beatmap_id"] = None
+
+            elif key == "BeatmapSetID":
+                try:
+                    data["beatmapset_id"] = int(value)
+                except ValueError:
+                    data["beatmapset_id"] = None
 
         # =================================================
         # Difficulty

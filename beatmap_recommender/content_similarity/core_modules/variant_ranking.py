@@ -234,13 +234,16 @@ def get_candidate_variants(conn, beatmap_ids, requested_mods=None):
         mods_clause = "AND bv.mods = ?"
         params.append(requested_mods)
 
-    # TODO: CHANGE ONCE DB REPOPULATED
     rows = conn.execute(
         f"""
         SELECT
             bv.variant_id,
             bv.beatmap_id,
             bv.mods,
+            b.title,
+            b.artist,
+            b.creator,
+            b.version,
             bv.hp_drain,
             bv.circle_size,
             bv.od,
@@ -273,11 +276,10 @@ def get_candidate_variants(conn, beatmap_ids, requested_mods=None):
         "beatmap_id",
         "mods",
 
-        # TODO: CHANGE ONCE DB REPOPULATED
-        # "title",
-        # "artist",
-        # "creator",
-        # "version",
+        "title",
+        "artist",
+        "creator",
+        "version",
 
         "hp_drain",
         "circle_size",
@@ -420,6 +422,8 @@ def rank_variants(
     max_ar=None,
     min_od=None,
     max_od=None,
+    min_length=None,
+    max_length=None,
     recommendation_goal="balanced",
     recommendation_config=None,
     difficulty_std_floors=None,
@@ -447,6 +451,7 @@ def rank_variants(
         min_stars / max_stars
         min_bpm / max_bpm
         min_pp / max_pp
+        min_length / max_length
 
     Filtering happens before variant scoring.
 
@@ -482,6 +487,9 @@ def rank_variants(
 
     if min_od is not None and max_od is not None and min_od > max_od:
         raise ValueError(f"min_od ({min_od}) cannot be greater than max_od ({max_od})")
+
+    if min_length is not None and max_length is not None and min_length > max_length:
+        raise ValueError(f"min_length ({min_length}) cannot be greater than max_length ({max_length})")
 
     # ------------------------------------------------------------------
     # Collapse seed -> candidates into:
@@ -596,6 +604,22 @@ def rank_variants(
         if max_od is not None and od > max_od:
             continue
 
+        # Length (seconds)
+        length_seconds = variant.get("length_seconds")
+        if min_length is not None or max_length is not None:
+            if length_seconds is None:
+                continue
+
+            try:
+                length_seconds = float(length_seconds)
+            except (TypeError, ValueError):
+                continue
+
+            if min_length is not None and length_seconds < min_length:
+                continue
+            if max_length is not None and length_seconds > max_length:
+                continue
+
         filtered_variants.append(variant)
 
     variants = filtered_variants
@@ -627,8 +651,10 @@ def rank_variants(
         # --------------------------------------------------------------
         # Classifier score
         # --------------------------------------------------------------
-
-        if mods == "NM" and category_preferences:
+        classifier_weight = recommendation_config[recommendation_goal]["weights"]["classifier"]
+        if classifier_weight <= 0:
+            classifier_score = 0.5
+        elif mods == "NM" and category_preferences:
             probabilities = classifier_predictions.get(variant["variant_id"])
             classifier_score = calculate_classifier_score(probabilities, category_preferences)
         else:
@@ -671,14 +697,6 @@ def rank_variants(
 
     # ------------------------------------------------------------------
     # Keep only the best variant for each base beatmap.
-    #
-    # This prevents:
-    #
-    #   map 123 - NM
-    #   map 123 - DT
-    #   map 123 - HR
-    #
-    # from occupying multiple recommendation slots.
     # ------------------------------------------------------------------
 
     best_by_beatmap = {}

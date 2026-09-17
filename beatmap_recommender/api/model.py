@@ -97,13 +97,13 @@ class RecommendationSettings(BaseModel):
     limit: int = Field(
         default=100,
         ge=1,
-        le=500,
+        le=1000,
     )
 
     goal: str = "balanced"
 
-    mods: list[str] = Field(
-        default_factory=list,
+    mods: list[str] | None = Field(
+        default=None,
     )
 
     # ------------------------------------------------------------
@@ -124,6 +124,9 @@ class RecommendationSettings(BaseModel):
 
     min_od: float | None = None
     max_od: float | None = None
+
+    min_length: float | None = None
+    max_length: float | None = None
 
     # ------------------------------------------------------------
     # Difficulty profile

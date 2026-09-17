@@ -110,21 +110,31 @@ def get_candidate_classifier_predictions(conn, variant_ids):
     if not variant_ids:
         return {}
 
-    placeholders = ",".join("?" for _ in variant_ids)
-    rows = conn.execute(
-        f"""
-        SELECT
-            variant_id,
-            nm1,
-            nm2,
-            nm3,
-            nm4,
-            nm5
-        FROM variant_predictions
-        WHERE variant_id IN ({placeholders})
-        """,
-        list(variant_ids),
-    ).fetchall()
+    chunk_size = 1000
+    variant_ids_list = list(variant_ids)
+    all_rows = []
+
+    # Process variant_ids in batches to avoid database parameter limits
+    for i in range(0, len(variant_ids_list), chunk_size):
+        chunk = variant_ids_list[i: i + chunk_size]
+        placeholders = ",".join("?" for _ in chunk)
+
+        rows = conn.execute(
+            f"""
+            SELECT
+                variant_id,
+                nm1,
+                nm2,
+                nm3,
+                nm4,
+                nm5
+            FROM variant_predictions
+            WHERE variant_id IN ({placeholders})
+            """,
+            chunk,
+        ).fetchall()
+
+        all_rows.extend(rows)
 
     return {
         variant_id: {
@@ -141,9 +151,8 @@ def get_candidate_classifier_predictions(conn, variant_ids):
             nm3,
             nm4,
             nm5,
-        ) in rows
+        ) in all_rows
     }
-
 
 def calculate_classifier_score(
     probabilities,

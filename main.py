@@ -83,11 +83,10 @@ class Recommendation(BaseModel):
         examples=[12345],
     )
 
-    # TODO: CHANGE ONCE DB REPOPULATED
-    # title: str
-    # artist: str
-    # creator: str
-    # version: str
+    title: str
+    artist: str
+    creator: str
+    version: str
 
     mods: str = Field(
         description="Canonical mod combination for this recommendation.",
@@ -287,7 +286,7 @@ async def recommend_get(
     limit: int = Query(
         default=200,
         ge=1,
-        le=500,
+        le=1000,
         description="Maximum number of recommendations to return.",
         examples=[100],
     ),
@@ -338,11 +337,12 @@ async def recommend_post(
     settings: RecommendationSettings,
     session_id: str | None = Cookie(default=None),
 ):
-    player_id = require_player(session_id)
-    settings.player_id = player_id
+    session_player_id = require_player(session_id)
+    if settings.player_id is None:
+        settings.player_id = session_player_id
 
     try:
-        recommendations = await recommend_player(settings)
+        recommendations = await recommend_player(settings, session_player_id=session_player_id)
     except ValueError as exc:
         raise HTTPException(
             status_code=400,
@@ -350,7 +350,7 @@ async def recommend_post(
         )
 
     return {
-        "player_id": player_id,
+        "player_id": settings.player_id,
         "recommendation_goal": settings.goal,
         "recommendations": recommendations,
     }
@@ -394,28 +394,35 @@ async def osu_callback(
     error: str | None = None,
 ):
     if error:
+        print("OAUTH CALLBACK ERROR:", repr(error))
         raise HTTPException(
             status_code=400,
             detail=f"osu! authorization failed: {error}",
         )
 
     if not code:
+        print("OAUTH CALLBACK: missing code")
         raise HTTPException(
             status_code=400,
             detail="Missing authorization code.",
         )
 
     if not state:
+        print("OAUTH CALLBACK: missing state")
         raise HTTPException(
             status_code=400,
             detail="Missing OAuth state.",
         )
 
     if not consume_state(state):
+        print("OAUTH CALLBACK: invalid or expired state")
         raise HTTPException(
             status_code=400,
             detail="Invalid or expired OAuth state.",
         )
+
+    print("OAUTH CALLBACK: state accepted")
+    print("OAUTH CALLBACK: exchanging authorization code")
 
     try:
         token_data = await exchange_code_for_token(code)
@@ -436,20 +443,21 @@ async def osu_callback(
 
     session_id = create_session(user_data["id"])
 
-    response.set_cookie(
+    redirect_response = RedirectResponse(
+        url="/",
+        status_code=302,
+    )
+
+    redirect_response.set_cookie(
         key="session_id",
         value=session_id,
         httponly=True,
         samesite="lax",
-        secure=SESSION_COOKIE_SECURE,  # True once using HTTPS
+        secure=SESSION_COOKIE_SECURE,
         max_age=86400,
     )
 
-    return {
-        "message": "osu! authorization successful",
-        "player_id": user_data["id"],
-        "username": user_data["username"],
-    }
+    return redirect_response
 
 
 @app.get(

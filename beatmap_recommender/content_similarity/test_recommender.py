@@ -16,7 +16,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DB_PATH = PROJECT_ROOT / "beatmap_recommender/test_everything.db"
 
 NUM_RECOMMENDATIONS = 100
-NEIGHBORS_K = 50000
+NEIGHBORS_K = 10_000
 SCORE_LIMIT = 1000
 
 PLAYER_IDS = [
@@ -26,9 +26,9 @@ PLAYER_IDS = [
     7562902,
     35269285
 ]
-PLAYER_ID = PLAYER_IDS[1]
+PLAYER_ID = PLAYER_IDS[3]
 
-REQUESTED_MODS = canonicalize_mods([])
+REQUESTED_MODS = None
 
 MIN_STARS = None
 MAX_STARS = None
@@ -191,7 +191,7 @@ def main():
         conn,
         api,
         PLAYER_ID,
-        limit=50
+        limit=200
     )
     print(f"Finished updating Player {PLAYER_ID} top & recent scores!")
     print(f"\nBuilding recommendations for player {PLAYER_ID}...")
@@ -284,7 +284,6 @@ def main():
         pp_weight=PP_WEIGHT,
     )
     print(f"\nPlayer {PLAYER_ID} mod preferences:")
-
     for mods, preference in preferred_mods:
         print(f"  {mods}: {preference:.3f}")
 

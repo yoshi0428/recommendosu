@@ -23,6 +23,7 @@ def insert_base_beatmap(conn, beatmap_data, md5):
     conn.execute("""
         INSERT INTO beatmaps (
             beatmap_id,
+            beatmapset_id,
             md5,
             title,
             artist,
@@ -40,8 +41,9 @@ def insert_base_beatmap(conn, beatmap_data, md5):
             length_seconds,
             object_count
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(beatmap_id) DO UPDATE SET
+            beatmapset_id = excluded.beatmapset_id,
             md5 = excluded.md5,
             title = excluded.title,
             artist = excluded.artist,
@@ -60,6 +62,7 @@ def insert_base_beatmap(conn, beatmap_data, md5):
             object_count = excluded.object_count
     """, (
         str(beatmap_data["beatmap_id"]),
+        beatmap_data["beatmapset_id"],
         md5,
         beatmap_data["title"],
         beatmap_data["artist"],

@@ -1,22 +1,41 @@
-import { Container, Navbar } from 'react-bootstrap'
+import {Container, Spinner} from 'react-bootstrap'
+
+import LoginPage from './pages/LoginPage'
+import RecommendationsPage from './pages/RecommendationsPage'
+
+import {useAuth} from './hooks/useAuth'
+
 
 function App() {
-  return (
-    <>
-      <Navbar bg="dark" variant="dark">
-        <Container>
-          <Navbar.Brand>osu! Beatmap Recommender</Navbar.Brand>
-        </Container>
-      </Navbar>
+  const {
+    user,
+    loading,
+    logout,
+  } = useAuth()
 
-      <Container className="py-5">
-        <h1>osu! Beatmap Recommender</h1>
-        <p className="text-muted">
-          Personalized beatmap recommendations.
-        </p>
+  if (loading) {
+    return (
+      <Container className="py-5 text-center">
+        <Spinner animation="border"/>
+
+        <div className="mt-3">
+          Checking authentication...
+        </div>
       </Container>
-    </>
+    )
+  }
+
+  if (!user) {
+    return <LoginPage/>
+  }
+
+  return (
+    <RecommendationsPage
+      user={user}
+      logout={logout}
+    />
   )
 }
+
 
 export default App

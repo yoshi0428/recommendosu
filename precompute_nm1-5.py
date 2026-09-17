@@ -14,7 +14,7 @@ from dot_osu_indexer import build_osu_file_index
 # Configuration
 # ============================================================
 
-DB_PATH = "./beatmap_recommender/test_everything.db"
+DB_PATH = "./beatmap_recommender/recommender.db"
 DATA_ROOT = "./beatmap_recommender/data"
 
 MODEL_FOLDER = "./beatmap_classifier/models/bagged_models"
@@ -501,7 +501,6 @@ def load_classifier():
 # Main precomputation
 # ============================================================
 
-# TODO: RERUN AFTER DATABASE POPULATION
 def main():
 
     print(f"Using device: {DEVICE}")

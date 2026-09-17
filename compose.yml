@@ -5,8 +5,8 @@ services:
       dockerfile: Dockerfile
     env_file:
       - .env
-    volumes:
-      - ./test_everything.db:/app/test_everything.db
+    volumes: # only mount db like ./test_everything.db:/app/test_everything.db whenever deployed
+      - .:/app
     expose:
       - "8000"
     restart: unless-stopped
