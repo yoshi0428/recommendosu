@@ -1,0 +1,60 @@
+name: Tests & Coverage
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'parsecore/**/*.py'
+      - 'tests/**/*.py'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'parsecore/**/*.py'
+      - 'tests/**/*.py'
+
+jobs:
+  test:
+    name: pytest + codecov
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install requests pytest pytest-cov
+
+      - name: Check if tests exist
+        id: tests
+        run: |
+          if [ -d "tests" ] && [ "$(find tests -name 'test_*.py' | wc -l)" -gt 0 ]; then
+            echo "has_tests=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_tests=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Skip — no tests yet
+        if: steps.tests.outputs.has_tests == 'false'
+        run: echo "No tests found, skipping coverage."
+
+      - name: Run tests
+        if: steps.tests.outputs.has_tests == 'true'
+        run: |
+          pytest --cov=parsecore --cov-report=xml --cov-report=term-missing
+
+      - name: Upload coverage to Codecov
+        if: steps.tests.outputs.has_tests == 'true'
+        uses: codecov/codecov-action@v6
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          fail_ci_if_error: true
+          verbose: false

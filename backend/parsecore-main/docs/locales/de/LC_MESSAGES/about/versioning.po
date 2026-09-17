@@ -1,0 +1,59 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: parsecore\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-07-20 06:08+0000\n"
+"PO-Revision-Date: 2026-07-20 06:08\n"
+"Last-Translator: \n"
+"Language-Team: German\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Crowdin-Project: parsecore\n"
+"X-Crowdin-Project-ID: 912087\n"
+"X-Crowdin-Language: de\n"
+"X-Crowdin-File: /docs/_build/gettext/about/versioning.pot\n"
+"X-Crowdin-File-ID: 33\n"
+"Language: de_DE\n"
+
+#: ../../about/versioning.md:1
+#: 09dbea4fbaa3469f8cd48c5576726edb
+msgid "Versioning & algorithm tracking"
+msgstr ""
+
+#: ../../about/versioning.md:3
+#: 87cc1dce67f14581911b19bad3c52d96
+msgid "parsecore follows [Semantic Versioning](https://semver.org/)."
+msgstr ""
+
+#: ../../about/versioning.md:5
+#: ffd472067f7d4b94b99621e9b5ca3fb0
+msgid "Algorithm updates"
+msgstr ""
+
+#: ../../about/versioning.md:7
+#: 79aa8efe4590480697ebc5d0e4611342
+msgid "parsecore tracks the **official osu! difficulty and performance algorithm**. When ppy deploys a pp/star-rating rework, parsecore is updated to match the new deploy and the parity suite is re-run to confirm bit-exactness."
+msgstr ""
+
+#: ../../about/versioning.md:11
+#: b15496b1946640cfbf3220f7c7d1c18d
+msgid "The current target is the **2026 Q2 rework**, osu! deploy **`2026.702.1`**."
+msgstr ""
+
+#: ../../about/versioning.md:14
+#: 119e63af71cc4f758e2327b9ceeeddda
+msgid "Because parsecore follows the official algorithm directly, its values can differ from third-party calculators or the osu! website in the days after a rework those are often still recalculating or running an older algorithm. Values for newly set in-game scores are the source of truth."
+msgstr ""
+
+#: ../../about/versioning.md:20
+#: 56b2acc357124994ada71389374dd1c6
+msgid "Python support"
+msgstr ""
+
+#: ../../about/versioning.md:22
+#: 2bf6b602eb4d4de7aaef819ba81e27b8
+msgid "parsecore supports **Python 3.10, 3.11, 3.12 and 3.13**."
+msgstr ""
+

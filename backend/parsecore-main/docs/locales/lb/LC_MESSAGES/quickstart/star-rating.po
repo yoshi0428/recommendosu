@@ -1,0 +1,44 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: parsecore\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-07-20 06:08+0000\n"
+"PO-Revision-Date: 2026-07-20 06:08\n"
+"Last-Translator: \n"
+"Language-Team: Luxembourgish\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Crowdin-Project: parsecore\n"
+"X-Crowdin-Project-ID: 912087\n"
+"X-Crowdin-Language: lb\n"
+"X-Crowdin-File: /docs/_build/gettext/quickstart/star-rating.pot\n"
+"X-Crowdin-File-ID: 25\n"
+"Language: lb_LU\n"
+
+#: ../../quickstart/star-rating.md:1
+#: 74deba15e37b4ffa9a00bcd6964b1b97
+msgid "Star rating (difficulty)"
+msgstr "Star-Rating (Schwieregkeet)"
+
+#: ../../quickstart/star-rating.md:3
+#: 3f58b1a39e40431ba321b341be51325b
+msgid "Use {class}`~parsecore.Performance.api.Difficulty` to compute the star rating and the per-skill difficulty attributes."
+msgstr "Benotzt {class}`~parsecore.Performance.api.Difficulty`, fir de Star-Rating an d'Schwieregkeetsattributer pro Skill ze berechnen."
+
+#: ../../quickstart/star-rating.md:23
+#: 9f484c58056f4087a49b71b51310c264
+msgid "Clock rate, overrides and partial maps"
+msgstr "Clock-Rate, Iwwerschreiwungen an deelweis Maps"
+
+#: ../../quickstart/star-rating.md:37
+#: d089dd889303406baa55ae499f7d08ee
+msgid "`fixed=False` (the default) means EZ/HR and the clock rate still adjust the value, just like an in-game difficulty override; `fixed=True` uses your value verbatim."
+msgstr "`fixed=False` (de Standardwäert) bedeit, datt EZ/HR an d'Clock-Rate de Wäert nach ëmmer upassen, genee wéi bei engem Difficulty-Override am Spill; `fixed=True` benotzt Äre Wäert onverännert."
+
+#: ../../quickstart/star-rating.md:41
+#: 8759bbfc87394b4b911cc921c1452a60
+msgid "Each ruleset returns its own attributes type see {doc}`../api/performance`."
+msgstr "All Ruleset gëtt säin eegenen Attributtyp zréck; kuckt {doc}`../api/performance`."
+

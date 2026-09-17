@@ -1,0 +1,49 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: parsecore\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-07-20 06:08+0000\n"
+"PO-Revision-Date: 2026-07-20 06:08\n"
+"Last-Translator: \n"
+"Language-Team: Portuguese\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Crowdin-Project: parsecore\n"
+"X-Crowdin-Project-ID: 912087\n"
+"X-Crowdin-Language: pt-PT\n"
+"X-Crowdin-File: /docs/_build/gettext/quickstart/parsing.pot\n"
+"X-Crowdin-File-ID: 29\n"
+"Language: pt_PT\n"
+
+#: ../../quickstart/parsing.md:1
+#: a0e6282bd70e4af0a726fe32e1d8ec98
+msgid "Beatmap parsing"
+msgstr "Análise de beatmaps"
+
+#: ../../quickstart/parsing.md:3
+#: fd8e73d3dfa94df4b5027ca0369cfbad
+msgid "Parse any `.osu` file into a fully typed {class}`~parsecore.Beatmap.beatmap.Beatmap`."
+msgstr "Analisa qualquer ficheiro `.osu` transformando-o numa {class}`~parsecore.Beatmap.beatmap.Beatmap` totalmente tipada."
+
+#: ../../quickstart/parsing.md:22
+#: 2dc2b8a70ebd4fa0b95a5986956cff33
+msgid "Every section is parsed: **General**, **Metadata**, **Difficulty**, **Events**, **Timing Points**, **Hit Objects**, **Colours** and **Editor**. Slider paths are sampled exactly like osu!-stable (bezier, catmull and perfect-circle segments), so distances and tick placement match the game."
+msgstr "Todas as seções são analisadas: **General**, **Metadata**, **Difficulty**, **Events**, **Timing Points**, **Hit Objects**, **Colours** e **Editor**. Os \"slider paths* são amostrados exatamente como no osu!-stable (segmentos bézier, catmull e de curva perfeito), então as distâncias e a colocação dos ticks correspondem às do jogo."
+
+#: ../../quickstart/parsing.md:27
+#: c6ff1b04d9374eab8144c591b1467261
+msgid "Re-encoding"
+msgstr "Recodificação"
+
+#: ../../quickstart/parsing.md:29
+#: 105738cc8ccc472c950f9865edfbc064
+msgid "A parsed beatmap can be written back out to `.osu` text:"
+msgstr "Um beatmap analisado pode ser gravado novamente num ficheiro de texto `.osu`:"
+
+#: ../../quickstart/parsing.md:36
+#: 6c7c4746a3fa472d826e0334bb7bf8b5
+msgid "See the {doc}`../api/beatmap` reference for every field."
+msgstr "Consulte a documentação {doc}`../api/beatmap` para obter informações sobre cada campo."
+

@@ -1,0 +1,44 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: parsecore\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-07-20 06:08+0000\n"
+"PO-Revision-Date: 2026-07-20 06:08\n"
+"Last-Translator: \n"
+"Language-Team: Portuguese\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Crowdin-Project: parsecore\n"
+"X-Crowdin-Project-ID: 912087\n"
+"X-Crowdin-Language: pt-PT\n"
+"X-Crowdin-File: /docs/_build/gettext/quickstart/converts.pot\n"
+"X-Crowdin-File-ID: 23\n"
+"Language: pt_PT\n"
+
+#: ../../quickstart/converts.md:1
+#: e74a47fba810415a960f63004c73eca0
+msgid "Converts (osu! → taiko / catch / mania)"
+msgstr "Conversão (osu! → taiko / catch / mania)"
+
+#: ../../quickstart/converts.md:3
+#: 5c7fe325e35f4152b7af5c882543ae4f
+msgid "parsecore converts osu! beatmaps to the other rulesets exactly like the game including the legacy osu!mania pattern generator with its osu!stable RNG."
+msgstr "O parsecore converte os beatmaps do osu! para os outros rulesets exatamente como no jogo, incluindo o gerador de padrões do osu!mania antigo com o seu RNG osu!stable."
+
+#: ../../quickstart/converts.md:18
+#: 3ad3ccf8ba5749ee8983d5eebd92419a
+msgid "Key mods on mania converts"
+msgstr "Mods de key na conversão para mania"
+
+#: ../../quickstart/converts.md:20
+#: 715a53ea904843ca9c5fb9be416f309d
+msgid "Mania key mods change the **column count** of a convert, and therefore its star rating and pp (`7K` is the legacy bit `1 << 18`):"
+msgstr "Os mods key da mania alteram o **número de colunas** de uma conversão e, consequentemente, a sua classificação de estrelas e os pontos de desempenho (`7K` é o bit antigo `1 << 18`):"
+
+#: ../../quickstart/converts.md:28
+#: e6ee1c03bc49481b8579cb66469f4735
+msgid "Key mods only affect osu! → mania **converts**. On native mania maps they have no effect, which matches the game."
+msgstr "Os mods de key afetam apenas as **conversões** do osu! → mania. Nos mapas nativos da mania, não têm qualquer efeito, o que corresponde ao comportamento do jogo."
+

@@ -1,0 +1,50 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: parsecore\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-07-20 06:08+0000\n"
+"PO-Revision-Date: 2026-07-20 06:08\n"
+"Last-Translator: \n"
+"Language-Team: Luxembourgish\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Crowdin-Project: parsecore\n"
+"X-Crowdin-Project-ID: 912087\n"
+"X-Crowdin-Language: lb\n"
+"X-Crowdin-File: /docs/_build/gettext/quickstart/parsing.pot\n"
+"X-Crowdin-File-ID: 29\n"
+"Language: lb_LU\n"
+
+#: ../../quickstart/parsing.md:1
+#: a0e6282bd70e4af0a726fe32e1d8ec98
+msgid "Beatmap parsing"
+msgstr "Beatmap-Parsing"
+
+#: ../../quickstart/parsing.md:3
+#: fd8e73d3dfa94df4b5027ca0369cfbad
+msgid "Parse any `.osu` file into a fully typed {class}`~parsecore.Beatmap.beatmap.Beatmap`."
+msgstr "Parst all `.osu`-Datei an eng vollstänneg typiséiert {class}\n"
+"`~parsecore.Beatmap.beatmap.Beatmap`."
+
+#: ../../quickstart/parsing.md:22
+#: 2dc2b8a70ebd4fa0b95a5986956cff33
+msgid "Every section is parsed: **General**, **Metadata**, **Difficulty**, **Events**, **Timing Points**, **Hit Objects**, **Colours** and **Editor**. Slider paths are sampled exactly like osu!-stable (bezier, catmull and perfect-circle segments), so distances and tick placement match the game."
+msgstr "All Sektioun gëtt geparst: **General**, **Metadata**, **Difficulty**, **Events**, **Timing Points**, **Hit Objects**, **Colours** an **Editor**. Slider-Weeër gi genee wéi an osu!stable ofgetaascht (Bezier-, Catmull- a Perfect-Circle-Segmenter), sou datt d'Distanzen an d'Plazéierung vun den Ticks mam Spill iwwereneestëmmen."
+
+#: ../../quickstart/parsing.md:27
+#: c6ff1b04d9374eab8144c591b1467261
+msgid "Re-encoding"
+msgstr "Nei Kodéierung"
+
+#: ../../quickstart/parsing.md:29
+#: 105738cc8ccc472c950f9865edfbc064
+msgid "A parsed beatmap can be written back out to `.osu` text:"
+msgstr "Eng geparste Beatmap kann nees als `.osu`-Text geschriwwe ginn:"
+
+#: ../../quickstart/parsing.md:36
+#: 6c7c4746a3fa472d826e0334bb7bf8b5
+msgid "See the {doc}`../api/beatmap` reference for every field."
+msgstr "Kuckt d'{doc}`../api/beatmap`-Referenz fir all Feld."
+
