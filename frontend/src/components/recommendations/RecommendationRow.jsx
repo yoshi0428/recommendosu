@@ -20,6 +20,7 @@ function RecommendationRow({
                            }) {
   const {
     beatmap_id,
+    beatmapset_id,
     artist,
     title,
     version,
@@ -41,7 +42,7 @@ function RecommendationRow({
     : '#'
 
   const coverUrl = beatmap_id
-    ? `https://assets.ppy.sh/beatmaps/${beatmap_id}/covers/list.jpg`
+    ? `https://assets.ppy.sh/beatmaps/${beatmapset_id}/covers/list.jpg`
     : null
 
   // 1/3 for artist-title, and the remaining 2/3 spread across the 10 other columns (6.67% each)
@@ -53,46 +54,46 @@ function RecommendationRow({
       style={{cursor: 'pointer'}}
       title="Click to view score breakdown"
     >
-        <td style={{width: '33.33%'}}>
-          <div className="d-flex align-items-center gap-3 text-start">
-            {coverUrl && (
-              <img
-                src={coverUrl}
-                alt=""
-                width="104"
-                height="58"
-                className="rounded object-fit-cover flex-shrink-0 bg-secondary shadow-sm"
-                loading="lazy"
-                onError={(e) => {
-                  e.target.style.display = 'none'
-                }}
-              />
-            )}
+      <td style={{width: '33.33%'}}>
+        <div className="d-flex align-items-center gap-3 text-start">
+          {coverUrl && (
+            <img
+              src={coverUrl}
+              alt=""
+              width="104"
+              height="58"
+              className="rounded object-fit-cover flex-shrink-0 bg-secondary shadow-sm"
+              loading="lazy"
+              onError={(e) => {
+                e.target.style.display = 'none'
+              }}
+            />
+          )}
 
-            <div className="text-truncate">
-                <a
-                  href={beatmapUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-body"
-                  style={{textDecoration: 'none'}}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.textDecoration = 'underline'
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.textDecoration = 'none'
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <strong>
-                    {title
-                      ? `${artist} - ${title} [${version}]`
-                      : `Beatmap ${beatmap_id}`}
-                  </strong>
-                </a>
-            </div>
+          <div className="text-truncate">
+            <a
+              href={beatmapUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-body"
+              style={{textDecoration: 'none'}}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.textDecoration = 'underline'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.textDecoration = 'none'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <strong>
+                {title
+                  ? `${artist} - ${title} [${version}]`
+                  : `Beatmap ${beatmap_id}`}
+              </strong>
+            </a>
           </div>
-        </td>
+        </div>
+      </td>
 
       {/* Remaining columns spread evenly across the other 2/3 */}
       <td className="text-center" style={{width: remainingColumnWidth}}>{pp != null ? Number(pp).toFixed(0) : '—'}</td>
