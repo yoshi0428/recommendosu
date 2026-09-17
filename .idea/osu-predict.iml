@@ -2,8 +2,8 @@
 <module type="PYTHON_MODULE" version="4">
   <component name="NewModuleRootManager">
     <content url="file://$MODULE_DIR$">
-      <excludeFolder url="file://$MODULE_DIR$/osu_oracle_pytorch/scripts/extracted_osu" />
-      <excludeFolder url="file://$MODULE_DIR$/osu_oracle_pytorch/scripts/osz_files" />
+      <excludeFolder url="file://$MODULE_DIR$/beatmap_classifier/scripts/extracted_osu" />
+      <excludeFolder url="file://$MODULE_DIR$/beatmap_classifier/scripts/osz_files" />
     </content>
     <orderEntry type="jdk" jdkName="$USER_HOME$/miniconda3" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />

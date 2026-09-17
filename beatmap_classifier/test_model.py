@@ -6,8 +6,8 @@ import numpy as np
 import requests
 import torch
 from scripts.parser import parse_osu_file
-from osu_oracle_pytorch.oracle.utils_training import pad_sequences_pt, load_pytorch_models
-from osu_oracle_pytorch.oracle.cnn_model import CNNModel
+from beatmap_classifier.oracle.utils_training import pad_sequences_pt, load_pytorch_models
+from beatmap_classifier.oracle.cnn_model import CNNModel
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

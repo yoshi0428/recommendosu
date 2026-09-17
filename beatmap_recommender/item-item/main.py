@@ -2,7 +2,7 @@ import sqlite3
 from db_recommender import create_recommender_tables
 from variant import build_variant_feature_database
 from setup_and_k_nearest import load_feature_matrix, scale_features, build_neighbors
-from recommender import recommend_for_player
+from beatmap_recommender import recommend_for_player
 
 # ============================================================
 # Configuration

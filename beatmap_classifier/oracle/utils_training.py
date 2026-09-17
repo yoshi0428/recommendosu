@@ -8,7 +8,7 @@ import torch.optim as optim
 from torch import nn
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader, TensorDataset
-from osu_oracle_pytorch.oracle.cnn_model import CNNModel
+from beatmap_classifier.oracle.cnn_model import CNNModel
 
 TOURNAMENT_LABELS = {
     "nm1": {
