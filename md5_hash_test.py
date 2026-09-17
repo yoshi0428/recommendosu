@@ -55,7 +55,7 @@ def fetch_beatmap_id_from_api(file_path, file_hash):
 
 
 # Test with a single .osu file path
-sample_path = "./data/2007/The Strokes - You Only Live Once (JacoPOP) [For Beginners].osu"
+sample_path = "beatmap_recommender/data/2012/SOUND HOLIC - Drive My Life (Scorpiour) [Lunatic].osu"
 
 beatmap_id, beatmap_ar = fetch_beatmap_id_from_api(sample_path, None)
 # beatmap_id = fetch_beatmap_id_from_api(sample_path, 'fb099ade581d16f3a69926ccf8f2cf7a')

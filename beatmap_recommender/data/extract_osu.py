@@ -1,12 +1,11 @@
 import os
 import zipfile
-
 from tqdm import tqdm
+from pathlib import Path
 
-
-ROOT_DIR = "./2024 (osu!)"
-OUTPUT_DIR = "2024_osu"
-
+PROJECT_ROOT = Path(__file__).resolve().parents[0]
+ROOT_DIR = PROJECT_ROOT / "2024 (osu!)"
+OUTPUT_DIR = PROJECT_ROOT / "2024_osu"
 
 def extract_osu_files(root_dir, output_dir):
     """

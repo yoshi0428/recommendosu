@@ -4,6 +4,8 @@ from beatmap_mods import (
     apply_length_mod,
 )
 
+from canonical import canonicalize_mods
+
 
 # ============================================================
 # Base Beatmap
@@ -28,6 +30,10 @@ def insert_base_beatmap(
         """
         INSERT INTO beatmaps (
             beatmap_id,
+            title,
+            artist,
+            creator,
+            version,
             hp_drain,
             circle_size,
             od,
@@ -41,12 +47,18 @@ def insert_base_beatmap(
             object_count
         )
         VALUES (
-            ?, ?, ?, ?, ?, ?,
-            ?, ?, ?, ?, ?, ?
+            ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?,
+            ?
         )
-        
+
         ON CONFLICT(beatmap_id)
         DO UPDATE SET
+            title = excluded.title,
+            artist = excluded.artist,
+            creator = excluded.creator,
+            version = excluded.version,
             hp_drain = excluded.hp_drain,
             circle_size = excluded.circle_size,
             od = excluded.od,
@@ -61,6 +73,10 @@ def insert_base_beatmap(
         """,
         (
             beatmap_data["beatmap_id"],
+            beatmap_data["title"],
+            beatmap_data["artist"],
+            beatmap_data["creator"],
+            beatmap_data["version"],
             beatmap_data["hp_drain"],
             beatmap_data["circle_size"],
             beatmap_data["od"],
@@ -157,16 +173,7 @@ def insert_variant(
     # --------------------------------------------------------
     # Canonical mod string
     # --------------------------------------------------------
-
-    if not mods:
-        mods_string = "NM"
-    else:
-        mods_string = "".join(
-            sorted(
-                mod.upper()
-                for mod in mods
-            )
-        )
+    mods_string = canonicalize_mods(mods)
 
     # --------------------------------------------------------
     # Calculate modded difficulty statistics
@@ -293,53 +300,29 @@ def insert_variant(
     return row[0], mods_string
 
 
-# ============================================================
-# Tournament Prediction
-# ============================================================
-
-def insert_tournament_prediction(
+def insert_variant_prediction_labels(
     conn,
     variant_id,
     mods_string,
     folder_name,
-    tournament_labels,
+    variant_predictions_labels,
 ):
     """
     Mark the appropriate beatmap variant as belonging to a
-    tournament classification.
+    variant_predictions classification.
 
     The folder name is matched case-insensitively.
-
-    The tournament label determines:
-
-        1. Which prediction column is set to 1.
-        2. Which mod variant the prediction belongs to.
-
-    Examples:
-
-        NM1 -> NM variant -> nm1 = 1
-        HD2 -> HD variant -> hd2 = 1
-        HR3 -> HR variant -> hr3 = 1
-        DT3 -> DT variant -> dt2_and_dt3 = 1
-
-    Returns:
-
-        True
-            If the label matches this variant.
-
-        False
-            If the label does not belong to this variant.
     """
 
     label = folder_name.strip().lower()
 
-    tournament = tournament_labels.get(label)
+    variant_predictions = variant_predictions_labels.get(label)
 
-    if tournament is None:
+    if variant_predictions is None:
         return False
 
-    prediction_column = tournament["column"]
-    required_mods = tournament["mods"]
+    prediction_column = variant_predictions["column"]
+    required_mods = variant_predictions["mods"]
 
     # --------------------------------------------------------
     # Determine canonical mod string
@@ -374,7 +357,7 @@ def insert_tournament_prediction(
 
     cursor.execute(
         """
-        INSERT OR IGNORE INTO tournament_predictions (
+        INSERT OR IGNORE INTO variant_predictions (
             variant_id
         )
         VALUES (?)
@@ -382,16 +365,9 @@ def insert_tournament_prediction(
         (variant_id,),
     )
 
-    # --------------------------------------------------------
-    # Set tournament label
-    #
-    # prediction_column comes from your own trusted
-    # tournament_labels configuration.
-    # --------------------------------------------------------
-
     cursor.execute(
         f"""
-        UPDATE tournament_predictions
+        UPDATE variant_predictions
         SET {prediction_column} = 1
         WHERE variant_id = ?
         """,

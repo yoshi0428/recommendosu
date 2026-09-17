@@ -1,16 +1,11 @@
 import os
 import zipfile
-
 from tqdm import tqdm
+from pathlib import Path
 
-
-# ============================================================
-# Configuration
-# ============================================================
-
-ROOT_DIR = ""
-OUTPUT_DIR = "HR3"
-
+PROJECT_ROOT = Path(__file__).resolve().parents[0]
+ROOT_DIR = PROJECT_ROOT / "NM1_DUMMY"
+OUTPUT_DIR = PROJECT_ROOT / "NM1"
 
 # ============================================================
 # Extract .osu files

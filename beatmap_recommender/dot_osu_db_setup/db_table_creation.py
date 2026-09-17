@@ -87,7 +87,7 @@ def create_tables(conn):
     """)
 
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS tournament_predictions (
+        CREATE TABLE IF NOT EXISTS variant_predictions (
             variant_id INTEGER PRIMARY KEY,
 
             "2007" REAL,
@@ -110,6 +110,12 @@ def create_tables(conn):
             "2024" REAL,
             "2025" REAL,
             "2026" REAL,
+            
+            nm1 REAL,
+            nm2 REAL,
+            nm3 REAL,
+            nm4 REAL,
+            nm5 REAL,
 
             FOREIGN KEY (variant_id)
                 REFERENCES beatmap_variants(variant_id)

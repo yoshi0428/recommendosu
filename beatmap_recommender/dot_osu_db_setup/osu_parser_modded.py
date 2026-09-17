@@ -11,9 +11,8 @@ from parser import parse_osu_file
 from beatmap_mods import calculate_difficulty
 from db_insertion import (
     insert_variant,
-    insert_vectors,
     insert_base_beatmap,
-    insert_tournament_prediction,
+    insert_variant_prediction_labels,
 )
 
 import hashlib
@@ -61,10 +60,7 @@ MOD_VARIANTS = {
     "DTFL": ["DT", "FL"],
 }
 
-# ============================================================
-# Tournament prediction labels
-# ============================================================
-TOURNAMENT_LABELS = {
+VARIANT_LABELS = {
     "2007": {
         "column": '"2007"',
         "mods": [],
@@ -143,6 +139,26 @@ TOURNAMENT_LABELS = {
     },
     "2026": {
         "column": '"2026"',
+        "mods": [],
+    },
+    "nm1": {
+        "column": "nm1",
+        "mods": [],
+    },
+    "nm2": {
+        "column": "nm2",
+        "mods": [],
+    },
+    "nm3": {
+        "column": "nm3",
+        "mods": [],
+    },
+    "nm4": {
+        "column": "nm4",
+        "mods": [],
+    },
+    "nm5": {
+        "column": "nm5",
         "mods": [],
     },
 }
@@ -287,7 +303,7 @@ def main():
             # -> tournament_name
             # ------------------------------------------------
 
-            tournament_label = os.path.basename(os.path.dirname(file_path))
+            variant_label = os.path.basename(os.path.dirname(file_path))
 
             try:
                 insert_base_beatmap(conn, beatmap_data)
@@ -300,7 +316,7 @@ def main():
                 # --------------------------------------------
                 for (variant_name, (mods, difficulty_result)) in variant_results.items():
                     variant_id, mods_string = insert_variant(conn, beatmap_id, mods, beatmap_data, difficulty_result)
-                    insert_tournament_prediction(conn, variant_id, mods_string, tournament_label, TOURNAMENT_LABELS)
+                    insert_variant_prediction_labels(conn, variant_id, mods_string, variant_label, VARIANT_LABELS)
 
                 successful += 1
 
