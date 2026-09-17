@@ -60,6 +60,7 @@ def create_tables(conn):
             variant_id INTEGER PRIMARY KEY AUTOINCREMENT,
 
             beatmap_id TEXT NOT NULL,
+            beatmapset_id TEXT,
             mods TEXT NOT NULL,
 
             hp_drain REAL NOT NULL,

@@ -3,8 +3,7 @@ from beatmap_mods import (
     apply_bpm_mod,
     apply_length_mod,
 )
-
-from canonical import canonicalize_mods
+from beatmap_recommender.content_similarity.core_modules.mod_preferences import canonicalize_mods
 
 
 # ============================================================
@@ -136,6 +135,7 @@ def insert_vectors(conn, beatmap_id, vectors):
 def insert_variant(
     conn,
     beatmap_id,
+    beatmapset_id,
     mods,
     base_data,
     difficulty_result,
@@ -207,6 +207,7 @@ def insert_variant(
         """
         INSERT INTO beatmap_variants (
             beatmap_id,
+            beatmapset_id,
             mods,
             hp_drain,
             circle_size,
@@ -227,11 +228,12 @@ def insert_variant(
         )
         VALUES (
             ?, ?, ?, ?, ?, ?, ?, ?, ?,
-            ?, ?, ?, ?, ?, ?, ?, ?, ?
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
         )
 
         ON CONFLICT(beatmap_id, mods)
         DO UPDATE SET
+            beatmapset_id = excluded.beatmapset_id,
             hp_drain = excluded.hp_drain,
             circle_size = excluded.circle_size,
             od = excluded.od,
@@ -253,6 +255,7 @@ def insert_variant(
         """,
         (
             beatmap_id,
+            beatmapset_id,
             mods_string,
 
             stats["hp_drain"],

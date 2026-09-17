@@ -7,7 +7,7 @@ from osu_tools import OsuCalculator
 from tqdm import tqdm
 
 from db_table_creation import create_tables
-from osu_api_client import OsuAPIClient
+from beatmap_recommender.recommender_db_setup.osu_api_client import OsuAPIClient
 from parser import parse_osu_file
 from beatmap_mods import calculate_difficulty
 from db_insertion import (

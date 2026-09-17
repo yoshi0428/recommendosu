@@ -118,6 +118,22 @@ function CandidateFilters({settings, updateSetting}) {
               />
             </div>
           </Col>
+
+          {/* Column 7: Combo */}
+          <Col xs={6} sm={4} md={3} lg="auto">
+            <div className="d-flex flex-column gap-3">
+              <NumberInput
+                label="Min Combo"
+                value={settings.min_combo}
+                onChange={(value) => updateSetting('min_combo', value)}
+              />
+              <NumberInput
+                label="Max Combo"
+                value={settings.max_combo}
+                onChange={(value) => updateSetting('max_combo', value)}
+              />
+            </div>
+          </Col>
         </Row>
       </Card.Body>
     </Card>

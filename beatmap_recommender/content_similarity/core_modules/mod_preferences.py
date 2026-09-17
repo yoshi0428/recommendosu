@@ -59,7 +59,6 @@ def canonicalize_mods(mods):
         parsed_mods = []
 
         for mod in mods:
-
             mod = str(mod).strip().upper()
             if not mod or mod == "NM":
                 continue
@@ -71,7 +70,6 @@ def canonicalize_mods(mods):
     # --------------------------------------------------------
     else:
         mods = str(mods).strip().upper()
-
         if not mods or mods == "NM":
             return "NM"
 

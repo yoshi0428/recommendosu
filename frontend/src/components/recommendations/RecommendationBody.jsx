@@ -75,7 +75,10 @@ function RecommendationBody({
 
   if (loading) {
     return (
-      <div className="d-flex flex-column align-items-center justify-content-center flex-grow-1 py-5">
+      <div
+        className="d-flex flex-column align-items-center justify-content-center flex-grow-1"
+        style={{minHeight: 0}}
+      >
         <Spinner animation="border"/>
         <div className="mt-3 text-muted">
           Generating recommendations...
@@ -88,7 +91,7 @@ function RecommendationBody({
     return (
       <div className="flex-grow-1 d-flex flex-column">
         <Alert variant="secondary" className="mb-0">
-          No recommendations yet. Open Settings and run the recommender.
+          No recommendations yet. Apply some settings and run the recommender.
         </Alert>
       </div>
     )
@@ -104,11 +107,18 @@ function RecommendationBody({
   return (
     <div
       ref={scrollRef}
-      className="recommendation-scroll flex-grow-1 overflow-y-auto overflow-x-auto position-relative"
+      className="recommendation-scroll flex-grow-1 overflow-auto position-relative"
+      style={{minHeight: 0}}
     >
       {/* table-responsive wrapper handles smooth horizontal scrolling when zoomed in */}
-      <div className="table-responsive w-100">
-        <table className="table table-hover align-middle mb-0" style={{minWidth: '850px'}}>
+        <div className="w-100">
+          <table
+            className="table table-hover align-middle mb-0"
+            style={{
+              minWidth: '850px',
+              width: '100%',
+            }}
+          >
           <thead className="sticky-top bg-body">
           <tr>
             <th className="text-center" style={{width: '33.33%'}}>Artist - Title</th>
@@ -147,7 +157,7 @@ function RecommendationBody({
       {hasMore && (
         <div
           ref={loadMoreRef}
-          className="text-center py-4"
+          className="text-center py-3"
         >
           <Spinner
             animation="border"
@@ -160,7 +170,7 @@ function RecommendationBody({
       )}
 
       {!hasMore && (
-        <div className="text-center text-muted py-4 small">
+        <div className="text-center text-muted py-3 small">
           Showing all{' '}
           {recommendations.length}{' '}
           recommendations.

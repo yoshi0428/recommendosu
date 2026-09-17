@@ -128,6 +128,9 @@ class RecommendationSettings(BaseModel):
     min_length: float | None = None
     max_length: float | None = None
 
+    min_combo: float | None = None
+    max_combo: float | None = None
+
     # ------------------------------------------------------------
     # Difficulty profile
     # ------------------------------------------------------------

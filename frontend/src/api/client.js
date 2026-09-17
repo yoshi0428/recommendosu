@@ -28,14 +28,20 @@ export function login() {
 }
 
 export async function getRecommendations(body, options = {}) {
+  const headers = {
+    'Content-Type': 'application/json',
+  }
+
+  if (options.recommendationId) {
+    headers['X-Recommendation-Id'] = options.recommendationId
+  }
+
   const response = await fetch(`${API_BASE}/recommend`, {
     method: 'POST',
     credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers,
     body: JSON.stringify(body),
-    signal: options.signal, // <-- Pass the AbortController signal here
+    signal: options.signal,
   })
 
   const data = await response.json()
@@ -57,4 +63,25 @@ export async function getRecommendations(body, options = {}) {
   }
 
   return data
+}
+
+export async function cancelRecommendation(recommendationId) {
+  const response = await fetch(
+    `${API_BASE}/recommend/${recommendationId}/cancel`,
+    {
+      method: 'POST',
+      credentials: 'include',
+    }
+  )
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => null)
+
+    throw new Error(
+      data?.detail ||
+      `Cancellation request failed with status ${response.status}`
+    )
+  }
+
+  return response.json()
 }

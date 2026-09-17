@@ -5,8 +5,9 @@ from concurrent.futures import ProcessPoolExecutor
 from osu_tools import OsuCalculator
 from tqdm import tqdm
 
+from beatmap_recommender.content_similarity.db_modules.db_recommender import create_recommender_tables
 from db_table_creation import create_tables
-from osu_api_client import OsuAPIClient
+from beatmap_recommender.recommender_db_setup.osu_api_client import OsuAPIClient
 from parser import parse_osu_file
 from beatmap_mods import calculate_difficulty
 from db_insertion import (
@@ -22,12 +23,10 @@ import hashlib
 # Configuration
 # ============================================================
 
-DATABASE_PATH = "../everything.db"
+DATABASE_PATH = "../recommender.db"
 ROOT_DIR = "../data"
-
 NUM_WORKERS = 8
 BATCH_SIZE = 2500
-
 
 # ============================================================
 # Mod variants
@@ -272,6 +271,7 @@ def main():
                     response_data = api_client.get("/beatmaps/lookup", params={"checksum": file_hash})
                     if response_data and "id" in response_data:
                         beatmap_data["beatmap_id"] = str(response_data["id"])
+                        beatmap_data["beatmapset_id"] = str(response_data["beatmapset_id"])
                         if beatmap_data["ar"] is None:
                             beatmap_data["ar"] = response_data.get("ar", 8.0)
                 except Exception:
@@ -284,6 +284,7 @@ def main():
                 beatmap_data["beatmap_id"] = str(beatmap_data["beatmap_id"])
 
             beatmap_id = beatmap_data["beatmap_id"]
+            beatmapset_id = beatmap_data["beatmapset_id"]
 
             if beatmap_data["ar"] is None:
                 beatmap_data["ar"] = 8.0
@@ -315,7 +316,7 @@ def main():
                 # Mod variants
                 # --------------------------------------------
                 for (variant_name, (mods, difficulty_result)) in variant_results.items():
-                    variant_id, mods_string = insert_variant(conn, beatmap_id, mods, beatmap_data, difficulty_result)
+                    variant_id, mods_string = insert_variant(conn, beatmap_id, beatmapset_id, mods, beatmap_data, difficulty_result)
                     insert_variant_prediction_labels(conn, variant_id, mods_string, variant_label, VARIANT_LABELS)
 
                 successful += 1
@@ -331,6 +332,7 @@ def main():
                 print(f"\nProgress: {processed}/{len(osu_files)} | successful={successful} | skipped={skipped} | failed_variants={failed_variants}")
 
     conn.commit()
+    create_recommender_tables(conn)
     conn.close()
 
     print()

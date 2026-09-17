@@ -1,7 +1,6 @@
 import sqlite3
 
-from beatmap_recommender.content_similarity.core_modules.mod_preferences import canonicalize_mods
-from osu_api_client import OsuAPIClient
+from beatmap_recommender.recommender_db_setup.osu_api_client import OsuAPIClient
 from beatmap_recommender.content_similarity.core_modules.score_collector import update_player_scores
 from beatmap_recommender.content_similarity.core_modules.content_similarity import build_seed_similarity_index
 from beatmap_recommender.content_similarity.core_modules.mod_preferences import get_preferred_mods
@@ -13,7 +12,7 @@ from pathlib import Path
 # Configuration
 # ============================================================
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DB_PATH = PROJECT_ROOT / "beatmap_recommender/test_everything.db"
+DB_PATH = PROJECT_ROOT / "beatmap_recommender/test_recommender.db"
 
 NUM_RECOMMENDATIONS = 100
 NEIGHBORS_K = 10_000

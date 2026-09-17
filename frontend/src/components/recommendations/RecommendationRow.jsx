@@ -53,36 +53,46 @@ function RecommendationRow({
       style={{cursor: 'pointer'}}
       title="Click to view score breakdown"
     >
-      {/* Title & Artist takes 1/3 (33.33%) with a larger cover image on the left */}
-      <td style={{width: '33.33%'}}>
-        <a
-          href={beatmapUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="text-decoration-none text-body d-flex align-items-center gap-3 text-start"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {coverUrl && (
-            <img
-              src={coverUrl}
-              alt=""
-              width="104"
-              height="58"
-              className="rounded object-fit-cover flex-shrink-0 bg-secondary shadow-sm"
-              loading="lazy"
-              onError={(e) => {
-                // Hide or fallback if cover image fails to load
-                e.target.style.display = 'none'
-              }}
-            />
-          )}
-          <div className="text-truncate">
-            <strong>
-              {title ? `${artist} - ${title} [${version}]` : `Beatmap ${beatmap_id}`}
-            </strong>
+        <td style={{width: '33.33%'}}>
+          <div className="d-flex align-items-center gap-3 text-start">
+            {coverUrl && (
+              <img
+                src={coverUrl}
+                alt=""
+                width="104"
+                height="58"
+                className="rounded object-fit-cover flex-shrink-0 bg-secondary shadow-sm"
+                loading="lazy"
+                onError={(e) => {
+                  e.target.style.display = 'none'
+                }}
+              />
+            )}
+
+            <div className="text-truncate">
+                <a
+                  href={beatmapUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-body"
+                  style={{textDecoration: 'none'}}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.textDecoration = 'underline'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.textDecoration = 'none'
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <strong>
+                    {title
+                      ? `${artist} - ${title} [${version}]`
+                      : `Beatmap ${beatmap_id}`}
+                  </strong>
+                </a>
+            </div>
           </div>
-        </a>
-      </td>
+        </td>
 
       {/* Remaining columns spread evenly across the other 2/3 */}
       <td className="text-center" style={{width: remainingColumnWidth}}>{pp != null ? Number(pp).toFixed(0) : '—'}</td>

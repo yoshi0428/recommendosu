@@ -3,8 +3,11 @@ from beatmap_recommender.content_similarity.core_modules.ability import get_abil
 from beatmap_recommender.content_similarity.core_modules.cnn_xgboost_influence import calculate_classifier_score, get_candidate_classifier_predictions
 from .pp_potential import weighted_mean_and_std, calculate_pp_potential
 from .mod_preferences import canonicalize_mods
+import time
+from beatmap_recommender.cancellation import check_cancelled
 
-def get_player_played_variants(conn, player_id):
+
+def get_player_played_variants(conn, player_id, cancel_event=None):
     """
     Get the actual beatmap variants represented in the player's scores.
     We fetch the player's scores first, then fetch all variants for the relevant beatmaps in one query.
@@ -20,6 +23,8 @@ def get_player_played_variants(conn, player_id):
     Score-specific information such as source, PP, and created_at comes from the scores table.
     Variant-specific information such as star rating, AR, OD, and BPM comes from beatmap_variants.
     """
+    check_cancelled(cancel_event)
+
     # ------------------------------------------------------------------
     # Fetch player's scores.
     # ------------------------------------------------------------------
@@ -37,6 +42,7 @@ def get_player_played_variants(conn, player_id):
         (player_id,),
     ).fetchall()
 
+    check_cancelled(cancel_event)
     if not score_rows:
         return []
 
@@ -48,6 +54,7 @@ def get_player_played_variants(conn, player_id):
         for row in score_rows
     })
 
+    check_cancelled(cancel_event)
     placeholders = ",".join("?" for _ in beatmap_ids)
 
     # ------------------------------------------------------------------
@@ -69,6 +76,7 @@ def get_player_played_variants(conn, player_id):
         beatmap_ids,
     ).fetchall()
 
+    check_cancelled(cancel_event)
     variants_by_key = {}
 
     for row in variant_rows:
@@ -97,6 +105,8 @@ def get_player_played_variants(conn, player_id):
                 "bpm": bpm,
             }
 
+    check_cancelled(cancel_event)
+
     # ------------------------------------------------------------------
     # Combine score-specific information with variant information.
     # ------------------------------------------------------------------
@@ -124,9 +134,20 @@ def get_player_played_variants(conn, player_id):
             "created_at": created_at,
         })
 
+    check_cancelled(cancel_event)
     return played_variants
 
-def get_player_difficulty_profile(conn, player_id, difficulty_std_floors, recency_half_life_days, ability_top_weight, ability_recent_weight, ability_pp_weight):
+
+def get_player_difficulty_profile(
+    conn,
+    player_id,
+    difficulty_std_floors,
+    recency_half_life_days,
+    ability_top_weight,
+    ability_recent_weight,
+    ability_pp_weight,
+    cancel_event=None,
+):
     """
     Calculate the player's current difficulty profile.
 
@@ -149,8 +170,9 @@ def get_player_difficulty_profile(conn, player_id, difficulty_std_floors, recenc
     The score timestamp comes from:
         scores.created_at
     """
-
-    played_variants = get_player_played_variants(conn, player_id)
+    check_cancelled(cancel_event)
+    played_variants = get_player_played_variants(conn, player_id, cancel_event=cancel_event)
+    check_cancelled(cancel_event)
 
     if not played_variants:
         return {}
@@ -163,11 +185,15 @@ def get_player_difficulty_profile(conn, player_id, difficulty_std_floors, recenc
     ]
 
     profile = {}
-    for feature in features:
+    for feature_index, feature in enumerate(features):
+        check_cancelled(cancel_event)
 
         values = []
         weights = []
-        for variant in played_variants:
+        for index, variant in enumerate(played_variants):
+
+            if index % 1024 == 0:
+                check_cancelled(cancel_event)
 
             value = variant.get(feature)
 
@@ -194,6 +220,8 @@ def get_player_difficulty_profile(conn, player_id, difficulty_std_floors, recenc
             values.append(value)
             weights.append(weight)
 
+        check_cancelled(cancel_event)
+
         if not values:
             continue
 
@@ -202,38 +230,119 @@ def get_player_difficulty_profile(conn, player_id, difficulty_std_floors, recenc
         profile[f"{feature}_mean"] = mean
         profile[f"{feature}_std"] = std
 
+    check_cancelled(cancel_event)
     return profile
 
-def get_candidate_variants(conn, beatmap_ids, requested_mods=None):
+
+def get_candidate_variants(
+    conn,
+    beatmap_ids,
+    requested_mods=None,
+    min_stars=None,
+    max_stars=None,
+    min_bpm=None,
+    max_bpm=None,
+    min_pp=None,
+    max_pp=None,
+    min_ar=None,
+    max_ar=None,
+    min_od=None,
+    max_od=None,
+    min_length=None,
+    max_length=None,
+    min_combo=None,
+    max_combo=None,
+    cancel_event=None,
+):
     """
-    Fetch all variants belonging to the supplied base beatmaps.
+    Fetch candidate variants belonging to the supplied base beatmaps.
 
-    Also loads base beatmap metadata:
-        title
-        artist
-        creator
-        version
-
-    Returns a list of dictionaries.
-
-    Mod strings are canonicalized when loaded so that, for example:
-
-        DTHD -> HDDT
-        HRDT -> HRDT
-        HDHR -> HDHR
+    Numeric filters are pushed into SQLite so that variants which
+    cannot possibly be recommended are never loaded into Python.
     """
+
     if not beatmap_ids:
         return []
 
     placeholders = ",".join("?" for _ in beatmap_ids)
     params = list(beatmap_ids)
+    conditions = [
+        f"bv.beatmap_id IN ({placeholders})"
+    ]
 
-    mods_clause = ""
+    # --------------------------------------------------------------
+    # Mod filter
+    # --------------------------------------------------------------
+
     if requested_mods is not None:
         requested_mods = canonicalize_mods(requested_mods)
-        mods_clause = "AND bv.mods = ?"
+        conditions.append("bv.mods = ?")
         params.append(requested_mods)
 
+    # --------------------------------------------------------------
+    # Numeric filters
+    # --------------------------------------------------------------
+    if min_stars is not None:
+        conditions.append("bv.star_rating >= ?")
+        params.append(min_stars)
+
+    if max_stars is not None:
+        conditions.append("bv.star_rating <= ?")
+        params.append(max_stars)
+
+    if min_bpm is not None:
+        conditions.append("bv.bpm >= ?")
+        params.append(min_bpm)
+
+    if max_bpm is not None:
+        conditions.append("bv.bpm <= ?")
+        params.append(max_bpm)
+
+    if min_pp is not None:
+        conditions.append("bv.pp >= ?")
+        params.append(min_pp)
+
+    if max_pp is not None:
+        conditions.append("bv.pp <= ?")
+        params.append(max_pp)
+
+    if min_ar is not None:
+        conditions.append("bv.ar >= ?")
+        params.append(min_ar)
+
+    if max_ar is not None:
+        conditions.append("bv.ar <= ?")
+        params.append(max_ar)
+
+    if min_od is not None:
+        conditions.append("bv.od >= ?")
+        params.append(min_od)
+
+    if max_od is not None:
+        conditions.append("bv.od <= ?")
+        params.append(max_od)
+
+    if min_length is not None:
+        conditions.append("bv.length_seconds >= ?")
+        params.append(min_length)
+
+    if max_length is not None:
+        conditions.append("bv.length_seconds <= ?")
+        params.append(max_length)
+
+    if min_combo is not None:
+        conditions.append("bv.max_combo >= ?")
+        params.append(min_combo)
+
+    if max_combo is not None:
+        conditions.append("bv.max_combo <= ?")
+        params.append(max_combo)
+
+    # --------------------------------------------------------------
+    # Query
+    # --------------------------------------------------------------
+    check_cancelled(cancel_event)
+    start = time.perf_counter()
     rows = conn.execute(
         f"""
         SELECT
@@ -251,8 +360,6 @@ def get_candidate_variants(conn, beatmap_ids, requested_mods=None):
             bv.star_rating,
             bv.max_combo,
             bv.bpm,
-            bv.min_bpm,
-            bv.max_bpm,
             bv.length_seconds,
             bv.object_count,
             bv.pp,
@@ -261,15 +368,22 @@ def get_candidate_variants(conn, beatmap_ids, requested_mods=None):
             bv.pp_acc,
             bv.pp_flashlight
 
-        FROM beatmap_variants bv
-        JOIN beatmaps b
+        FROM beatmap_variants AS bv
+        JOIN beatmaps AS b
             ON b.beatmap_id = bv.beatmap_id
 
-        WHERE bv.beatmap_id IN ({placeholders})
-          {mods_clause}
+        WHERE {" AND ".join(conditions)}
         """,
         params,
     ).fetchall()
+
+    check_cancelled(cancel_event)
+
+    print(
+        f"[get_candidate_variants] SQLite query: "
+        f"{time.perf_counter() - start:.4f}s "
+        f"({len(rows)} rows)"
+    )
 
     columns = [
         "variant_id",
@@ -288,8 +402,6 @@ def get_candidate_variants(conn, beatmap_ids, requested_mods=None):
         "star_rating",
         "max_combo",
         "bpm",
-        "min_bpm",
-        "max_bpm",
         "length_seconds",
         "object_count",
         "pp",
@@ -299,48 +411,71 @@ def get_candidate_variants(conn, beatmap_ids, requested_mods=None):
         "pp_flashlight",
     ]
 
+    start = time.perf_counter()
+
     variants = []
 
-    for row in rows:
-        variant = dict(zip(columns, row))
-        variant["beatmap_id"] = str(variant["beatmap_id"])
-        variant["mods"] = canonicalize_mods(variant["mods"])
-        variants.append(variant)
+    for index, row in enumerate(rows):
+        if index % 1024 == 0:
+            check_cancelled(cancel_event)
+
+        variants.append(dict(zip(columns, row)))
+
+    check_cancelled(cancel_event)
+
+    print(
+        f"[get_candidate_variants] Python conversion: "
+        f"{time.perf_counter() - start:.4f}s "
+        f"({len(variants)} variants)"
+    )
 
     return variants
 
-def calculate_difficulty_score(variant, difficulty_profile, difficulty_std_floors, difficulty_feature_weights):
-    """
-    Calculate how well a variant's difficulty matches the player's current difficulty profile.
 
-    Returns approximately [0, 1]:
+def calculate_difficulty_scores(
+    variants,
+    difficulty_profile,
+    difficulty_std_floors,
+    difficulty_feature_weights,
+    cancel_event=None,
+):
+    """
+    Calculate how well each variant's difficulty matches the player's current difficulty profile.
+
+    Returns approximately [0, 1] for each variant:
 
         1.0 = very close to player's typical difficulty
         0.5 = moderate difference
         0.0 = very far from player's typical difficulty
 
     Star rating receives the strongest weight.
+
+    The calculation is vectorized across all variants.
     """
+    check_cancelled(cancel_event)
+
+    if not variants:
+        return np.empty(0, dtype=np.float32)
 
     if not difficulty_profile:
-        return 0.5
+        return np.full(len(variants), 0.5,dtype=np.float32,)
 
-    weighted_squared_distance = 0.0
-    total_weight = 0.0
+    # ------------------------------------------------------------------
+    # Build weighted feature matrix.
+    # ------------------------------------------------------------------
+    feature_values = []
+    feature_weights = []
 
     for feature, feature_weight in difficulty_feature_weights.items():
-
-        value = variant.get(feature)
-        if value is None:
-            continue
+        check_cancelled(cancel_event)
 
         mean = difficulty_profile.get(f"{feature}_mean")
         std = difficulty_profile.get(f"{feature}_std")
+
         if mean is None or std is None:
             continue
 
         try:
-            value = float(value)
             mean = float(mean)
             std = float(std)
         except (TypeError, ValueError):
@@ -349,22 +484,69 @@ def calculate_difficulty_score(variant, difficulty_profile, difficulty_std_floor
         if std <= 0:
             std = difficulty_std_floors[feature]
 
-        z = (value - mean) / std
-        weighted_squared_distance += (feature_weight * z ** 2)
-        total_weight += feature_weight
+        values = np.asarray(
+            [
+                float(variant[feature])
+                if variant.get(feature) is not None else np.nan
+                for variant in variants
+            ],
+            dtype=np.float32,
+        )
 
-    if total_weight <= 0:
-        return 0.5
+        check_cancelled(cancel_event)
 
-    distance = np.sqrt(weighted_squared_distance / total_weight)
+        z = (values - mean) / std
+        valid = np.isfinite(z)
+        feature_values.append(np.where(valid, z ** 2, 0.0))
+        feature_weights.append(np.where(valid, feature_weight, 0.0))
 
-    # Gaussian-like falloff.
-    # distance = 0 -> 1.0
-    # distance = 1 -> ~0.61
-    # distance = 2 -> ~0.14
-    # distance = 3 -> ~0.01
-    score = np.exp(-0.5 * distance ** 2)
-    return float(score)
+    check_cancelled(cancel_event)
+    if not feature_values:
+        return np.full(len(variants), 0.5, dtype=np.float32)
+
+    # ------------------------------------------------------------------
+    # Stack:
+    #
+    #     rows    = variants
+    #     columns = difficulty features
+    # ------------------------------------------------------------------
+    squared_z_matrix = np.stack(feature_values, axis=1)
+    weight_matrix = np.stack(feature_weights, axis=1)
+
+    check_cancelled(cancel_event)
+
+    # ------------------------------------------------------------------
+    # Weighted squared distance.
+    # ------------------------------------------------------------------
+    weighted_squared_distance = (squared_z_matrix * weight_matrix)
+    total_weight = weight_matrix.sum(axis=1)
+
+    # Avoid division by zero for variants where every feature was missing/invalid.
+    valid_variants = total_weight > 0
+
+    scores = np.full(len(variants), 0.5, dtype=np.float32)
+
+    if np.any(valid_variants):
+        distance = np.sqrt(
+            weighted_squared_distance[valid_variants].sum(axis=1)
+            / total_weight[valid_variants]
+        )
+
+        check_cancelled(cancel_event)
+
+        # --------------------------------------------------------------
+        # Gaussian-like falloff.
+        #
+        # distance = 0 -> 1.0
+        # distance = 1 -> ~0.61
+        # distance = 2 -> ~0.14
+        # distance = 3 -> ~0.01
+        # --------------------------------------------------------------
+        scores[valid_variants] = np.exp(-0.5 * distance ** 2)
+
+    check_cancelled(cancel_event)
+    return scores
+
 
 def score_variant(
     content_similarity,
@@ -404,6 +586,7 @@ def score_variant(
         + weights["pp_potential"] * pp_potential
     )
 
+
 def rank_variants(
     conn,
     similarity_index,
@@ -424,12 +607,15 @@ def rank_variants(
     max_od=None,
     min_length=None,
     max_length=None,
+    min_combo=None,
+    max_combo=None,
     recommendation_goal="balanced",
     recommendation_config=None,
     difficulty_std_floors=None,
     difficulty_feature_weights=None,
     pp_push_target_z=None,
     pp_push_max_z=None,
+    cancel_event=None,
 ):
     """
     Rank variants for all candidate base maps.
@@ -467,8 +653,16 @@ def rank_variants(
         8. sort globally
         9. return top_k
     """
+    check_cancelled(cancel_event)
+    total_start = time.perf_counter()
+
     if not similarity_index:
         return []
+
+    config = recommendation_config[recommendation_goal]
+    weights = config["weights"]
+    classifier_weight = weights["classifier"]
+    pp_potential_weight = weights["pp_potential"]
 
     # ------------------------------------------------------------------
     # Validate filters
@@ -491,12 +685,18 @@ def rank_variants(
     if min_length is not None and max_length is not None and min_length > max_length:
         raise ValueError(f"min_length ({min_length}) cannot be greater than max_length ({max_length})")
 
+    if min_combo is not None and max_combo is not None and min_combo > max_combo:
+        raise ValueError(f"min_combo ({min_combo}) cannot be greater than max_combo ({max_combo})")
+
     # ------------------------------------------------------------------
     # Collapse seed -> candidates into:
     # beatmap_id -> best similarity
     # ------------------------------------------------------------------
+    start = time.perf_counter()
+
     candidate_similarity = {}
-    for seed_beatmap_id, similar_maps in similarity_index.items():
+    for seed_index, (seed_beatmap_id, similar_maps) in enumerate(similarity_index.items()):
+        check_cancelled(cancel_event)
         for beatmap_id, similarity in similar_maps:
             beatmap_id = str(beatmap_id)
             similarity = float(similarity)
@@ -505,172 +705,162 @@ def rank_variants(
             if previous is None or similarity > previous:
                 candidate_similarity[beatmap_id] = similarity
 
+    check_cancelled(cancel_event)
+
+    print(
+        f"\n[rank_variants] Collapse similarities: "
+        f"{time.perf_counter() - start:.4f}s "
+        f"({len(candidate_similarity)} candidate beatmaps)"
+    )
+
     if not candidate_similarity:
         return []
 
     # ------------------------------------------------------------------
     # Load all variants.
     # ------------------------------------------------------------------
+    start = time.perf_counter()
+
     if requested_mods is not None:
         requested_mods = canonicalize_mods(requested_mods)
 
-    variants = get_candidate_variants(conn, candidate_similarity.keys(), requested_mods=requested_mods)
-    if not variants:
-        return []
-
-    # ------------------------------------------------------------------
-    # Apply hard numeric filters.
-    # ------------------------------------------------------------------
-    filtered_variants = []
-    for variant in variants:
-
-        # SR
-        star_rating = variant.get("star_rating")
-        if star_rating is None:
-            continue
-
-        try:
-            star_rating = float(star_rating)
-        except (TypeError, ValueError):
-            continue
-
-        if min_stars is not None and star_rating < min_stars:
-            continue
-        if max_stars is not None and star_rating > max_stars:
-            continue
-
-        # BPM
-        bpm = variant.get("bpm")
-        if bpm is None:
-            continue
-
-        try:
-            bpm = float(bpm)
-        except (TypeError, ValueError):
-            continue
-
-        if min_bpm is not None and bpm < min_bpm:
-            continue
-        if max_bpm is not None and bpm > max_bpm:
-            continue
-
-        # PP
-        pp = variant.get("pp")
-        if min_pp is not None or max_pp is not None:
-            if pp is None:
-                continue
-
-            try:
-                pp = float(pp)
-            except (TypeError, ValueError):
-                continue
-
-            if min_pp is not None and pp < min_pp:
-                continue
-            if max_pp is not None and pp > max_pp:
-                continue
-
-        # AR
-        ar = variant.get("ar")
-
-        if ar is None:
-            continue
-
-        try:
-            ar = float(ar)
-        except (TypeError, ValueError):
-            continue
-
-        if min_ar is not None and ar < min_ar:
-            continue
-
-        if max_ar is not None and ar > max_ar:
-            continue
-
-        # OD
-        od = variant.get("od")
-
-        if od is None:
-            continue
-
-        try:
-            od = float(od)
-        except (TypeError, ValueError):
-            continue
-
-        if min_od is not None and od < min_od:
-            continue
-
-        if max_od is not None and od > max_od:
-            continue
-
-        # Length (seconds)
-        length_seconds = variant.get("length_seconds")
-        if min_length is not None or max_length is not None:
-            if length_seconds is None:
-                continue
-
-            try:
-                length_seconds = float(length_seconds)
-            except (TypeError, ValueError):
-                continue
-
-            if min_length is not None and length_seconds < min_length:
-                continue
-            if max_length is not None and length_seconds > max_length:
-                continue
-
-        filtered_variants.append(variant)
-
-    variants = filtered_variants
-    if not variants:
-        return []
-
-    classifier_predictions = get_candidate_classifier_predictions(
+    variants = get_candidate_variants(
         conn,
-        [variant["variant_id"] for variant in variants],
+        candidate_similarity.keys(),
+        requested_mods=requested_mods,
+        min_stars=min_stars,
+        max_stars=max_stars,
+        min_bpm=min_bpm,
+        max_bpm=max_bpm,
+        min_pp=min_pp,
+        max_pp=max_pp,
+        min_ar=min_ar,
+        max_ar=max_ar,
+        min_od=min_od,
+        max_od=max_od,
+        min_length=min_length,
+        max_length=max_length,
+        min_combo=min_combo,
+        max_combo=max_combo,
+        cancel_event=cancel_event,
+    )
+
+    check_cancelled(cancel_event)
+
+    print(
+        f"[rank_variants] Load candidate variants: "
+        f"{time.perf_counter() - start:.4f}s "
+        f"({len(variants)} variants)"
+    )
+
+    if not variants:
+        return []
+
+    # ------------------------------------------------------------------
+    # Classifier predictions.
+    # ------------------------------------------------------------------
+    check_cancelled(cancel_event)
+    start = time.perf_counter()
+
+    classifier_predictions = {}
+
+    if classifier_weight > 0 and category_preferences:
+        classifier_variant_ids = [
+            variant["variant_id"]
+            for variant in variants
+            if variant["mods"] == "NM"
+        ]
+
+        if classifier_variant_ids:
+            classifier_predictions = get_candidate_classifier_predictions(
+                conn,
+                classifier_variant_ids,
+            )
+
+    check_cancelled(cancel_event)
+
+    print(
+        f"[rank_variants] Classifier predictions: "
+        f"{time.perf_counter() - start:.4f}s "
+        f"({len(classifier_predictions)} predictions)"
+    )
+
+    # ------------------------------------------------------------------
+    # Difficulty scores
+    # ------------------------------------------------------------------
+    start = time.perf_counter()
+
+    difficulty_weight = weights["difficulty"]
+
+    if difficulty_weight > 0:
+        difficulty_scores = calculate_difficulty_scores(
+            variants,
+            difficulty_profile,
+            difficulty_std_floors,
+            difficulty_feature_weights,
+            cancel_event=cancel_event
+        )
+    else:
+        difficulty_scores = np.full(
+            len(variants),
+            0.5,
+            dtype=np.float32,
+        )
+
+    check_cancelled(cancel_event)
+
+    print(
+        f"[rank_variants] Difficulty scores: "
+        f"{time.perf_counter() - start:.4f}s "
+        f"({len(variants)} variants)"
     )
 
     # ------------------------------------------------------------------
     # Score variants.
     # ------------------------------------------------------------------
-    scored_variants = []
-    for variant in variants:
-        beatmap_id = variant["beatmap_id"]
-        content_similarity = (candidate_similarity[beatmap_id])
-        mods = variant["mods"]
-        mod_preference = (mod_preferences.get(mods, 0.0,))
+    start = time.perf_counter()
 
-        difficulty_score = calculate_difficulty_score(
-            variant,
-            difficulty_profile,
-            difficulty_std_floors,
-            difficulty_feature_weights
-        )
+    scored_variants = []
+
+    for index, variant in enumerate(variants):
+        if index % 1024 == 0:
+            check_cancelled(cancel_event)
+
+        beatmap_id = variant["beatmap_id"]
+        content_similarity = candidate_similarity[beatmap_id]
+        mods = variant["mods"]
+        mod_preference = mod_preferences.get(mods, 0.0)
+
+        difficulty_score = float(difficulty_scores[index])
 
         # --------------------------------------------------------------
         # Classifier score
         # --------------------------------------------------------------
-        classifier_weight = recommendation_config[recommendation_goal]["weights"]["classifier"]
         if classifier_weight <= 0:
             classifier_score = 0.5
         elif mods == "NM" and category_preferences:
             probabilities = classifier_predictions.get(variant["variant_id"])
-            classifier_score = calculate_classifier_score(probabilities, category_preferences)
+            classifier_score = calculate_classifier_score(
+                probabilities,
+                category_preferences,
+            )
         else:
             classifier_score = 0.5
 
         # --------------------------------------------------------------
         # PP potential
         # --------------------------------------------------------------
-        pp_potential = calculate_pp_potential(
-            variant,
-            difficulty_profile,
-            difficulty_std_floors,
-            difficulty_feature_weights,
-            pp_push_target_z,
-            pp_push_max_z,
-        )
+        if pp_potential_weight > 0:
+            pp_potential = calculate_pp_potential(
+                variant,
+                difficulty_profile,
+                difficulty_std_floors,
+                difficulty_feature_weights,
+                pp_push_target_z,
+                pp_push_max_z,
+            )
+        else:
+            pp_potential = 0.5
 
         # --------------------------------------------------------------
         # Final score
@@ -695,21 +885,45 @@ def rank_variants(
             "final_score": final_score,
         })
 
+    check_cancelled(cancel_event)
+
+    print(
+        f"[rank_variants] Score variants: "
+        f"{time.perf_counter() - start:.4f}s "
+        f"({len(variants)} variants)"
+    )
+
     # ------------------------------------------------------------------
     # Keep only the best variant for each base beatmap.
     # ------------------------------------------------------------------
+    start = time.perf_counter()
 
     best_by_beatmap = {}
-    for variant in scored_variants:
+
+    for index, variant in enumerate(scored_variants):
+        if index % 1024 == 0:
+            check_cancelled(cancel_event)
+
         beatmap_id = variant["beatmap_id"]
         previous = best_by_beatmap.get(beatmap_id)
 
         if previous is None or variant["final_score"] > previous["final_score"]:
             best_by_beatmap[beatmap_id] = variant
 
+    check_cancelled(cancel_event)
+
+    print(
+        f"[rank_variants] Best variants: "
+        f"{time.perf_counter() - start:.4f}s "
+        f"({len(best_by_beatmap)} beatmaps)"
+    )
+
     # ------------------------------------------------------------------
     # Sort globally.
     # ------------------------------------------------------------------
+    check_cancelled(cancel_event)
+    start = time.perf_counter()
+
     config = recommendation_config[recommendation_goal]
     ranked = list(best_by_beatmap.values())
 
@@ -723,7 +937,23 @@ def rank_variants(
         reverse=True,
     )
 
+    check_cancelled(cancel_event)
+
     if top_k is not None:
         ranked = ranked[:top_k]
+
+    print(
+        f"[rank_variants] Sort and truncate: "
+        f"{time.perf_counter() - start:.4f}s "
+        f"({len(ranked)} results)"
+    )
+
+    # ------------------------------------------------------------------
+    # Total time.
+    # ------------------------------------------------------------------
+    print(
+        f"[rank_variants] TOTAL: "
+        f"{time.perf_counter() - total_start:.4f}s"
+    )
 
     return ranked

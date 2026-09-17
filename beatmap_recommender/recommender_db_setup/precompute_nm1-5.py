@@ -14,12 +14,12 @@ from dot_osu_indexer import build_osu_file_index
 # Configuration
 # ============================================================
 
-DB_PATH = "./beatmap_recommender/recommender.db"
+DB_PATH = "../recommender.db"
 DATA_ROOT = "./beatmap_recommender/data"
 
 MODEL_FOLDER = "./beatmap_classifier/models/bagged_models"
-LABEL_ENCODER_PATH = "./beatmap_classifier/models/label_encoder.pkl"
-META_MODEL_PATH = "./beatmap_classifier/models/meta_model.pkl"
+LABEL_ENCODER_PATH = "../../beatmap_classifier/models/label_encoder.pkl"
+META_MODEL_PATH = "../../beatmap_classifier/models/meta_model.pkl"
 
 MAX_SEQUENCE_LENGTH = 4096
 MAX_SLIDER_LENGTH = 500.0

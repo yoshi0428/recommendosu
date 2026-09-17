@@ -1,10 +1,12 @@
 import os
+import uuid
 
 import httpx
 from pydantic import BaseModel, Field
 from fastapi import (
     Cookie,
     FastAPI,
+    Header,
     HTTPException,
     Query,
     Response,
@@ -13,6 +15,12 @@ from fastapi.responses import RedirectResponse
 from beatmap_recommender.api.model import RecommendationSettings
 from beatmap_recommender.api.osu_api import get_authenticated_user
 from beatmap_recommender.recommender import recommend_player
+from beatmap_recommender.cancellation import (
+    RecommendationCancelled,
+    cancel_recommendation,
+    create_cancellation_event,
+    remove_cancellation_event,
+)
 
 from beatmap_recommender.auth.osu_oauth import (
     build_authorization_url,
@@ -224,6 +232,10 @@ class Recommendation(BaseModel):
 class RecommendationResponse(BaseModel):
     """Response containing personalized beatmap recommendations."""
 
+    recommendation_id: str = Field(
+        description="Unique identifier for this recommendation request.",
+    )
+
     player_id: int = Field(
         description="osu! player ID used to generate the recommendations.",
         examples=[12345678],
@@ -300,6 +312,7 @@ async def recommend_get(
     ),
 ):
     player_id = require_player(session_id)
+
     settings = RecommendationSettings(
         player_id=player_id,
         limit=limit,
@@ -307,7 +320,10 @@ async def recommend_get(
     )
 
     try:
-        recommendations = await recommend_player(settings)
+        recommendations = await recommend_player(
+            settings,
+            session_player_id=player_id,
+        )
     except ValueError as exc:
         raise HTTPException(
             status_code=400,
@@ -315,7 +331,8 @@ async def recommend_get(
         )
 
     return {
-        "player_id": player_id,
+        "recommendation_id": uuid.uuid4().hex,
+        "player_id": settings.player_id,
         "recommendation_goal": settings.goal,
         "recommendations": recommendations,
     }
@@ -336,23 +353,75 @@ async def recommend_get(
 async def recommend_post(
     settings: RecommendationSettings,
     session_id: str | None = Cookie(default=None),
+    recommendation_id: str | None = Header(
+        default=None,
+        alias="X-Recommendation-Id",
+    ),
 ):
     session_player_id = require_player(session_id)
+
     if settings.player_id is None:
         settings.player_id = session_player_id
 
+    if not recommendation_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Missing X-Recommendation-Id header.",
+        )
+
+    # Register the client-provided ID before starting the worker.
+    recommendation_id, cancel_event = create_cancellation_event(
+        recommendation_id
+    )
+
     try:
-        recommendations = await recommend_player(settings, session_player_id=session_player_id)
+        recommendations = await recommend_player(
+            settings,
+            session_player_id=session_player_id,
+            cancel_event=cancel_event,
+        )
+
+    except RecommendationCancelled:
+        return Response(
+            status_code=204,
+            headers={
+                "X-Recommendation-Cancelled": "true",
+                "X-Recommendation-Id": recommendation_id,
+            },
+        )
+
     except ValueError as exc:
         raise HTTPException(
             status_code=400,
             detail=str(exc),
         )
 
+    finally:
+        remove_cancellation_event(recommendation_id)
+
     return {
+        "recommendation_id": recommendation_id,
         "player_id": settings.player_id,
         "recommendation_goal": settings.goal,
         "recommendations": recommendations,
+    }
+
+@app.post(
+    f"{API_PREFIX}/recommend/{{recommendation_id}}/cancel",
+    summary="Cancel an active recommendation request",
+    tags=["Recommendations"],
+)
+async def recommend_cancel(
+    recommendation_id: str,
+    session_id: str | None = Cookie(default=None),
+):
+    require_player(session_id)
+
+    cancelled = cancel_recommendation(recommendation_id)
+
+    return {
+        "recommendation_id": recommendation_id,
+        "cancelled": cancelled,
     }
 
 
