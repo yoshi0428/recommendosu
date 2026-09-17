@@ -1,5 +1,5 @@
-/backend/osu_oracle_pytorch/.env
-/backend/osu_oracle_pytorch/scripts/speed
-/backend/osu_oracle_pytorch/scripts/extracted_osu
-/backend/osu_oracle_pytorch/scripts/osz_files
-/backend/osu_oracle_pytorch/beatmaps.db
+/.env
+/osu_oracle_pytorch/scripts/speed
+/osu_oracle_pytorch/scripts/extracted_osu
+/osu_oracle_pytorch/scripts/osz_files
+/osu_oracle_pytorch/beatmaps.db
