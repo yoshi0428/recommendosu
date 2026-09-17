@@ -2,6 +2,7 @@ import os
 import pickle
 import tempfile
 import time
+from pathlib import Path
 
 import numpy as np
 import requests
@@ -21,28 +22,17 @@ from beatmap_classifier.classifier.cnn_model import CNNModel
 # ============================================================
 # Configuration
 # ============================================================
+PROJECT_ROOT = Path(__file__).resolve().parents[0]
+MODEL_FOLDER = PROJECT_ROOT / "models/bagged_models"
+LABEL_ENCODER_PATH = PROJECT_ROOT / "models/label_encoder.pkl"
+META_SCALER_PATH = PROJECT_ROOT / "models/meta_scaler.pkl"
+META_MODEL_PATH = PROJECT_ROOT / "models/meta_model.pkl"
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-MODEL_FOLDER = "models/bagged_models"
-LABEL_ENCODER_PATH = "models/label_encoder.pkl"
-META_SCALER_PATH = "models/meta_scaler.pkl"
-META_MODEL_PATH = "models/meta_model.pkl"
 
 MAX_SEQUENCE_LENGTH = 4096
 MAX_SLIDER_LENGTH = 500.0
 NUM_CLASSES = 5
-
-# Same normalization constants used during training
-# AR_SCALE = 10.0
-# OD_SCALE = 10.0
-# CS_SCALE = 5.0
-# STAR_SCALE = 10.0
-# BPM_SCALE = 250.0
-# COMBO_SCALE = 3000.0
-# LENGTH_SCALE = 400.0
-# OBJECT_COUNT_SCALE = 2500.0
-
 
 HEADERS = {
     "User-Agent": (
@@ -83,11 +73,6 @@ movement_feature_names = [
 ]
 
 cnn_feature_names = [
-    # "CNN_DT1",
-    # "CNN_DT2_AND_DT3",
-    # "CNN_HD2",
-    # "CNN_HR1",
-    # "CNN_HR2",
     "CNN_NM1",
     "CNN_NM2",
     "CNN_NM3",
@@ -100,10 +85,21 @@ additional_feature_names = (
     movement_feature_names
 )
 
+# GROUP 1
+excluded_features = {
+    "pp_speed",
+    "distance_mean",
+    "object_count",
+    "speed_change_std",
+    "angle_90th",
+    "od",
+    "speed_change_max"
+}
+
 selected_features = [
     feature
     for feature in additional_feature_names
-    # if feature != "rhythm_variance"
+    if feature not in excluded_features
 ]
 
 indices = [

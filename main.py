@@ -86,15 +86,35 @@ class Recommendation(BaseModel):
         examples=["5476216"],
     )
 
+    beatmapset_id: str = Field(
+        description="Base osu! beatmapset identifier.",
+        examples=["5476216"],
+    )
+
     variant_id: int = Field(
         description="Database identifier for the specific beatmap variant.",
         examples=[12345],
     )
 
-    title: str
-    artist: str
-    creator: str
-    version: str
+    title: str = Field(
+        description="The song's title.",
+        examples=["Raise My Sword"],
+    )
+
+    artist: str = Field(
+        description="The song's artist.",
+        examples=["GALNERYUS"],
+    )
+
+    creator: str = Field(
+        description="The beatmapset's creator.",
+        examples=["ktgster"],
+    )
+
+    version: str = Field(
+        description="The selected beatmap in a beatmapset.",
+        examples=["Insane"],
+    )
 
     mods: str = Field(
         description="Canonical mod combination for this recommendation.",

@@ -277,8 +277,7 @@ def recommend_player_sync(
             print(
                 f"{i:2d}. "
                 f"beatmap={variant['beatmap_id']}, "
-                # TODO: ADD THIS
-                # f"beatmapset={variant['beatmapset_id']}, "
+                f"beatmapset={variant['beatmapset_id']}, "
                 f"variant={variant['variant_id']}, "
                 f"mods={variant['mods']}, "
                 f"star={variant['star_rating']:.2f}, "

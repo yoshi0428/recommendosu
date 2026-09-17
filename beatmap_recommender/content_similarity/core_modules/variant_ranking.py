@@ -348,6 +348,7 @@ def get_candidate_variants(
         SELECT
             bv.variant_id,
             bv.beatmap_id,
+            bv.beatmapset_id,
             bv.mods,
             b.title,
             b.artist,
@@ -388,6 +389,7 @@ def get_candidate_variants(
     columns = [
         "variant_id",
         "beatmap_id",
+        "beatmapset_id",
         "mods",
 
         "title",
