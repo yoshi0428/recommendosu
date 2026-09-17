@@ -1,7 +1,6 @@
 def parse_osu_file(
     file_path,
     max_slider_length=500.0,
-    print_info=False,
 ):
     """
     Parse an osu! Standard .osu file.
@@ -34,6 +33,11 @@ def parse_osu_file(
     data = {
         "beatmap_id": None,
         "mode": 0,  # Default to standard
+
+        "title": "",
+        "artist": "",
+        "creator": "",
+        "version": "",
 
         # Base difficulty
         "hp_drain": None,
@@ -121,20 +125,16 @@ def parse_osu_file(
             key, value = line.split(":", maxsplit=1)
             value = value.strip()
 
-            if key == "Title" and print_info:
-                print("Title: " + value, end=" ")
+            if key == "Title":
                 data["title"] = value
 
-            elif key == "Artist" and print_info:
-                print("by " + value)
+            elif key == "Artist":
                 data["artist"] = value
 
-            elif key == "Creator" and print_info:
-                print("Mapper: " + value)
+            elif key == "Creator":
                 data["creator"] = value
 
-            elif key == "Version" and print_info:
-                print("Difficulty: " + value)
+            elif key == "Version":
                 data["version"] = value
 
             elif key == "BeatmapID":
@@ -182,9 +182,7 @@ def parse_osu_file(
         # =================================================
 
         elif section == "TimingPoints":
-
             obj_data = line.split(",")
-
             if len(obj_data) < 2:
                 continue
 
@@ -197,14 +195,9 @@ def parse_osu_file(
             # ------------------------------------------------
             # Positive beat length = uninherited timing point.
             # ------------------------------------------------
-
             if beat_length > 0:
-
                 bpm = 60000.0 / beat_length
-
-                timing_points.append(
-                    (time, bpm)
-                )
+                timing_points.append((time, bpm))
 
         # =================================================
         # Hit Objects
@@ -289,31 +282,16 @@ def parse_osu_file(
     # ========================================================
     # Object Count
     # ========================================================
-
-    data["object_count"] = len(
-        data["hit_objects"]
-    )
+    data["object_count"] = len(data["hit_objects"])
 
     # ========================================================
     # Base Map Length
     # ========================================================
-
     if len(data["hit_objects"]) >= 2:
-
-        first_object_time = (
-            data["hit_objects"][0]["time"]
-        )
-
-        last_object_time = (
-            data["hit_objects"][-1]["time"]
-        )
-
-        data["length_seconds"] = (
-            last_object_time - first_object_time
-        ) / 1000.0
-
+        first_object_time = data["hit_objects"][0]["time"]
+        last_object_time = data["hit_objects"][-1]["time"]
+        data["length_seconds"] = (last_object_time - first_object_time) / 1000.0
     else:
-
         data["length_seconds"] = 0.0
 
     return data

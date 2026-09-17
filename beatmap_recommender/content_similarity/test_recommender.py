@@ -176,70 +176,6 @@ RECENCY_HALF_LIFE_DAYS = 30.0
 PP_PUSH_TARGET_Z = 0.75
 PP_PUSH_MAX_Z = 2.0
 
-def get_played_beatmap_ids(conn, player_id):
-    """
-    Return all base beatmap IDs the player has played.
-    A beatmap is considered played regardless of which mods were used.
-    """
-    rows = conn.execute(
-        """
-        SELECT DISTINCT beatmap_id
-        FROM scores
-        WHERE player_id = ?
-        """,
-        (player_id,),
-    ).fetchall()
-
-    return {
-        str(row[0])
-        for row in rows
-        if row[0] is not None
-    }
-
-
-def filter_played_maps(
-    similarity_index,
-    played_beatmap_ids,
-):
-    """
-    Remove played base beatmaps from the similarity index.
-    This prevents recommending a map the player has already played under a different mod.
-    """
-    filtered_index = {}
-
-    for seed_beatmap_id, candidates in similarity_index.items():
-
-        filtered_candidates = [
-            (beatmap_id, similarity)
-            for beatmap_id, similarity in candidates
-            if str(beatmap_id) not in played_beatmap_ids
-        ]
-
-        if filtered_candidates:
-            filtered_index[seed_beatmap_id] = filtered_candidates
-
-    return filtered_index
-
-def get_all_interactions(conn):
-    """
-    Get all player-beatmap interactions.
-
-    Returns:
-        dict[player_id, set[beatmap_id]]
-    """
-    rows = conn.execute("""
-        SELECT DISTINCT player_id, beatmap_id
-        FROM scores
-        ORDER BY player_id
-    """).fetchall()
-
-    interactions = {}
-
-    for player_id, beatmap_id in rows:
-        interactions.setdefault(player_id, set()).add(beatmap_id)
-
-    return interactions
-
 def main():
     conn = sqlite3.connect(DB_PATH)
 
@@ -259,16 +195,6 @@ def main():
         limit=50
     )
     print(f"Finished updating Player {PLAYER_ID} top & recent scores!")
-
-    # --------------------------------------------------------
-    # Inspect stored interactions
-    # --------------------------------------------------------
-    # interactions = get_all_interactions(conn)
-    # print(f"Players: {len(interactions)}")
-    #
-    # for player_id, beatmaps in list(interactions.items())[:5]:
-    #     print(f"Player {player_id}: {len(beatmaps)} beatmaps")
-
     print(f"\nBuilding recommendations for player {PLAYER_ID}...")
 
     # --------------------------------------------------------
@@ -286,20 +212,6 @@ def main():
 
     if not similarity_index:
         print("No similarity results found.")
-        conn.close()
-        return
-
-    # --------------------------------------------------------
-    # Remove maps the player has already played
-    # --------------------------------------------------------
-    played_beatmap_ids = get_played_beatmap_ids(conn, PLAYER_ID,)
-    print(f"Player has played {len(played_beatmap_ids)} distinct base maps.")
-
-    similarity_index = filter_played_maps(similarity_index, played_beatmap_ids,)
-    print(f"After filtering played maps: {len(similarity_index)} seed maps.")
-
-    if not similarity_index:
-        print("No unplayed candidate maps remain.")
         conn.close()
         return
 

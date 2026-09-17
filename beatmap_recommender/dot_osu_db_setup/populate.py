@@ -306,7 +306,7 @@ def main():
             variant_label = os.path.basename(os.path.dirname(file_path))
 
             try:
-                insert_base_beatmap(conn, beatmap_data)
+                insert_base_beatmap(conn, beatmap_data, file_hash)
 
                 # NOTE: WE DON'T NEED THIS FOR THE RECSYS
                 # insert_vectors(conn, beatmap_id, beatmap_data["vectors"])

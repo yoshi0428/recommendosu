@@ -4,6 +4,13 @@ def create_tables(conn):
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS beatmaps (
             beatmap_id TEXT PRIMARY KEY,
+            md5 TEXT,
+            
+            title TEXT NOT NULL,
+            artist TEXT NOT NULL,
+            creator TEXT NOT NULL,
+            version TEXT NOT NULL,
+            
 
             hp_drain REAL NOT NULL,
             circle_size REAL NOT NULL,

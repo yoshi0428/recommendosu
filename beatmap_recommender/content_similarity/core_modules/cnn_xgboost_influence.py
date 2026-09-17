@@ -1,12 +1,6 @@
 from beatmap_recommender.content_similarity.core_modules.ability import get_ability_score_weight
 
-NM_LABELS = (
-    "NM1",
-    "NM2",
-    "NM3",
-    "NM4",
-    "NM5",
-)
+NM_LABELS = ("NM1", "NM2", "NM3", "NM4", "NM5")
 
 def get_player_category_preferences(conn, player_id, recency_half_life_days, ability_top_weight, ability_recent_weight, ability_pp_weight):
     """
@@ -170,12 +164,13 @@ def calculate_classifier_score(
         return 0.5
 
     score = sum(
-        probabilities.get(label, 0.0) * preferences.get(label, 0.0)
+        (probabilities.get(label) or 0.0)
+        * (preferences.get(label) or 0.0)
         for label in NM_LABELS
     )
 
     max_preference = max(
-        preferences.get(label, 0.0)
+        (preferences.get(label) or 0.0)
         for label in NM_LABELS
     )
 

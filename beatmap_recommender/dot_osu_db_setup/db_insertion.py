@@ -11,10 +11,7 @@ from canonical import canonicalize_mods
 # Base Beatmap
 # ============================================================
 
-def insert_base_beatmap(
-    conn,
-    beatmap_data,
-):
+def insert_base_beatmap(conn, beatmap_data, md5):
     """
     Insert the base beatmap.
 
@@ -23,13 +20,10 @@ def insert_base_beatmap(
 
     The values stored here are BASE beatmap statistics.
     """
-
-    cursor = conn.cursor()
-
-    cursor.execute(
-        """
+    conn.execute("""
         INSERT INTO beatmaps (
             beatmap_id,
+            md5,
             title,
             artist,
             creator,
@@ -46,15 +40,9 @@ def insert_base_beatmap(
             length_seconds,
             object_count
         )
-        VALUES (
-            ?, ?, ?, ?, ?,
-            ?, ?, ?, ?, ?,
-            ?, ?, ?, ?, ?,
-            ?
-        )
-
-        ON CONFLICT(beatmap_id)
-        DO UPDATE SET
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(beatmap_id) DO UPDATE SET
+            md5 = excluded.md5,
             title = excluded.title,
             artist = excluded.artist,
             creator = excluded.creator,
@@ -70,26 +58,25 @@ def insert_base_beatmap(
             max_bpm = excluded.max_bpm,
             length_seconds = excluded.length_seconds,
             object_count = excluded.object_count
-        """,
-        (
-            beatmap_data["beatmap_id"],
-            beatmap_data["title"],
-            beatmap_data["artist"],
-            beatmap_data["creator"],
-            beatmap_data["version"],
-            beatmap_data["hp_drain"],
-            beatmap_data["circle_size"],
-            beatmap_data["od"],
-            beatmap_data["ar"],
-            beatmap_data["slider_multiplier"],
-            beatmap_data["slider_tick"],
-            beatmap_data["bpm"],
-            beatmap_data["min_bpm"],
-            beatmap_data["max_bpm"],
-            beatmap_data["length_seconds"],
-            beatmap_data["object_count"],
-        ),
-    )
+    """, (
+        str(beatmap_data["beatmap_id"]),
+        md5,
+        beatmap_data["title"],
+        beatmap_data["artist"],
+        beatmap_data["creator"],
+        beatmap_data["version"],
+        beatmap_data["hp_drain"],
+        beatmap_data["circle_size"],
+        beatmap_data["od"],
+        beatmap_data["ar"],
+        beatmap_data["slider_multiplier"],
+        beatmap_data["slider_tick"],
+        beatmap_data["bpm"],
+        beatmap_data["min_bpm"],
+        beatmap_data["max_bpm"],
+        beatmap_data["length_seconds"],
+        beatmap_data["object_count"],
+    ))
 
 
 # ============================================================

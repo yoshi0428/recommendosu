@@ -28,6 +28,17 @@ def create_recommender_tables(conn):
     """)
 
     cursor.execute("""
+        CREATE TABLE IF NOT EXISTS classifier_prediction_status (
+            variant_id INTEGER PRIMARY KEY,
+            status TEXT NOT NULL,
+            error TEXT,
+            FOREIGN KEY (variant_id)
+                REFERENCES beatmap_variants(variant_id)
+                ON DELETE CASCADE
+        );
+    """)
+
+    cursor.execute("""
         CREATE INDEX IF NOT EXISTS idx_scores_player
         ON scores(player_id);
     """)
@@ -45,17 +56,6 @@ def create_recommender_tables(conn):
     cursor.execute("""
         CREATE INDEX IF NOT EXISTS idx_scores_player_created
         ON scores(player_id, created_at);
-    """)
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS classifier_prediction_status (
-            variant_id INTEGER PRIMARY KEY,
-            status TEXT NOT NULL,
-            error TEXT,
-            FOREIGN KEY (variant_id)
-                REFERENCES beatmap_variants(variant_id)
-                ON DELETE CASCADE
-        );
     """)
 
     conn.commit()

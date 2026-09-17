@@ -1,7 +1,7 @@
 import numpy as np
 from beatmap_recommender.content_similarity.core_modules.ability import get_ability_score_weight
 from beatmap_recommender.content_similarity.core_modules.cnn_xgboost_influence import calculate_classifier_score, get_candidate_classifier_predictions
-from .pp_push import weighted_mean_and_std, calculate_pp_potential
+from .pp_potential import weighted_mean_and_std, calculate_pp_potential
 from .mod_preferences import canonicalize_mods
 
 def get_player_played_variants(conn, player_id):
@@ -204,10 +204,18 @@ def get_player_difficulty_profile(conn, player_id, difficulty_std_floors, recenc
 
     return profile
 
-def get_candidate_variants(conn, beatmap_ids, requested_mods=None,):
+def get_candidate_variants(conn, beatmap_ids, requested_mods=None):
     """
     Fetch all variants belonging to the supplied base beatmaps.
+
+    Also loads base beatmap metadata:
+        title
+        artist
+        creator
+        version
+
     Returns a list of dictionaries.
+
     Mod strings are canonicalized when loaded so that, for example:
 
         DTHD -> HDDT
@@ -226,6 +234,7 @@ def get_candidate_variants(conn, beatmap_ids, requested_mods=None,):
         mods_clause = "AND bv.mods = ?"
         params.append(requested_mods)
 
+    # TODO: CHANGE ONCE DB REPOPULATED
     rows = conn.execute(
         f"""
         SELECT
@@ -248,7 +257,11 @@ def get_candidate_variants(conn, beatmap_ids, requested_mods=None,):
             bv.pp_speed,
             bv.pp_acc,
             bv.pp_flashlight
+
         FROM beatmap_variants bv
+        JOIN beatmaps b
+            ON b.beatmap_id = bv.beatmap_id
+
         WHERE bv.beatmap_id IN ({placeholders})
           {mods_clause}
         """,
@@ -259,6 +272,13 @@ def get_candidate_variants(conn, beatmap_ids, requested_mods=None,):
         "variant_id",
         "beatmap_id",
         "mods",
+
+        # TODO: CHANGE ONCE DB REPOPULATED
+        # "title",
+        # "artist",
+        # "creator",
+        # "version",
+
         "hp_drain",
         "circle_size",
         "od",
@@ -278,6 +298,7 @@ def get_candidate_variants(conn, beatmap_ids, requested_mods=None,):
     ]
 
     variants = []
+
     for row in rows:
         variant = dict(zip(columns, row))
         variant["beatmap_id"] = str(variant["beatmap_id"])

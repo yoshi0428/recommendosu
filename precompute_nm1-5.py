@@ -5,7 +5,6 @@ import torch
 import osu_tools
 
 from beatmap_classifier.classifier.augment_faster import extract_movement_features_from_X
-from beatmap_classifier.dot_osu_db_setup.beatmap_mods import get_modded_stats, calculate_difficulty
 from beatmap_classifier.dot_osu_db_setup.parser import parse_osu_file
 from beatmap_classifier.classifier.utils_training import pad_sequences_pt, load_pytorch_models
 from beatmap_classifier.classifier.cnn_model import CNNModel
@@ -379,7 +378,6 @@ def predict_beatmap(
     bagged_models,
     label_encoder,
     meta_model,
-    star_calculator,
 ):
     """
     Run the complete CNN + XGBoost classifier on one
@@ -430,9 +428,9 @@ def predict_beatmap(
     # --------------------------------------------------------
     # Calculate NM difficulty
     # --------------------------------------------------------
-    difficulty_result = calculate_difficulty(file_path, mods=[], star_calculator=star_calculator,)
-    if difficulty_result is None:
-        raise ValueError("calculate_difficulty returned None")
+    # difficulty_result = calculate_difficulty(file_path, mods=[], star_calculator=star_calculator,)
+    # if difficulty_result is None:
+    #     raise ValueError("calculate_difficulty returned None")
 
     # --------------------------------------------------------
     # CNN prediction
@@ -503,6 +501,7 @@ def load_classifier():
 # Main precomputation
 # ============================================================
 
+# TODO: RERUN AFTER DATABASE POPULATION
 def main():
 
     print(f"Using device: {DEVICE}")
@@ -512,7 +511,7 @@ def main():
 
     try:
         print("Building local .osu file index...")
-        by_beatmap_id, by_md5 = build_osu_file_index(DATA_ROOT)
+        by_beatmap_id, by_md5 = build_osu_file_index(DATA_ROOT, conn)
 
         variants = get_nm_variants(conn)
 
@@ -520,8 +519,6 @@ def main():
         if total == 0:
             print("No NM variants require classifier prediction.")
             return
-
-        print(f"Found {total:,} NM variants to process.")
 
         bagged_models, label_encoder, meta_model, star_calculator = load_classifier()
 
@@ -589,7 +586,6 @@ def main():
                     bagged_models,
                     label_encoder,
                     meta_model,
-                    star_calculator,
                 )
 
                 save_prediction(conn, variant_id, prediction)
