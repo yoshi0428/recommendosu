@@ -9,14 +9,14 @@ import torch
 import osu_tools
 import xgboost as xgb
 
-from beatmap_classifier.oracle.augment_faster import extract_movement_features_from_X
+from beatmap_classifier.classifier.augment_faster import extract_movement_features_from_X
 from beatmap_classifier.scripts.beatmap_mods import get_modded_stats, calculate_difficulty
 from scripts.parser import parse_osu_file
-from beatmap_classifier.oracle.utils_training import (
+from beatmap_classifier.classifier.utils_training import (
     pad_sequences_pt,
     load_pytorch_models,
 )
-from beatmap_classifier.oracle.cnn_model import CNNModel
+from beatmap_classifier.classifier.cnn_model import CNNModel
 
 
 # ============================================================
