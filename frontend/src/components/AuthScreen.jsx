@@ -21,33 +21,30 @@ function AuthScreen() {
     >
       <Container className="py-5">
         <div className="text-center">
+          <img src="/Osu!_Logo_2016.png" alt="osu! logo" className="mb-4"/>
+
           <h1 className="mb-3">
             osu! Beatmap Recommender
           </h1>
 
-          <p
-            className={
-              isDark
-                ? 'text-secondary mb-2'
-                : 'text-muted mb-2'
-            }
-          >
+          <p className={'text-muted mb-2'}>
             Log in with your osu! account to get
             personalized beatmap recommendations.
           </p>
 
-          <p
-            className={
-              isDark
-                ? 'text-secondary mb-4'
-                : 'text-muted mb-4'
-            }
-          >
+          <p className={'text-muted mb-4'}>
             Logging in is required so recommendations
             can be generated using your own osu! account.
             This helps avoid putting too much load on a
             single shared OAuth token when multiple people
             are using the site.
+            If this still doesn't convince you, you can have a look at the <a
+              href="https://github.com/yoshi0428/osu-predict"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              GitHub repository
+            </a> here :)
           </p>
 
           <Button

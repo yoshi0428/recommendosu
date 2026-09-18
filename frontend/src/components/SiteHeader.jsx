@@ -118,7 +118,9 @@ function SiteHeader({
           {/* Left side: Coffee button */}
           <div className="col-12 col-lg-2 d-flex justify-content-center justify-content-lg-start">
             <a
-              href="#"
+              href="https://buymeacoffee.com/recommendosu"
+              target="_blank"
+              rel="noopener noreferrer"
               className={`btn btn-sm text-decoration-none text-nowrap ${
                 theme === 'dark'
                   ? 'btn-outline-warning'
