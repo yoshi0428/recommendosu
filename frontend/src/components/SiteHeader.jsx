@@ -1,6 +1,7 @@
 import {Form, Button} from 'react-bootstrap'
 import {Link} from 'react-router-dom'
 import useTheme from '../hooks/useTheme'
+import './SiteHeader.css'
 
 const MOD_VARIANTS = {
   "HD": ["HD"],
@@ -133,7 +134,7 @@ function SiteHeader({
 
           {/* Center section */}
           <div className="col-12 col-lg-8">
-            <div className="d-flex flex-column align-items-center gap-2 text-center">
+            <div className="quick-mods d-flex flex-column align-items-center gap-2 text-center">
 
               <h1 className="mb-0 fs-4">
                 osu! Beatmap Recommender
@@ -247,7 +248,7 @@ function SiteHeader({
                 </div>
 
                 {/* Quick Mod Checkboxes */}
-                <div className="d-flex align-items-center gap-2 border-start ps-3">
+                <div className="d-flex flex-wrap align-items-center gap-2 ps-3">
                   {INDIVIDUAL_MODS.map((mod) => {
                     const isChecked = currentMods.includes(mod)
                     const disabled = isModDisabled(mod)

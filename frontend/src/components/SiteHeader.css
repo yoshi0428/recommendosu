@@ -1,0 +1,21 @@
+.quick-mods {
+    width: 100%;
+}
+
+@media (max-width: 767.98px) {
+    .quick-mods {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: wrap !important;
+        justify-content: center;
+        align-items: center;
+        column-gap: 1rem !important;
+        row-gap: 0.25rem !important;
+        padding-left: 0 !important;
+    }
+
+    .quick-mods .form-check {
+        flex: 0 0 auto;
+        margin: 0 !important;
+    }
+}
