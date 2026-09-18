@@ -93,14 +93,14 @@ function BasicOptions({
                     updateSetting('limit', null)
                   } else {
                     const parsed = parseInt(val, 10)
-                    const clamped = Math.min(10000, Math.max(1, isNaN(parsed) ? 1 : parsed))
+                    const clamped = Math.min(1000, Math.max(1, isNaN(parsed) ? 1 : parsed))
                     updateSetting('limit', clamped)
                   }
                 }}
               />
 
               <Form.Text className="text-muted">
-                Capped at 10000 to prevent overloading.
+                Capped at 1000 to prevent overloading.
               </Form.Text>
             </Form.Group>
           </Col>
