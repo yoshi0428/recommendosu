@@ -1,6 +1,6 @@
 # recommendosu
 
-I will slowly document all of this in my free time.
+I will slowly document all of this in my free time. This project is running on my PC at [recommendosu.com](https://recommendosu.com/).
 
 This recommender fetches your top/recent plays via your osu! API token, 
 and performs a calculation to find the 20000 nearest neighbors (configurable) to each top/recent play. 
@@ -16,7 +16,7 @@ See [AlphaOSU](https://github.com/AlphaOSU/AlphaOSU),
 [osu-pps](https://osu-pps.com/#/osu/maps), 
 and [Bryan Chan's](https://bryanchan.org/blog/pp-recommender) implementations/deployments for inspiration.
 
-This project was developed on my personal machine (shown below), and does not require a GPU to recommend maps. 
+This project was developed on my PC (shown below), and does not require a GPU to recommend maps. 
 The GPU was used to train the CNN-XGboost model for classifying maps in tournament categories NM1 to NM5. 
 I precomputed the classifier's predictions on the ranked beatmaps from 2007-2026, and inserted them into `/beatmap_recommender/recommender.local.db` (or equivalently `beatmap_recommender/recommender.db`).
 
