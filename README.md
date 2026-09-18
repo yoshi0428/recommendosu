@@ -28,7 +28,7 @@ GPU - ASUS Prime RTX 5060 Ti 16GB
 RAM - Crucial (2 x 32GB) DDR4-3200MHz CL32
 ```
 
-### Data
+# Data
 
 The classifier's dataset are tournament maps in [NM1](https://osucollector.com/collections/18935/NM1), 
 [NM2](https://osucollector.com/collections/18936/NM2), [NM3](https://osucollector.com/collections/18937/NM3), 
@@ -39,7 +39,7 @@ The recommender's dataset is all ranked beatmaps from 2007-2026, seen from this:
 
 I will provide the download link to the .osu files, the classifier database, and the recommender database (COMING SOON).
 
-### Requirements
+# Requirements
 
 Required Python libraries are:
 
@@ -60,15 +60,15 @@ optuna
 uvicorn[standard]
 ```
 
-### Running the code
+# Running the code
 
 The entry points will be listed below:
 
-<ins>**OSDB Parser**</ins>
+### OSDB Parser
 
 - `/osdb_parse/osdb_parser.py`: Parses a .osdb file located at `/osdb_parse/inputs`. See the comment at the top of the file to obtain .osdb files. I needed to use this to extract the .osdb files for NM1 to NM5, along with some other tournament formats to play around with.
 
-<ins>**Beatmap Classifier**</ins>
+### Beatmap Classifier
 
 - `/beatmap_classifier/dot_osu_extract/downloader_backoff.py`: Given .txt file of beatmap IDs, downloads .osu files with exponential backoff, via the osu! API v2
 - `/beatmap_classifier/classifier_db_setup/osu_parser_modded.py`: Populates `/beatmap_classifier/beatmaps.db` for the CNN-XGBoost model.
@@ -80,7 +80,7 @@ If you do populate `/beatmap_classifier/beatmaps.db` by yourself,
 please run `/beatmap_classifer/view_multicategory_maps.sql` and `/beatmap_classifier/clean_multicategory_maps.sql` in the database browser of your choice.
 I used DB Browser for SQLite while making this project.
 
-<ins>**Beatmap Recommender**</ins>
+### Beatmap Recommender
 
 - `/beatmap_recommender/data/extract_osu.py`: Extracts .osu files from directories of .osz archives.
 - `/beatmap_recommender/recommender_db_setup/populate.py`: Populates `beatmap_recommender/recommender.local.db` for the recommender. We needed a separate population script for the beatmapset ids, and to prevent inserting the CNN vectors.
@@ -91,13 +91,11 @@ I used DB Browser for SQLite while making this project.
 
 If there is one file I would choose to really understand, it's `/beatmap_recommender/content_similarity/core_modules/variant_ranking.py`.
 
-<ins>**Frontend**</ins>
+### Frontend
 
 This was meant to be run with Docker compose. See the Docker Commands section later.
 
-<ins>**Frontend**</ins>
-
-### Docker Commands
+# Docker Commands
 
 Some Docker commands to get you started:
 
