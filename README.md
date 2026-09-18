@@ -35,9 +35,9 @@ The classifier's dataset are tournament maps in [NM1](https://osucollector.com/c
 [NM4](https://osucollector.com/collections/18938/NM4), and [NM5](https://osucollector.com/collections/18939/NM5).
 Shoutouts to [Specter](https://osu.ppy.sh/users/14551370) for making many tournament collections publicly available.
 
-The recommender's dataset is all ranked beatmaps from 2007-2026, seen from this: [2007-2023](https://osu.ppy.sh/community/forums/topics/330552?n=1), [2024-2026](https://osu.ppy.sh/community/forums/topics/2045828?n=1)
+The recommender's dataset are all ranked beatmaps from 2007-2026, seen from this: [2007-2023](https://osu.ppy.sh/community/forums/topics/330552?n=1), [2024-2026](https://osu.ppy.sh/community/forums/topics/2045828?n=1)
 
-I will provide the download link to the .osu files, the classifier database, and the recommender database (COMING SOON).
+I will provide the download link to the .osu files, the classifier database, and the recommender database ([here!](https://www.mediafire.com/file/upjgdz6y1s2izn6/recommendosu-data.zip/file)).
 
 # Requirements
 
@@ -88,6 +88,10 @@ I used DB Browser for SQLite while making this project.
 - `/beatmap_recommender/content_similarity/test_recommender.py`: You can run this to see what the recommendations would look like. If you're running this from the CLI, this is the command (`PYTHONPATH=. python beatmap_recommender/content_similarity/test_recommender.py
 `)
 - `/beatmap_recommender/recommender.py`: The recommender for the backend. You can tweak some of the global variables if desired.
+
+Running the database population script takes a while (~7h30m), because the .osu files before version 10 do not have beatmap id and approach rate values. 
+The code attempts to retrieve them by getting the file's MD5 hash and calling the osu! API. 
+Despite that, it may return 404, so I set the beatmap id as the hash and the AR to 8 as a fallback.
 
 If there is one file I would choose to really understand, it's `/beatmap_recommender/content_similarity/core_modules/variant_ranking.py`.
 
