@@ -332,6 +332,10 @@ async def recommend_get(
         ),
         examples=["balanced", "pp_potential", "NM1_to_5"],
     ),
+    already_played: bool = Query(
+        default="True",
+        examples=["True", "False"],
+    ),
 ):
     player_id = require_player(session_id)
 
@@ -339,6 +343,7 @@ async def recommend_get(
         player_id=player_id,
         limit=limit,
         goal=goal,
+        already_played=already_played,
     )
 
     try:

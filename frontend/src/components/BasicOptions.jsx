@@ -18,7 +18,7 @@ function BasicOptions({
 
       <Card.Body>
         <Row className="g-3">
-          <Col md={4}>
+          <Col md={3}>
             <Form.Group>
               <Form.Label>
                 Player ID
@@ -48,7 +48,7 @@ function BasicOptions({
             </Form.Group>
           </Col>
 
-          <Col md={4}>
+          <Col md={3}>
             <Form.Group>
               <Form.Label>
                 Recommendation Goal
@@ -75,7 +75,7 @@ function BasicOptions({
             </Form.Group>
           </Col>
 
-          <Col md={4}>
+          <Col md={3}>
             <Form.Group>
               <Form.Label>
                 Number of Recommendations
@@ -103,6 +103,36 @@ function BasicOptions({
                 Capped at 1000 to prevent overloading.
               </Form.Text>
             </Form.Group>
+          </Col>
+
+          <Col md={3}>
+            <Form.Group>
+              <Form.Label>
+                Already Played
+              </Form.Label>
+
+              <Form.Select
+                value={String(settings.already_played)}
+                onChange={(event) =>
+                  updateSetting(
+                    'already_played',
+                    event.target.value === 'true'
+                  )
+                }
+              >
+                <option value="true">
+                  Exclude
+                </option>
+                <option value="false">
+                  Include
+                </option>
+              </Form.Select>
+
+              <Form.Text className="text-muted">
+                Choose whether maps you've already played can be recommended.
+              </Form.Text>
+            </Form.Group>
+
           </Col>
         </Row>
       </Card.Body>

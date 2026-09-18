@@ -155,6 +155,8 @@ def recommend_player_sync(
         # Build content similarity
         # --------------------------------------------------------
 
+        print(f"ALREADY PLAYED: {settings.already_played}")
+
         similarity_index = build_seed_similarity_index(
             conn,
             player_id=settings.player_id,
@@ -162,6 +164,7 @@ def recommend_player_sync(
             batch_size=BATCH_SIZE,
             feature_weights=settings.feature_weights,
             workers=WORKERS,
+            already_played=settings.already_played,
         )
 
         check_cancelled(cancel_event)

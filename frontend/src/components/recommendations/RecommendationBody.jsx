@@ -111,26 +111,26 @@ function RecommendationBody({
       style={{minHeight: 0}}
     >
       {/* table-responsive wrapper handles smooth horizontal scrolling when zoomed in */}
-        <div className="w-100">
-          <table
-            className="table table-hover align-middle mb-0"
-            style={{
-              minWidth: '850px',
-              width: '100%',
-            }}
-          >
+      <div className="w-100">
+        <table
+          className="table table-hover table-sm align-middle mb-0"
+          style={{
+            minWidth: '850px',
+            width: '100%',
+          }}
+        >
           <thead className="sticky-top bg-body">
           <tr>
-            <th className="text-center" style={{width: '33.33%'}}>Artist - Title</th>
-            <th className="text-center" style={{width: remainingColumnWidth}}>PP</th>
-            <th className="text-center" style={{width: remainingColumnWidth}}>Mods</th>
-            <th className="text-center" style={{width: remainingColumnWidth}}>Stars</th>
-            <th className="text-center" style={{width: remainingColumnWidth}}>BPM</th>
-            <th className="text-center" style={{width: remainingColumnWidth}}>CS</th>
-            <th className="text-center" style={{width: remainingColumnWidth}}>AR</th>
-            <th className="text-center" style={{width: remainingColumnWidth}}>OD</th>
-            <th className="text-center" style={{width: remainingColumnWidth}}>Length</th>
-            <th className="text-center" style={{width: remainingColumnWidth}}>Combo</th>
+            <th className="text-center">Artist - Title</th>
+            <th className="text-center">PP</th>
+            <th className="text-center">Mods</th>
+            <th className="text-center">Stars</th>
+            <th className="text-center">BPM</th>
+            <th className="text-center">CS</th>
+            <th className="text-center">AR</th>
+            <th className="text-center">OD</th>
+            <th className="text-center">Length</th>
+            <th className="text-center">Combo</th>
           </tr>
           </thead>
 

@@ -45,17 +45,14 @@ function RecommendationRow({
     ? `https://assets.ppy.sh/beatmaps/${beatmapset_id}/covers/list.jpg`
     : null
 
-  // 1/3 for artist-title, and the remaining 2/3 spread across the 10 other columns (6.67% each)
-  const remainingColumnWidth = `${(2 / 3) / 10 * 100}%`
-
   return (
     <tr
       onClick={() => onSelectRecommendation?.(recommendation)}
       style={{cursor: 'pointer'}}
       title="Click to view score breakdown"
     >
-      <td style={{width: '33.33%'}}>
-        <div className="d-flex align-items-center gap-3 text-start">
+      <td className="text-start" style={{width: '40%'}}>
+        <div className="d-flex align-items-center gap-2 gap-md-3 text-start">
           {coverUrl && (
             <img
               src={coverUrl}
@@ -70,12 +67,12 @@ function RecommendationRow({
             />
           )}
 
-          <div className="text-truncate">
+          <div className="text-break" style={{minWidth: 0}}>
             <a
               href={beatmapUrl}
               target="_blank"
               rel="noreferrer"
-              className="text-body"
+              className="text-body d-block"
               style={{textDecoration: 'none'}}
               onMouseEnter={(e) => {
                 e.currentTarget.style.textDecoration = 'underline'
@@ -85,7 +82,7 @@ function RecommendationRow({
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              <strong>
+              <strong className="text-break d-block">
                 {title
                   ? `${artist} - ${title} [${version}]`
                   : `Beatmap ${beatmap_id}`}
@@ -95,20 +92,18 @@ function RecommendationRow({
         </div>
       </td>
 
-      {/* Remaining columns spread evenly across the other 2/3 */}
-      <td className="text-center" style={{width: remainingColumnWidth}}>{pp != null ? Number(pp).toFixed(0) : '—'}</td>
-      <td className="text-center" style={{width: remainingColumnWidth}}>{mods || 'NM'}</td>
-      <td className="text-center"
-          style={{width: remainingColumnWidth}}>{star_rating != null ? Number(star_rating).toFixed(2) : '—'}</td>
-      <td className="text-center"
-          style={{width: remainingColumnWidth}}>{bpm != null ? Number(bpm).toFixed(0) : '—'}</td>
-      <td className="text-center"
-          style={{width: remainingColumnWidth}}>{circle_size != null ? Number(circle_size).toFixed(1) : '—'}</td>
-      <td className="text-center" style={{width: remainingColumnWidth}}>{ar != null ? Number(ar).toFixed(1) : '—'}</td>
-      <td className="text-center" style={{width: remainingColumnWidth}}>{od != null ? Number(od).toFixed(1) : '—'}</td>
-      <td className="text-center" style={{width: remainingColumnWidth}}>{formatDuration(length_seconds)}</td>
-      <td className="text-center"
-          style={{width: remainingColumnWidth}}>{max_combo != null ? `${max_combo.toLocaleString()}x` : '—'}</td>
+      {/* Core stats visible on all screens */}
+      <td className="text-center">{pp != null ? Number(pp).toFixed(0) : '—'}</td>
+      <td className="text-center">{mods || 'NM'}</td>
+      <td className="text-center">{star_rating != null ? Number(star_rating).toFixed(2) : '—'}</td>
+      <td className="text-center">{bpm != null ? Number(bpm).toFixed(0) : '—'}</td>
+      <td
+        className="text-center">{circle_size != null ? Number(circle_size).toFixed(1) : '—'}</td>
+      <td className="text-center">{ar != null ? Number(ar).toFixed(1) : '—'}</td>
+      <td className="text-center">{od != null ? Number(od).toFixed(1) : '—'}</td>
+      <td className="text-center">{formatDuration(length_seconds)}</td>
+      <td
+        className="text-center">{max_combo != null ? `${max_combo.toLocaleString()}x` : '—'}</td>
     </tr>
   )
 }

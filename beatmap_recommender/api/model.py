@@ -106,6 +106,10 @@ class RecommendationSettings(BaseModel):
         default=None,
     )
 
+    already_played: bool = Field(
+        default=True,
+    )
+
     # ------------------------------------------------------------
     # Candidate filters
     # ------------------------------------------------------------
