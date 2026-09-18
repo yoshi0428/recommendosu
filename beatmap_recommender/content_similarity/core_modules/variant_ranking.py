@@ -252,6 +252,8 @@ def get_candidate_variants(
     max_length=None,
     min_combo=None,
     max_combo=None,
+    min_cs=None,
+    max_cs=None,
     cancel_event=None,
 ):
     """
@@ -337,6 +339,14 @@ def get_candidate_variants(
     if max_combo is not None:
         conditions.append("bv.max_combo <= ?")
         params.append(max_combo)
+
+    if min_cs is not None:
+        conditions.append("bv.circle_size >= ?")
+        params.append(min_cs)
+
+    if max_cs is not None:
+        conditions.append("bv.circle_size <= ?")
+        params.append(max_cs)
 
     # --------------------------------------------------------------
     # Query
@@ -611,6 +621,8 @@ def rank_variants(
     max_length=None,
     min_combo=None,
     max_combo=None,
+    min_cs=None,
+    max_cs=None,
     recommendation_goal="balanced",
     recommendation_config=None,
     difficulty_std_floors=None,
@@ -690,6 +702,9 @@ def rank_variants(
     if min_combo is not None and max_combo is not None and min_combo > max_combo:
         raise ValueError(f"min_combo ({min_combo}) cannot be greater than max_combo ({max_combo})")
 
+    if min_cs is not None and max_cs is not None and min_cs > max_cs:
+        raise ValueError(f"min_cs ({min_cs}) cannot be greater than max_cs ({max_cs})")
+
     # ------------------------------------------------------------------
     # Collapse seed -> candidates into:
     # beatmap_id -> best similarity
@@ -744,6 +759,8 @@ def rank_variants(
         max_length=max_length,
         min_combo=min_combo,
         max_combo=max_combo,
+        min_cs=min_cs,
+        max_cs=max_cs,
         cancel_event=cancel_event,
     )
 

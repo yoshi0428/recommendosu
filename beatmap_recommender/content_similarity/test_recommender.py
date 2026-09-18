@@ -12,7 +12,7 @@ from pathlib import Path
 # Configuration
 # ============================================================
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DB_PATH = PROJECT_ROOT / "beatmap_recommender/test_recommender.db"
+DB_PATH = PROJECT_ROOT / "beatmap_recommender/recommender.local.db"
 
 NUM_RECOMMENDATIONS = 100
 NEIGHBORS_K = 10_000

@@ -44,7 +44,7 @@ function AuthScreen() {
             }
           >
             Logging in is required so recommendations
-            can be generated using your own osu! account. <br />
+            can be generated using your own osu! account.
             This helps avoid putting too much load on a
             single shared OAuth token when multiple people
             are using the site.

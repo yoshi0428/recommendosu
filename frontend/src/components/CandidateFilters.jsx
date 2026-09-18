@@ -71,7 +71,23 @@ function CandidateFilters({settings, updateSetting}) {
             </div>
           </Col>
 
-          {/* Column 4: AR */}
+          {/* Column 4: Circle Size */}
+          <Col xs={6} sm={4} md={3} lg="auto">
+            <div className="d-flex flex-column gap-3">
+              <NumberInput
+                label="Min CS"
+                value={settings.min_cs}
+                onChange={(value) => updateSetting('min_cs', value)}
+              />
+              <NumberInput
+                label="Max CS"
+                value={settings.max_cs}
+                onChange={(value) => updateSetting('max_cs', value)}
+              />
+            </div>
+          </Col>
+
+          {/* Column 5: AR */}
           <Col xs={6} sm={4} md={3} lg="auto">
             <div className="d-flex flex-column gap-3">
               <NumberInput
@@ -87,7 +103,7 @@ function CandidateFilters({settings, updateSetting}) {
             </div>
           </Col>
 
-          {/* Column 5: OD */}
+          {/* Column 6: OD */}
           <Col xs={6} sm={4} md={3} lg="auto">
             <div className="d-flex flex-column gap-3">
               <NumberInput
@@ -103,7 +119,7 @@ function CandidateFilters({settings, updateSetting}) {
             </div>
           </Col>
 
-          {/* Column 6: Length (seconds) */}
+          {/* Column 7: Length (seconds) */}
           <Col xs={6} sm={4} md={3} lg="auto">
             <div className="d-flex flex-column gap-3">
               <NumberInput
@@ -119,7 +135,7 @@ function CandidateFilters({settings, updateSetting}) {
             </div>
           </Col>
 
-          {/* Column 7: Combo */}
+          {/* Column 8: Combo */}
           <Col xs={6} sm={4} md={3} lg="auto">
             <div className="d-flex flex-column gap-3">
               <NumberInput

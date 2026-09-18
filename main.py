@@ -48,10 +48,7 @@ from beatmap_recommender.auth.token_store import (
 from contextlib import asynccontextmanager
 
 API_PREFIX = "/api/v1"
-SESSION_COOKIE_SECURE = os.getenv(
-    "SESSION_COOKIE_SECURE",
-    "false",
-).lower() == "true"
+SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "false").lower() == "true"
 
 
 @asynccontextmanager
@@ -87,7 +84,12 @@ class Recommendation(BaseModel):
     )
 
     beatmapset_id: str = Field(
-        description="Base osu! beatmapset identifier.",
+        description=(
+            "Base osu! beatmapset identifier. "
+            "May be unavailable for SOME beatmaps identified only by MD5."
+            "SOME is really important, "
+            "there could be MD5 beatmaps that we did retrieve the numerical beatmap_id, which let us also retrieve the numerical beatmapset_id."
+        ),
         examples=["5476216"],
     )
 
@@ -350,6 +352,14 @@ async def recommend_get(
             detail=str(exc),
         )
 
+    # SAFEGUARD
+    # Drop recommendations that do not have a valid beatmapset ID.
+    recommendations = [
+        recommendation
+        for recommendation in recommendations
+        if recommendation.get("beatmapset_id") is not None
+    ]
+
     return {
         "recommendation_id": uuid.uuid4().hex,
         "player_id": settings.player_id,
@@ -416,6 +426,14 @@ async def recommend_post(
 
     finally:
         remove_cancellation_event(recommendation_id)
+
+    # SAFEGUARD
+    # Drop recommendations that do not have a valid beatmapset ID.
+    recommendations = [
+        recommendation
+        for recommendation in recommendations
+        if recommendation.get("beatmapset_id") is not None
+    ]
 
     return {
         "recommendation_id": recommendation_id,
@@ -538,7 +556,7 @@ async def osu_callback(
         value=session_id,
         httponly=True,
         samesite="lax",
-        secure=SESSION_COOKIE_SECURE,
+        secure=SESSION_COOKIE_SECURE, # SET TO FALSE IF CAUSING ISSUE IN DEV
         max_age=86400,
     )
 

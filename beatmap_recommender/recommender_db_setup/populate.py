@@ -24,7 +24,7 @@ import hashlib
 # Configuration
 # ============================================================
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DATABASE_PATH = PROJECT_ROOT / "beatmap_recommender/recommender.db"
+DATABASE_PATH = PROJECT_ROOT / "beatmap_recommender/recommender.local.db"
 ROOT_DIR = PROJECT_ROOT / "beatmap_recommender/data"
 NUM_WORKERS = 8
 BATCH_SIZE = 2500

@@ -131,6 +131,9 @@ class RecommendationSettings(BaseModel):
     min_combo: float | None = None
     max_combo: float | None = None
 
+    min_cs: float | None = None
+    max_cs: float | None = None
+
     # ------------------------------------------------------------
     # Difficulty profile
     # ------------------------------------------------------------

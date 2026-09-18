@@ -31,13 +31,18 @@ import threading
 from beatmap_recommender.cancellation import check_cancelled
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DB_PATH = PROJECT_ROOT / "beatmap_recommender/test_recommender.db"
+DB_PATH = Path(
+    os.getenv(
+        "DB_PATH",
+        PROJECT_ROOT / "beatmap_recommender/recommender.db",
+    )
+)
 
 NEIGHBORS_K = 20_000
 BATCH_SIZE = 16384
+RECOMMENDATION_CONCURRENCY = 4
 WORKERS = -1
 
-RECOMMENDATION_CONCURRENCY = 4
 _recommendation_semaphore = asyncio.Semaphore(RECOMMENDATION_CONCURRENCY)
 
 OSU_CLIENT_ID = os.getenv("OSU_CLIENT_ID")
@@ -259,6 +264,8 @@ def recommend_player_sync(
             max_length=settings.max_length,
             min_combo=settings.min_combo,
             max_combo=settings.max_combo,
+            min_cs=settings.min_cs,
+            max_cs=settings.max_cs,
             recommendation_goal=settings.goal,
             recommendation_config=recommendation_config,
             difficulty_std_floors=settings.difficulty_std_floors,

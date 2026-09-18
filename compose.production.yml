@@ -1,0 +1,16 @@
+services:
+  backend:
+    env_file:
+      - .env
+      - .env.production
+    volumes:
+      - ./beatmap_recommender:/app/beatmap_recommender
+
+  nginx:
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.production.conf:/etc/nginx/conf.d/default.conf:ro
+      - /var/www/certbot:/var/www/certbot:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro

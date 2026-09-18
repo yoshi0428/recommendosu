@@ -1,8 +1,7 @@
-/.env
+.env
 /beatmap_classifier/classifier_db_setup/speed
 /beatmap_classifier/classifier_db_setup/extracted_osu
 /beatmap_classifier/classifier_db_setup/osz_files
-/beatmap_classifier/beatmaps.db
 /beatmap_classifier/data/NM1
 /beatmap_classifier/data/NM2
 /beatmap_classifier/data/NM3
@@ -41,6 +40,7 @@
 /beatmap_recommender/data/2024
 /beatmap_recommender/data/2025
 /beatmap_recommender/data/2026
-/beatmap_recommender/test_everything.db
-/beatmap_recommender/everything.db
-/beatmap_recommender/auth.db
+
+*.db
+*.db-wal
+*.db-shm

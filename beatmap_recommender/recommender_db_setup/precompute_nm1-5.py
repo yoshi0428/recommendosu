@@ -16,7 +16,7 @@ from dot_osu_indexer import build_osu_file_index
 # Configuration
 # ============================================================
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DB_PATH = PROJECT_ROOT / "beatmap_recommender/test_recommender.db"
+DB_PATH = PROJECT_ROOT / "beatmap_recommender/recommender.local.db"
 DATA_ROOT = PROJECT_ROOT / "beatmap_recommender/data"
 MODEL_FOLDER = PROJECT_ROOT / "beatmap_classifier/models/bagged_models"
 LABEL_ENCODER_PATH = PROJECT_ROOT / "beatmap_classifier/models/label_encoder.pkl"

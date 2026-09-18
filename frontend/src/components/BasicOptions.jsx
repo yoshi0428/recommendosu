@@ -3,7 +3,7 @@ import {Card, Col, Form, Row} from 'react-bootstrap'
 const GOALS = [
   ['balanced', 'Balanced'],
   ['pp_potential', 'PP Potential'],
-  ['NM1_to_5', 'NM1–5'],
+  ['NM1_to_5', 'NM1–5 Classifier'],
 ]
 
 function BasicOptions({
@@ -84,7 +84,7 @@ function BasicOptions({
               <Form.Control
                 type="number"
                 min={1}
-                max={1000}
+                max={10000}
                 step={1}
                 value={settings.limit ?? ''}
                 onChange={(event) => {
@@ -93,11 +93,15 @@ function BasicOptions({
                     updateSetting('limit', null)
                   } else {
                     const parsed = parseInt(val, 10)
-                    const clamped = Math.min(1000, Math.max(1, isNaN(parsed) ? 1 : parsed))
+                    const clamped = Math.min(10000, Math.max(1, isNaN(parsed) ? 1 : parsed))
                     updateSetting('limit', clamped)
                   }
                 }}
               />
+
+              <Form.Text className="text-muted">
+                Capped at 10000 to prevent overloading.
+              </Form.Text>
             </Form.Group>
           </Col>
         </Row>
