@@ -28,23 +28,19 @@ function AuthScreen() {
           </h1>
 
           <p className={'text-muted mb-2'}>
-            Log in with your osu! account to get
-            personalized beatmap recommendations.
+            Log in with your osu! account to get personalized beatmap recommendations.
           </p>
 
           <p className={'text-muted mb-4'}>
-            Logging in is required so recommendations
-            can be generated using your own osu! account.
-            This helps avoid putting too much load on a
-            single shared OAuth token when multiple people
-            are using the site.
+            Logging in is required so recommendations can be generated using your own osu! account.
+            This avoids overloading a single shared OAuth token when multiple people are using the site.
             If this still doesn't convince you, you can have a look at the <a
-              href="https://github.com/yoshi0428/osu-predict"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              GitHub repository
-            </a> here :)
+            href="https://github.com/yoshi0428/osu-predict"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            GitHub repository
+          </a> here :)
           </p>
 
           <Button
