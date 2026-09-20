@@ -110,20 +110,25 @@ async def refresh_access_token(refresh_token: str) -> dict:
         response.raise_for_status()
         return response.json()
 
-async def get_access_token(player_id: int) -> str:
-    tokens = get_tokens(player_id)
+async def get_access_token(session_id: str) -> str:
+    tokens = get_tokens(session_id)
     if tokens is None:
-        raise ValueError("No OAuth tokens found for this player.")
+        raise ValueError("No OAuth tokens found for this session.")
 
     # Give ourselves a small safety margin.
     if tokens["expires_at"] > time.time() + 60:
         return tokens["access_token"]
 
     token_data = await refresh_access_token(tokens["refresh_token"])
+
     new_access_token = token_data["access_token"]
-    new_refresh_token = token_data.get("refresh_token", tokens["refresh_token"])
+    new_refresh_token = token_data.get(
+        "refresh_token",
+        tokens["refresh_token"],
+    )
+
     update_tokens(
-        player_id=player_id,
+        session_id=session_id,
         access_token=new_access_token,
         refresh_token=new_refresh_token,
         expires_in=token_data["expires_in"],

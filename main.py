@@ -42,7 +42,7 @@ from beatmap_recommender.auth.session import (
 )
 
 from beatmap_recommender.auth.token_store import (
-    initialize_token_store, store_tokens, delete_tokens,
+    initialize_token_store, store_tokens
 )
 
 from contextlib import asynccontextmanager
@@ -332,7 +332,7 @@ async def recommend_get(
         ),
         examples=["balanced", "pp_potential", "NM1_to_5"],
     ),
-    already_played: bool = Query(
+    exclude_already_played: bool = Query(
         default="True",
         examples=["True", "False"],
     ),
@@ -343,12 +343,13 @@ async def recommend_get(
         player_id=player_id,
         limit=limit,
         goal=goal,
-        already_played=already_played,
+        exclude_already_played=exclude_already_played,
     )
 
     try:
         recommendations = await recommend_player(
             settings,
+            session_id=session_id,
             session_player_id=player_id,
         )
     except ValueError as exc:
@@ -410,6 +411,7 @@ async def recommend_post(
     try:
         recommendations = await recommend_player(
             settings,
+            session_id=session_id,
             session_player_id=session_player_id,
             cancel_event=cancel_event,
         )

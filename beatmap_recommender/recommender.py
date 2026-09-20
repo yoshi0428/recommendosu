@@ -155,7 +155,7 @@ def recommend_player_sync(
         # Build content similarity
         # --------------------------------------------------------
 
-        print(f"ALREADY PLAYED: {settings.already_played}")
+        print(f"ALREADY PLAYED: {settings.exclude_already_played}")
 
         similarity_index = build_seed_similarity_index(
             conn,
@@ -164,7 +164,7 @@ def recommend_player_sync(
             batch_size=BATCH_SIZE,
             feature_weights=settings.feature_weights,
             workers=WORKERS,
-            already_played=settings.already_played,
+            exclude_already_played=settings.exclude_already_played,
         )
 
         check_cancelled(cancel_event)
@@ -310,6 +310,7 @@ def recommend_player_sync(
 
 async def recommend_player(
     settings: RecommendationSettings,
+    session_id: str,
     session_player_id: int,
     update_scores=True,
     cancel_event: threading.Event | None = None,
@@ -320,7 +321,7 @@ async def recommend_player(
 
         if update_scores:
             if settings.player_id == session_player_id:
-                access_token = await get_access_token(session_player_id)
+                access_token = await get_access_token(session_id)
             else:
                 access_token = await get_application_access_token()
 

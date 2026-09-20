@@ -239,7 +239,7 @@ def build_seed_similarity_index(
     batch_size=8192,
     feature_weights=None,
     workers=-1,
-    already_played=True,
+    exclude_already_played=True,
 ):
     seed_maps = get_player_seed_maps(conn, player_id)
     if not seed_maps:
@@ -249,7 +249,7 @@ def build_seed_similarity_index(
     print(f"Player {player_id}: {len(seed_maps):,} seed maps.")
 
     # excludes already played beatmaps within your scores, if True
-    if already_played:
+    if exclude_already_played:
         candidate_maps = get_maps(conn, mods="NM", player_id=player_id)
     else:
         candidate_maps = get_maps(conn, mods="NM", player_id=None)

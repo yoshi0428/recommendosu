@@ -106,7 +106,7 @@ class RecommendationSettings(BaseModel):
         default=None,
     )
 
-    already_played: bool = Field(
+    exclude_already_played: bool = Field(
         default=True,
     )
 

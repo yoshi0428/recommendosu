@@ -14,10 +14,11 @@ AUTH_DB_PATH = Path(
 
 
 def get_connection():
-    conn = sqlite3.connect(AUTH_DB_PATH)
+    conn = sqlite3.connect(AUTH_DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
+    conn.execute("PRAGMA busy_timeout=30000")
     return conn
 
 
@@ -105,20 +106,20 @@ def get_tokens(session_id: str) -> dict | None:
 
     return dict(row)
 
-def delete_tokens(player_id: int):
+def delete_tokens(session_id: str):
     with get_connection() as conn:
         conn.execute(
             """
             DELETE FROM oauth_tokens
-            WHERE player_id = ?
+            WHERE session_id = ?
             """,
-            (player_id,),
+            (session_id,),
         )
 
         conn.commit()
 
 def update_tokens(
-    player_id: int,
+    session_id: str,
     access_token: str,
     refresh_token: str,
     expires_in: int,
@@ -135,14 +136,14 @@ def update_tokens(
                 refresh_token = ?,
                 expires_at = ?,
                 updated_at = ?
-            WHERE player_id = ?
+            WHERE session_id = ?
             """,
             (
                 access_token,
                 refresh_token,
                 expires_at,
                 now,
-                player_id,
+                session_id,
             ),
         )
 

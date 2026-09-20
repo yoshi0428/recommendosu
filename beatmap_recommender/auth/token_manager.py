@@ -8,11 +8,12 @@ from beatmap_recommender.auth.token_store import (
 
 ACCESS_TOKEN_EXPIRY_BUFFER = 60
 
-async def get_access_token(player_id: int) -> str:
-    tokens = get_tokens(player_id)
+
+async def get_access_token(session_id: str) -> str:
+    tokens = get_tokens(session_id)
 
     if tokens is None:
-        raise ValueError("No OAuth tokens found for this player.")
+        raise ValueError("No OAuth tokens found for this session.")
 
     # Access token is still valid.
     if tokens["expires_at"] > time.time() + ACCESS_TOKEN_EXPIRY_BUFFER:
@@ -27,7 +28,7 @@ async def get_access_token(player_id: int) -> str:
     new_refresh_token = token_data.get("refresh_token", tokens["refresh_token"])
 
     update_tokens(
-        player_id=player_id,
+        session_id=session_id,
         access_token=new_access_token,
         refresh_token=new_refresh_token,
         expires_in=token_data["expires_in"],

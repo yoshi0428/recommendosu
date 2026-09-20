@@ -112,10 +112,10 @@ function BasicOptions({
               </Form.Label>
 
               <Form.Select
-                value={String(settings.already_played)}
+                value={String(settings.exclude_already_played)}
                 onChange={(event) =>
                   updateSetting(
-                    'already_played',
+                    'exclude_already_played',
                     event.target.value === 'true'
                   )
                 }
