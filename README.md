@@ -118,3 +118,7 @@ docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml dow
 If you're messing around with the codebase and the login doesn't work, check if `OSU_REDIRECT_URI` in `.env.local` or `.env.production` are really in your OAuth Application:
 
 ![Example](./Screenshot_20260919_200151.png)
+
+The database schema looks like this:
+
+![Schema](./schema.png)
