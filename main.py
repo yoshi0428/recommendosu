@@ -42,7 +42,7 @@ from beatmap_recommender.auth.session import (
 )
 
 from beatmap_recommender.auth.token_store import (
-    initialize_token_store, store_tokens,
+    initialize_token_store, store_tokens, delete_tokens,
 )
 
 from contextlib import asynccontextmanager
@@ -536,7 +536,9 @@ async def osu_callback(
         token_data = await exchange_code_for_token(code)
         user_data = await get_authenticated_user(token_data["access_token"])
         player_id = user_data["id"]
+        session_id = create_session(player_id)
         store_tokens(
+            session_id=session_id,
             player_id=player_id,
             access_token=token_data["access_token"],
             refresh_token=token_data["refresh_token"],
@@ -548,8 +550,6 @@ async def osu_callback(
             status_code=502,
             detail="Failed to communicate with osu!.",
         ) from exc
-
-    session_id = create_session(user_data["id"])
 
     redirect_response = RedirectResponse(
         url="/",

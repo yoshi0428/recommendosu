@@ -1,10 +1,16 @@
+import os
 import sqlite3
 import time
 from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-AUTH_DB_PATH = PROJECT_ROOT / "beatmap_recommender/auth.db"
+AUTH_DB_PATH = Path(
+    os.getenv(
+        "AUTH_DB_PATH",
+        PROJECT_ROOT / "beatmap_recommender/auth.db",
+    )
+)
 
 
 def get_connection():
@@ -20,12 +26,16 @@ def initialize_token_store():
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS oauth_tokens (
-                player_id INTEGER PRIMARY KEY,
+                session_id TEXT PRIMARY KEY,
+                player_id INTEGER NOT NULL,
                 access_token TEXT NOT NULL,
                 refresh_token TEXT NOT NULL,
                 expires_at REAL NOT NULL,
                 created_at REAL NOT NULL,
-                updated_at REAL NOT NULL
+                updated_at REAL NOT NULL,
+                FOREIGN KEY (session_id)
+                    REFERENCES sessions(session_id)
+                    ON DELETE CASCADE
             )
             """
         )
@@ -33,6 +43,7 @@ def initialize_token_store():
         conn.commit()
 
 def store_tokens(
+    session_id: str,
     player_id: int,
     access_token: str,
     refresh_token: str,
@@ -45,6 +56,7 @@ def store_tokens(
         conn.execute(
             """
             INSERT INTO oauth_tokens (
+                session_id,
                 player_id,
                 access_token,
                 refresh_token,
@@ -52,14 +64,15 @@ def store_tokens(
                 created_at,
                 updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT(player_id) DO UPDATE SET
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(session_id) DO UPDATE SET
                 access_token = excluded.access_token,
                 refresh_token = excluded.refresh_token,
                 expires_at = excluded.expires_at,
                 updated_at = excluded.updated_at
             """,
             (
+                session_id,
                 player_id,
                 access_token,
                 refresh_token,
@@ -71,19 +84,20 @@ def store_tokens(
 
         conn.commit()
 
-def get_tokens(player_id: int) -> dict | None:
+def get_tokens(session_id: str) -> dict | None:
     with get_connection() as conn:
         row = conn.execute(
             """
             SELECT
+                session_id,
                 player_id,
                 access_token,
                 refresh_token,
                 expires_at
             FROM oauth_tokens
-            WHERE player_id = ?
+            WHERE session_id = ?
             """,
-            (player_id,),
+            (session_id,),
         ).fetchone()
 
     if row is None:

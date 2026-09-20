@@ -92,12 +92,14 @@ class OsuAPIClient:
             }
 
             try:
+                # print("REQUEST PARAMS:", params)
                 response = self.session.get(
                     url,
                     headers=headers,
                     params=params,
                     timeout=30,
                 )
+                # print("REQUEST URL:", response.request.url)
                 self.last_request_time = time.time()
 
             except requests.RequestException as e:

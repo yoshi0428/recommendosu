@@ -1,10 +1,16 @@
+import os
 import sqlite3
 import time
 from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-AUTH_DB_PATH = PROJECT_ROOT / "beatmap_recommender/auth.db"
+AUTH_DB_PATH = Path(
+    os.getenv(
+        "AUTH_DB_PATH",
+        PROJECT_ROOT / "beatmap_recommender/auth.db",
+    )
+)
 _STATE_EXPIRATION_SECONDS = 600
 
 
