@@ -150,10 +150,10 @@ function BasicOptions({
                   )
                 }
               >
-                <option value="true">
+                <option value="false">
                   Include
                 </option>
-                <option value="false">
+                <option value="true">
                   Exclude
                 </option>
               </Form.Select>

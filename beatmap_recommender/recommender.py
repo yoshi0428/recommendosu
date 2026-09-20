@@ -196,6 +196,8 @@ def recommend_player_sync(
         # Difficulty profile
         # --------------------------------------------------------
 
+        print(f"\nEXCLUDE RECENT PLAYS: {settings.exclude_recent_plays}")
+
         difficulty_profile = get_player_difficulty_profile(
             conn,
             player_id=settings.player_id,
