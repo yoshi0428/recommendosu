@@ -174,6 +174,8 @@ RECENCY_HALF_LIFE_DAYS = 30.0
 PP_PUSH_TARGET_Z = 0.75
 PP_PUSH_MAX_Z = 2.0
 
+EXCLUDE_RECENT_PLAYS = True
+
 def main():
     conn = sqlite3.connect(DB_PATH)
 
@@ -298,6 +300,7 @@ def main():
         ability_top_weight=ABILITY_TOP_WEIGHT,
         ability_recent_weight=ABILITY_RECENT_WEIGHT,
         ability_pp_weight=ABILITY_PP_WEIGHT,
+        exclude_recent_plays=EXCLUDE_RECENT_PLAYS,
     )
 
     print(f"\nPlayer {PLAYER_ID} difficulty profile:")

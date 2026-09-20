@@ -110,6 +110,10 @@ class RecommendationSettings(BaseModel):
         default=True,
     )
 
+    exclude_recent_plays: bool = Field(
+        default=False
+    )
+
     # ------------------------------------------------------------
     # Candidate filters
     # ------------------------------------------------------------
