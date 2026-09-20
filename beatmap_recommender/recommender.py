@@ -204,6 +204,7 @@ def recommend_player_sync(
             ability_top_weight=settings.ability_top_weight,
             ability_recent_weight=settings.ability_recent_weight,
             ability_pp_weight=settings.ability_pp_weight,
+            exclude_recent_plays=settings.exclude_recent_plays,
             cancel_event=cancel_event,
         )
 

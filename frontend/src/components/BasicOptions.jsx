@@ -18,7 +18,7 @@ function BasicOptions({
 
       <Card.Body>
         <Row className="g-3">
-          <Col md={3}>
+          <Col md={2}>
             <Form.Group>
               <Form.Label>
                 Player ID
@@ -105,7 +105,7 @@ function BasicOptions({
             </Form.Group>
           </Col>
 
-          <Col md={3}>
+          <Col md={2}>
             <Form.Group>
               <Form.Label>
                 Already Played
@@ -130,6 +130,36 @@ function BasicOptions({
 
               <Form.Text className="text-muted">
                 Choose whether maps you've already played can be recommended.
+              </Form.Text>
+            </Form.Group>
+
+          </Col>
+
+          <Col md={2}>
+            <Form.Group>
+              <Form.Label>
+                Recent Plays
+              </Form.Label>
+
+              <Form.Select
+                value={String(settings.exclude_recent_plays)}
+                onChange={(event) =>
+                  updateSetting(
+                    'exclude_recent_plays',
+                    event.target.value === 'true'
+                  )
+                }
+              >
+                <option value="true">
+                  Include
+                </option>
+                <option value="false">
+                  Exclude
+                </option>
+              </Form.Select>
+
+              <Form.Text className="text-muted">
+                Choose whether your recent plays affects recommendations.
               </Form.Text>
             </Form.Group>
 

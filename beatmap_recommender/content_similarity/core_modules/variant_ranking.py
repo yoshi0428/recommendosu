@@ -7,7 +7,7 @@ import time
 from beatmap_recommender.cancellation import check_cancelled
 
 
-def get_player_played_variants(conn, player_id, cancel_event=None):
+def get_player_played_variants(conn, player_id, exclude_recent_plays=False, cancel_event=None):
     """
     Get the actual beatmap variants represented in the player's scores.
     We fetch the player's scores first, then fetch all variants for the relevant beatmaps in one query.
@@ -127,12 +127,21 @@ def get_player_played_variants(conn, player_id, cancel_event=None):
         if variant is None:
             continue
 
-        played_variants.append({
-            **variant,
-            "source": source,
-            "pp": pp,
-            "created_at": created_at,
-        })
+        # this is the target if you'd like to exclude recent plays...
+        # really trippy logic that is worth commenting here
+        #
+        # True True -> False True which would append top plays
+        # True False -> False False which would not append recent plays
+        # False True -> True True which would append top plays
+        # False False -> True False which would append recent plays
+        if not exclude_recent_plays or source == 'top':
+            played_variants.append({
+                **variant,
+                "source": source,
+                "pp": pp,
+                "created_at": created_at,
+            })
+
 
     check_cancelled(cancel_event)
     return played_variants
@@ -146,6 +155,7 @@ def get_player_difficulty_profile(
     ability_top_weight,
     ability_recent_weight,
     ability_pp_weight,
+    exclude_recent_plays,
     cancel_event=None,
 ):
     """
@@ -171,7 +181,7 @@ def get_player_difficulty_profile(
         scores.created_at
     """
     check_cancelled(cancel_event)
-    played_variants = get_player_played_variants(conn, player_id, cancel_event=cancel_event)
+    played_variants = get_player_played_variants(conn, player_id, exclude_recent_plays=exclude_recent_plays, cancel_event=cancel_event)
     check_cancelled(cancel_event)
 
     if not played_variants:
