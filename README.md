@@ -105,10 +105,16 @@ Some Docker commands to get you started:
 
 ```aiignore
 # Local development
-docker compose -p recommendosu-local -f compose.yml -f compose.local.yml up --build
+HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -p recommendosu-local -f compose.yml -f compose.local.yml up --build
 docker compose -p recommendosu-local -f compose.yml -f compose.local.yml down
 
 # Production
 docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml up --build
 docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml down
 ```
+
+# Tips
+
+If you're messing around with the codebase and the login doesn't work, check if `OSU_REDIRECT_URI` in `.env.local` or `.env.production` are really in your OAuth Application:
+
+![Example](./Screenshot_20260919_200151.png)

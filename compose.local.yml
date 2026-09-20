@@ -1,5 +1,6 @@
 services:
   backend:
+    user: "${HOST_UID}:${HOST_GID}"
     env_file:
       - .env
       - .env.local

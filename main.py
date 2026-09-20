@@ -551,8 +551,6 @@ async def osu_callback(
             detail="Failed to communicate with osu!.",
         ) from exc
 
-    session_id = create_session(user_data["id"])
-
     redirect_response = RedirectResponse(
         url="/",
         status_code=302,
