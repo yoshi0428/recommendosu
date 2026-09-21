@@ -277,6 +277,7 @@ def recommend_player_sync(
             category_preferences=category_preferences,
             top_k=settings.limit,
             requested_mods=requested_mods,
+            exact_mods=settings.exact_mods,
             excluded_mods=excluded_mods,
             min_stars=settings.min_stars,
             max_stars=settings.max_stars,

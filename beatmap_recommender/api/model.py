@@ -117,6 +117,10 @@ class RecommendationSettings(BaseModel):
         default=False,
     )
 
+    exact_mods: bool = Field(
+        default=False,
+    )
+
     # ── Difficulty constraint ──────────────────────────────────
     difficulty_star_std_multiplier: float = Field(
         default=DIFFICULTY_STAR_STD_MULTIPLIER,

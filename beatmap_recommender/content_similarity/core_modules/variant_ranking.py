@@ -234,6 +234,7 @@ def get_candidate_variants(
     conn,
     beatmap_ids,
     requested_mods=None,
+    exact_mods=False,
     excluded_mods=None,
     min_stars=None,
     max_stars=None,
@@ -268,21 +269,34 @@ def get_candidate_variants(
             for mod in requested_mods
         }
 
-        gameplay_mods = [
-            mod
-            for mod in MOD_ORDER
-            if mod in requested_mods
-        ]
-
-        valid_variants = ["NM"] if "NM" in requested_mods else []
-
-        for mask in range(1, 1 << len(gameplay_mods)):
-            combination = [
-                gameplay_mods[index]
-                for index in range(len(gameplay_mods))
-                if mask & (1 << index)
+        # account for exact mods toggle
+        if exact_mods:
+            valid_variants = [
+                "".join(
+                    mod
+                    for mod in MOD_ORDER
+                    if mod in requested_mods
+                )
             ]
-            valid_variants.append("".join(combination))
+
+            if not valid_variants[0]:
+                valid_variants = ["NM"]
+        else:
+            gameplay_mods = [
+                mod
+                for mod in MOD_ORDER
+                if mod in requested_mods
+            ]
+
+            valid_variants = ["NM"] if "NM" in requested_mods else []
+
+            for mask in range(1, 1 << len(gameplay_mods)):
+                combination = [
+                    gameplay_mods[index]
+                    for index in range(len(gameplay_mods))
+                    if mask & (1 << index)
+                ]
+                valid_variants.append("".join(combination))
 
         mod_placeholders = ",".join("?" for _ in valid_variants)
         conditions.append(f"bv.mods IN ({mod_placeholders})")
@@ -524,6 +538,7 @@ def rank_variants(
     category_preferences=None,
     top_k=None,
     requested_mods=None,
+    exact_mods=False,
     excluded_mods=None,
     min_stars=None,
     max_stars=None,
@@ -635,6 +650,7 @@ def rank_variants(
         conn,
         candidate_similarity.keys(),
         requested_mods=requested_mods,
+        exact_mods=exact_mods,
         excluded_mods=excluded_mods,
         min_stars=min_stars,
         max_stars=max_stars,
