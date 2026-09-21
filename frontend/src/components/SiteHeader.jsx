@@ -5,6 +5,28 @@ import './SiteHeader.css'
 
 const INDIVIDUAL_MODS = ['NM', 'HD', 'HR', 'DT', 'EZ', 'HT', 'FL']
 
+const MOD_VARIANTS = {
+  "HD": ["HD"],
+  "HR": ["HR"],
+  "DT": ["DT"],
+  "EZ": ["EZ"],
+  "HT": ["HT"],
+  "FL": ["FL"],
+  "HDHR": ["HD", "HR"],
+  "HDDT": ["HD", "DT"],
+  "HDHRDT": ["HD", "HR", "DT"],
+  "HRDT": ["HR", "DT"],
+  "EZDT": ["EZ", "DT"],
+  "EZHD": ["EZ", "HD"],
+  "EZHT": ["EZ", "HT"],
+  "HDHT": ["HD", "HT"],
+  "HRHT": ["HR", "HT"],
+  "HDHRFL": ["HD", "HR", "FL"],
+  "HDFL": ["HD", "FL"],
+  "HRFL": ["HR", "FL"],
+  "DTFL": ["DT", "FL"],
+}
+
 function SiteHeader({
                       rightActions,
                       settings = {},
@@ -19,7 +41,21 @@ function SiteHeader({
   const currentMods = settings?.mods ?? []
   const excludedMods = settings?.excluded_mods ?? []
   const exactMods = settings?.exact_mods ?? false
-  
+
+  const isModCompatible = (mod) => {
+    if (!exactMods || currentMods.length === 0) return true
+    if (currentMods.includes(mod)) return true
+    if (mod === 'NM' || currentMods.includes('NM')) return false
+
+    const proposedMods = [...currentMods, mod]
+
+    return Object.values(MOD_VARIANTS).some(
+      (mods) =>
+        mods.length === proposedMods.length &&
+        mods.every((m) => proposedMods.includes(m))
+    )
+  }
+
   const handleModChange = (mod) => {
     if (!updateSetting) return
 
@@ -27,6 +63,8 @@ function SiteHeader({
     const isExcluded = excludedMods.includes(mod)
 
     if (exactMods) {
+      if (!isRequired && !isModCompatible(mod)) return
+
       if (isRequired) {
         updateSetting(
           'mods',
@@ -228,6 +266,7 @@ function SiteHeader({
                   {INDIVIDUAL_MODS.map((mod) => {
                     const isRequired = currentMods.includes(mod)
                     const isExcluded = excludedMods.includes(mod)
+                    const isDisabled = exactMods && !isModCompatible(mod)
 
                     return (
                       <Form.Check
@@ -236,10 +275,11 @@ function SiteHeader({
                         id={`header-mod-${mod}`}
                         label={mod}
                         key={mod}
-                        checked={isRequired}
+                        checked={isRequired && !isExcluded}
+                        disabled={isDisabled}
                         className="mb-0"
                         style={{
-                          cursor: 'pointer',
+                          cursor: isDisabled ? 'not-allowed' : 'pointer',
                         }}
                         ref={(element) => {
                           if (element) {
