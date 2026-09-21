@@ -106,6 +106,10 @@ class RecommendationSettings(BaseModel):
         default=None,
     )
 
+    excluded_mods: list[str] | None = Field(
+        default=None,
+    )
+
     exclude_already_played: bool = Field(
         default=True,
     )

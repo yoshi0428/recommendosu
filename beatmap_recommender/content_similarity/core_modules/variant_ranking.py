@@ -6,6 +6,16 @@ from .mod_preferences import canonicalize_mods
 import time
 from beatmap_recommender.cancellation import check_cancelled
 
+MOD_ORDER = [
+    "EZ",
+    "NF",
+    "HT",
+    "HD",
+    "HR",
+    "DT",
+    "NC",
+    "FL",
+]
 
 def get_player_played_variants(conn, player_id, exclude_recent_plays=False, cancel_event=None):
     """
@@ -248,6 +258,7 @@ def get_candidate_variants(
     conn,
     beatmap_ids,
     requested_mods=None,
+    excluded_mods=None,
     min_stars=None,
     max_stars=None,
     min_bpm=None,
@@ -285,11 +296,43 @@ def get_candidate_variants(
     # --------------------------------------------------------------
     # Mod filter
     # --------------------------------------------------------------
+    if requested_mods:
+        requested_mods = {
+            mod.strip().upper()
+            for mod in requested_mods
+        }
 
-    if requested_mods is not None:
-        requested_mods = canonicalize_mods(requested_mods)
-        conditions.append("bv.mods = ?")
-        params.append(requested_mods)
+        gameplay_mods = [
+            mod
+            for mod in MOD_ORDER
+            if mod in requested_mods
+        ]
+
+        valid_variants = []
+
+        if "NM" in requested_mods:
+            valid_variants.append("NM")
+
+        for mask in range(1, 1 << len(gameplay_mods)):
+            combination = [
+                gameplay_mods[index]
+                for index in range(len(gameplay_mods))
+                if mask & (1 << index)
+            ]
+
+            valid_variants.append("".join(combination))
+
+        placeholders = ",".join("?" for _ in valid_variants)
+        conditions.append(f"bv.mods IN ({placeholders})")
+        params.extend(valid_variants)
+
+    if excluded_mods:
+        for mod in excluded_mods:
+            if mod == "NM":
+                conditions.append("bv.mods != 'NM'")
+            else:
+                conditions.append("bv.mods NOT LIKE ?")
+                params.append(f"%{mod}%")
 
     # --------------------------------------------------------------
     # Numeric filters
@@ -617,6 +660,7 @@ def rank_variants(
     category_preferences=None,
     top_k=None,
     requested_mods=None,
+    excluded_mods=None,
     min_stars=None,
     max_stars=None,
     min_bpm=None,
@@ -748,13 +792,11 @@ def rank_variants(
     # ------------------------------------------------------------------
     start = time.perf_counter()
 
-    if requested_mods is not None:
-        requested_mods = canonicalize_mods(requested_mods)
-
     variants = get_candidate_variants(
         conn,
         candidate_similarity.keys(),
         requested_mods=requested_mods,
+        excluded_mods=excluded_mods,
         min_stars=min_stars,
         max_stars=max_stars,
         min_bpm=min_bpm,

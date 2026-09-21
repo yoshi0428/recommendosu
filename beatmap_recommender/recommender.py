@@ -122,10 +122,16 @@ def recommend_player_sync(
 
     check_cancelled(cancel_event)
 
-    # Match test_recommender.py behavior directly:
-    # If settings.mods is empty/falsy or None, pass None directly to canonicalize_mods/rank_variants
-    # or handle it identically to test_recommender.py.
-    requested_mods = canonicalize_mods(settings.mods) if settings.mods else None
+    requested_mods = (
+        {mod.strip().upper() for mod in settings.mods}
+        if settings.mods
+        else None
+    )
+
+    excluded_mods = {
+        mod.strip().upper()
+        for mod in (settings.excluded_mods or [])
+    }
 
     conn = sqlite3.connect(DB_PATH)
 
@@ -256,6 +262,7 @@ def recommend_player_sync(
             category_preferences=category_preferences,
             top_k=settings.limit,
             requested_mods=requested_mods,
+            excluded_mods=excluded_mods,
             min_stars=settings.min_stars,
             max_stars=settings.max_stars,
             min_bpm=settings.min_bpm,
