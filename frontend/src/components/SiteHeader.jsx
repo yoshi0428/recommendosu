@@ -3,41 +3,7 @@ import {Link} from 'react-router-dom'
 import useTheme from '../hooks/useTheme'
 import './SiteHeader.css'
 
-const MOD_VARIANTS = {
-  "HD": ["HD"],
-  "HR": ["HR"],
-  "DT": ["DT"],
-  "EZ": ["EZ"],
-  "HT": ["HT"],
-  "FL": ["FL"],
-  "HDHR": ["HD", "HR"],
-  "HDDT": ["HD", "DT"],
-  "HDHRDT": ["HD", "HR", "DT"],
-  "HRDT": ["HR", "DT"],
-  "EZDT": ["EZ", "DT"],
-  "EZHD": ["EZ", "HD"],
-  "EZHT": ["EZ", "HT"],
-  "HDHT": ["HD", "HT"],
-  "HRHT": ["HR", "HT"],
-  "HDHRFL": ["HD", "HR", "FL"],
-  "HDFL": ["HD", "FL"],
-  "HRFL": ["HR", "FL"],
-  "DTFL": ["DT", "FL"],
-}
-
 const INDIVIDUAL_MODS = ['NM', 'HD', 'HR', 'DT', 'EZ', 'HT', 'FL']
-
-const variantArrays = Object.values(MOD_VARIANTS)
-
-// Checks if a candidate set of mods fits inside at least one valid variant combination
-const isValidCombination = (mods) => {
-  if (mods.length === 0 || (mods.length === 1 && mods.includes('NM'))) return true
-  if (mods.includes('NM')) return false
-
-  return variantArrays.some((variant) =>
-    mods.every((m) => variant.includes(m))
-  )
-}
 
 function SiteHeader({
                       rightActions,
@@ -51,44 +17,38 @@ function SiteHeader({
                     }) {
   const {theme, toggleTheme} = useTheme()
   const currentMods = settings?.mods ?? []
+  const excludedMods = settings?.excluded_mods ?? []
 
   const handleModChange = (mod) => {
     if (!updateSetting) return
 
-    let nextMods
+    const isRequired = currentMods.includes(mod)
+    const isExcluded = excludedMods.includes(mod)
 
-    if (mod === 'NM') {
-      if (currentMods.includes('NM')) {
-        nextMods = []
-      } else {
-        nextMods = ['NM']
-      }
-    } else {
-      const filteredMods = currentMods.filter((m) => m !== 'NM')
-
-      if (filteredMods.includes(mod)) {
-        nextMods = filteredMods.filter((m) => m !== mod)
-      } else {
-        const next = [...filteredMods, mod]
-
-        if (isValidCombination(next)) {
-          nextMods = next
-        } else {
-          return
-        }
-      }
+    // Required -> Excluded
+    if (isRequired) {
+      updateSetting(
+        'mods',
+        currentMods.filter((m) => m !== mod)
+      )
+      updateSetting(
+        'excluded_mods',
+        [...excludedMods, mod]
+      )
+      return
     }
 
-    updateSetting('mods', nextMods)
-  }
+    // Excluded -> Allowed
+    if (isExcluded) {
+      updateSetting(
+        'excluded_mods',
+        excludedMods.filter((m) => m !== mod)
+      )
+      return
+    }
 
-  const isModDisabled = (mod) => {
-    if (currentMods.includes(mod)) return false
-    if (mod === 'NM') return false
-
-    const filteredMods = currentMods.filter((m) => m !== 'NM')
-
-    return !isValidCombination([...filteredMods, mod])
+    // Allowed -> Required
+    updateSetting('mods', [...currentMods, mod])
   }
 
   const handleNumberChange = (key, value) => {
@@ -250,8 +210,8 @@ function SiteHeader({
                 {/* Quick Mod Checkboxes */}
                 <div className="d-flex flex-wrap align-items-center gap-2 ps-3">
                   {INDIVIDUAL_MODS.map((mod) => {
-                    const isChecked = currentMods.includes(mod)
-                    const disabled = isModDisabled(mod)
+                    const isRequired = currentMods.includes(mod)
+                    const isExcluded = excludedMods.includes(mod)
 
                     return (
                       <Form.Check
@@ -260,15 +220,15 @@ function SiteHeader({
                         id={`header-mod-${mod}`}
                         label={mod}
                         key={mod}
-                        checked={isChecked}
-                        disabled={disabled}
-                        className={`mb-0 ${
-                          disabled ? 'opacity-50' : ''
-                        }`}
+                        checked={isRequired}
+                        className="mb-0"
                         style={{
-                          cursor: disabled
-                            ? 'not-allowed'
-                            : 'pointer',
+                          cursor: 'pointer',
+                        }}
+                        ref={(element) => {
+                          if (element) {
+                            element.indeterminate = isExcluded
+                          }
                         }}
                         onChange={() => handleModChange(mod)}
                       />
@@ -322,7 +282,6 @@ function SiteHeader({
               >
                 About
               </Button>
-
 
               {/* Theme */}
               <button

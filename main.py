@@ -333,8 +333,8 @@ async def recommend_get(
         examples=["balanced", "pp_potential", "NM1_to_5"],
     ),
     exclude_already_played: bool = Query(
-        default="True",
-        examples=["True", "False"],
+        default=True,
+        examples=[True, False],
     ),
 ):
     player_id = require_player(session_id)

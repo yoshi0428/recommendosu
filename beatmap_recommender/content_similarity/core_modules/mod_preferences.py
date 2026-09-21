@@ -1,6 +1,11 @@
 import math
 from collections import defaultdict
 
+"""
+
+Done like this to prevent unrecognizable mods from stopping a recommendation entirely
+
+"""
 MOD_ORDER = [
     # Original order
     "EZ",
