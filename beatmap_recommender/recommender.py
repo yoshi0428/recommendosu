@@ -1,36 +1,39 @@
+import asyncio
 import os
+import sqlite3
+import threading
 import time
 from pathlib import Path
-import asyncio
-import sqlite3
+
 import requests
 
 from beatmap_recommender.api.model import RecommendationSettings
+from beatmap_recommender.api.osu_api_client import OsuAPIClient
 from beatmap_recommender.auth.token_manager import get_access_token
+from beatmap_recommender.cancellation import check_cancelled
 
+from beatmap_recommender.content_similarity.core_modules.cnn_xgboost_influence import (
+    get_player_category_preferences,
+)
+from beatmap_recommender.content_similarity.core_modules.content_similarity import (
+    build_seed_similarity_index,
+)
 from beatmap_recommender.content_similarity.core_modules.mod_preferences import (
-    canonicalize_mods,
     get_preferred_mods,
 )
 from beatmap_recommender.content_similarity.core_modules.score_collector import (
     update_player_scores,
 )
-from beatmap_recommender.content_similarity.core_modules.content_similarity import (
-    build_seed_similarity_index,
-)
 from beatmap_recommender.content_similarity.core_modules.variant_ranking import (
-    get_player_difficulty_profile,
+    get_player_difficulty_profiles,
     rank_variants,
 )
-from beatmap_recommender.content_similarity.core_modules.cnn_xgboost_influence import (
-    get_player_category_preferences,
-)
 
-from beatmap_recommender.api.osu_api_client import OsuAPIClient
-import threading
-from beatmap_recommender.cancellation import check_cancelled
+
+# ── Configuration ─────────────────────────────────────────────────────────────
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
 DB_PATH = Path(
     os.getenv(
         "DB_PATH",
@@ -39,19 +42,25 @@ DB_PATH = Path(
 )
 
 NEIGHBORS_K = 20_000
-BATCH_SIZE = 16384
+BATCH_SIZE = 16_384
 RECOMMENDATION_CONCURRENCY = 4
 WORKERS = -1
-
-_recommendation_semaphore = asyncio.Semaphore(RECOMMENDATION_CONCURRENCY)
 
 OSU_CLIENT_ID = os.getenv("OSU_CLIENT_ID")
 OSU_CLIENT_SECRET = os.getenv("OSU_CLIENT_SECRET")
 
 APPLICATION_TOKEN_REFRESH_BUFFER = 60
+
+_recommendation_semaphore = asyncio.Semaphore(
+    RECOMMENDATION_CONCURRENCY
+)
+
 _application_access_token: str | None = None
-_application_token_expires_at: float = 0.0
+_application_token_expires_at = 0.0
 _application_token_lock = asyncio.Lock()
+
+
+# ── Application OAuth ─────────────────────────────────────────────────────────
 
 def get_client_credentials_token(
     client_id: str,
@@ -88,15 +97,12 @@ async def get_application_access_token() -> str:
 
     now = time.time()
 
-    # Existing token is still valid.
     if _application_access_token is not None and now < _application_token_expires_at:
         return _application_access_token
 
-    # Only one request should refresh the token at a time.
     async with _application_token_lock:
         now = time.time()
 
-        # Another coroutine may have refreshed the token while we were waiting for the lock.
         if _application_access_token is not None and now < _application_token_expires_at:
             return _application_access_token
 
@@ -120,10 +126,14 @@ def recommend_player_sync(
     if settings.goal not in recommendation_config:
         raise ValueError(f"Unknown recommendation goal: {settings.goal}")
 
-    check_cancelled(cancel_event)
+    goal_config = recommendation_config[settings.goal]
+    classifier_weight = goal_config["weights"]["classifier"]
 
     requested_mods = (
-        {mod.strip().upper() for mod in settings.mods}
+        {
+            mod.strip().upper()
+            for mod in settings.mods
+        }
         if settings.mods
         else None
     )
@@ -133,33 +143,31 @@ def recommend_player_sync(
         for mod in (settings.excluded_mods or [])
     }
 
+    check_cancelled(cancel_event)
     conn = sqlite3.connect(DB_PATH)
 
     try:
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA foreign_keys=ON")
 
-        # --------------------------------------------------------
-        # Update player scores
-        # --------------------------------------------------------
-        check_cancelled(cancel_event)
+        # ── Update player scores ───────────────────────────────
 
         if update_scores:
+            check_cancelled(cancel_event)
+
             if access_token is None:
                 raise ValueError("An osu! API access token is required to update player scores.")
 
-            api = OsuAPIClient(access_token=access_token)
             update_player_scores(
                 conn,
-                api,
+                OsuAPIClient(access_token=access_token),
                 settings.player_id,
                 settings.limit,
             )
 
         check_cancelled(cancel_event)
-        # --------------------------------------------------------
-        # Build content similarity
-        # --------------------------------------------------------
+
+        # ── Content similarity ────────────────────────────────
 
         print(f"ALREADY PLAYED: {settings.exclude_already_played}")
 
@@ -178,9 +186,7 @@ def recommend_player_sync(
         if not similarity_index:
             return []
 
-        # --------------------------------------------------------
-        # Mod preferences
-        # --------------------------------------------------------
+        # ── Mod preferences ───────────────────────────────────
 
         preferred_mods = get_preferred_mods(
             conn,
@@ -190,21 +196,19 @@ def recommend_player_sync(
             pp_weight=settings.pp_weight,
         )
 
+        mod_preferences = dict(preferred_mods)
         check_cancelled(cancel_event)
 
         print(f"\nPlayer {settings.player_id} mod preferences:")
+
         for mods, preference in preferred_mods:
             print(f"  {mods}: {preference:.3f}")
 
-        mod_preferences = dict(preferred_mods)
-
-        # --------------------------------------------------------
-        # Difficulty profile
-        # --------------------------------------------------------
+        # ── Difficulty profile ────────────────────────────────
 
         print(f"\nEXCLUDE RECENT PLAYS: {settings.exclude_recent_plays}")
 
-        difficulty_profile = get_player_difficulty_profile(
+        difficulty_profile, _ = get_player_difficulty_profiles(
             conn,
             player_id=settings.player_id,
             difficulty_std_floors=settings.difficulty_std_floors,
@@ -220,28 +224,40 @@ def recommend_player_sync(
 
         print(f"\nPlayer {settings.player_id} difficulty profile:")
 
-        for feature in ("star_rating", "ar", "od", "bpm",):
+        for feature in (
+            "star_rating",
+            "ar",
+            "od",
+            "bpm",
+        ):
             mean = difficulty_profile.get(f"{feature}_mean")
             std = difficulty_profile.get(f"{feature}_std")
-            if mean is None or std is None:
-                continue
 
-            print(f"  {feature}: mean={mean:.3f}, std={std:.3f}")
+            if mean is not None and std is not None:
+                print(f"  {feature}: mean={mean:.3f}, std={std:.3f}")
 
-        # --------------------------------------------------------
-        # Classifier preferences
-        # --------------------------------------------------------
-        classifier_weight = recommendation_config[settings.goal]["weights"]["classifier"]
+        # ── Classifier preferences ─────────────────────────────
+
         if classifier_weight <= 0:
             category_preferences = {}
         else:
-            category_preferences = get_player_category_preferences(
-                conn,
-                settings.player_id,
-                recency_half_life_days=settings.recency_half_life_days,
-                ability_top_weight=settings.ability_top_weight,
-                ability_recent_weight=settings.ability_recent_weight,
-                ability_pp_weight=settings.ability_pp_weight,
+            category_preferences = (
+                get_player_category_preferences(
+                    conn,
+                    settings.player_id,
+                    recency_half_life_days=(
+                        settings.recency_half_life_days
+                    ),
+                    ability_top_weight=(
+                        settings.ability_top_weight
+                    ),
+                    ability_recent_weight=(
+                        settings.ability_recent_weight
+                    ),
+                    ability_pp_weight=(
+                        settings.ability_pp_weight
+                    ),
+                )
             )
 
             print()
@@ -250,15 +266,14 @@ def recommend_player_sync(
 
         check_cancelled(cancel_event)
 
-        # --------------------------------------------------------
-        # Final ranking
-        # --------------------------------------------------------
+        # ── Final ranking ──────────────────────────────────────
 
         ranked_variants = rank_variants(
             conn,
             similarity_index=similarity_index,
             mod_preferences=mod_preferences,
             difficulty_profile=difficulty_profile,
+            difficulty_star_std_multiplier=settings.difficulty_star_std_multiplier,
             category_preferences=category_preferences,
             top_k=settings.limit,
             requested_mods=requested_mods,
@@ -290,10 +305,12 @@ def recommend_player_sync(
 
         check_cancelled(cancel_event)
 
-        print(f"\nRecommendation goal: {settings.goal}")
-        print(f"\nTop {len(ranked_variants)} recommendations:")
+        # ── Output ─────────────────────────────────────────────
 
-        for i, variant in enumerate(ranked_variants, start=1):
+        print(f"\nRecommendation goal: {settings.goal}")
+
+        print(f"\nTop {len(ranked_variants)} recommendations:")
+        for i, variant in enumerate(ranked_variants, 1):
             print(
                 f"{i:2d}. "
                 f"beatmap={variant['beatmap_id']}, "
@@ -304,12 +321,17 @@ def recommend_player_sync(
                 f"bpm={variant['bpm']:.1f}, "
                 f"AR={variant['ar']:.1f}, "
                 f"OD={variant['od']:.1f}, "
-                f"content={variant['content_similarity']:.4f}, "
-                f"mod_pref={variant['mod_preference']:.4f}, "
-                f"difficulty={variant['difficulty_score']:.4f}, "
+                f"content="
+                f"{variant['content_similarity']:.4f}, "
+                f"mod_pref="
+                f"{variant['mod_preference']:.4f}, "
+                f"difficulty="
+                f"{variant['difficulty_score']:.4f}, "
                 f"pp={variant['pp']:.4f}, "
-                f"pp_potential={variant['pp_potential']:.4f}, "
-                f"score={variant['final_score']:.4f}"
+                f"pp_potential="
+                f"{variant['pp_potential']:.4f}, "
+                f"score="
+                f"{variant['final_score']:.4f}"
             )
 
         return ranked_variants
@@ -330,10 +352,11 @@ async def recommend_player(
         access_token = None
 
         if update_scores:
-            if settings.player_id == session_player_id:
-                access_token = await get_access_token(session_id)
-            else:
-                access_token = await get_application_access_token()
+            access_token = (
+                await get_access_token(session_id)
+                if settings.player_id == session_player_id
+                else await get_application_access_token()
+            )
 
         check_cancelled(cancel_event)
 

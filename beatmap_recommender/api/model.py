@@ -37,6 +37,7 @@ RECENCY_HALF_LIFE_DAYS = 30.0
 PP_PUSH_TARGET_Z = 0.75
 PP_PUSH_MAX_Z = 2.0
 
+DIFFICULTY_STAR_STD_MULTIPLIER = 0.50
 
 RECOMMENDATION_CONFIG = {
     "balanced": {
@@ -72,10 +73,10 @@ RECOMMENDATION_CONFIG = {
 
     "NM1_to_5": {
         "weights": {
-            "content": 0.55,
+            "content": 0.50,
             "mod_preference": 0.05,
             "difficulty": 0.25,
-            "classifier": 0.15,
+            "classifier": 0.20,
             "pp_potential": 0.00,
         },
         "sort_keys": (
@@ -89,9 +90,7 @@ RECOMMENDATION_CONFIG = {
 
 
 class RecommendationSettings(BaseModel):
-    # ------------------------------------------------------------
-    # Basic recommendation options
-    # ------------------------------------------------------------
+    # ── Basic recommendation options ───────────────────────────
     player_id: int | None = None
 
     limit: int = Field(
@@ -115,13 +114,16 @@ class RecommendationSettings(BaseModel):
     )
 
     exclude_recent_plays: bool = Field(
-        default=False
+        default=False,
     )
 
-    # ------------------------------------------------------------
-    # Candidate filters
-    # ------------------------------------------------------------
+    # ── Difficulty constraint ──────────────────────────────────
+    difficulty_star_std_multiplier: float = Field(
+        default=DIFFICULTY_STAR_STD_MULTIPLIER,
+        ge=0.0,
+    )
 
+    # ── Candidate filters ──────────────────────────────────────
     min_stars: float | None = None
     max_stars: float | None = None
 
@@ -146,10 +148,7 @@ class RecommendationSettings(BaseModel):
     min_cs: float | None = None
     max_cs: float | None = None
 
-    # ------------------------------------------------------------
-    # Difficulty profile
-    # ------------------------------------------------------------
-
+    # ── Difficulty profile ─────────────────────────────────────
     difficulty_std_floors: dict[str, float] = Field(
         default_factory=lambda: DIFFICULTY_STD_FLOORS.copy()
     )
@@ -158,42 +157,27 @@ class RecommendationSettings(BaseModel):
         default_factory=lambda: DIFFICULTY_FEATURE_WEIGHTS.copy()
     )
 
-    # ------------------------------------------------------------
-    # Content similarity
-    # ------------------------------------------------------------
-
+    # ── Content similarity ─────────────────────────────────────
     feature_weights: dict[str, float] = Field(
         default_factory=lambda: FEATURE_WEIGHTS.copy()
     )
 
-    # ------------------------------------------------------------
-    # Mod preferences
-    # ------------------------------------------------------------
-
+    # ── Mod preferences ───────────────────────────────────────
     top_weight: float = TOP_WEIGHT
     recent_weight: float = RECENT_WEIGHT
     pp_weight: float = PP_WEIGHT
 
-    # ------------------------------------------------------------
-    # Ability profile
-    # ------------------------------------------------------------
-
+    # ── Ability profile ────────────────────────────────────────
     ability_top_weight: float = ABILITY_TOP_WEIGHT
     ability_recent_weight: float = ABILITY_RECENT_WEIGHT
     ability_pp_weight: float = ABILITY_PP_WEIGHT
     recency_half_life_days: float = RECENCY_HALF_LIFE_DAYS
 
-    # ------------------------------------------------------------
-    # PP push
-    # ------------------------------------------------------------
-
+    # ── PP push ────────────────────────────────────────────────
     pp_push_target_z: float = PP_PUSH_TARGET_Z
     pp_push_max_z: float = PP_PUSH_MAX_Z
 
-    # ------------------------------------------------------------
-    # Recommendation scoring
-    # ------------------------------------------------------------
-
+    # ── Recommendation scoring ────────────────────────────────
     recommendation_config: dict = Field(
         default_factory=lambda: deepcopy(RECOMMENDATION_CONFIG)
     )
