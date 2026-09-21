@@ -18,12 +18,28 @@ function SiteHeader({
   const {theme, toggleTheme} = useTheme()
   const currentMods = settings?.mods ?? []
   const excludedMods = settings?.excluded_mods ?? []
-
+  const exactMods = settings?.exact_mods ?? false
+  
   const handleModChange = (mod) => {
     if (!updateSetting) return
 
     const isRequired = currentMods.includes(mod)
     const isExcluded = excludedMods.includes(mod)
+
+    if (exactMods) {
+      if (isRequired) {
+        updateSetting(
+          'mods',
+          currentMods.filter((m) => m !== mod)
+        )
+      } else {
+        updateSetting(
+          'mods',
+          [...currentMods, mod]
+        )
+      }
+      return
+    }
 
     // Required -> Excluded
     if (isRequired) {
@@ -227,7 +243,7 @@ function SiteHeader({
                         }}
                         ref={(element) => {
                           if (element) {
-                            element.indeterminate = isExcluded
+                            element.indeterminate = !exactMods && isExcluded
                           }
                         }}
                         onChange={() => handleModChange(mod)}
