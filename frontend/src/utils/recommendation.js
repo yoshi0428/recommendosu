@@ -106,8 +106,8 @@ export function createDefaultSettings() {
     pp_weight: 0.25,
 
     ability_top_weight: 1.0,
-    ability_recent_weight: 4.0,
-    ability_pp_weight: 0.10,
+    ability_recent_weight: 2.0,
+    ability_pp_weight: 0.05,
     recency_half_life_days: 30.0,
 
     pp_push_target_z: 0.75,
