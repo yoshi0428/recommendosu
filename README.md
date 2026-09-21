@@ -101,15 +101,55 @@ This was meant to be run with Docker compose. See the Docker Commands section la
 
 # Docker Commands
 
-Some Docker commands to get you started:
+Some Docker commands to get you started...
+
+- Local
 
 ```aiignore
-# Local development
-HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -p recommendosu-local -f compose.yml -f compose.local.yml up --build
-docker compose -p recommendosu-local -f compose.yml -f compose.local.yml down
+### everything
+HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -p recommendosu-local -f compose.yml -f compose.local.yml up --build -d
 
-# Production
-docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml up --build
+### rebuild/recreate nginx first
+HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -p recommendosu-local -f compose.yml -f compose.local.yml build nginx && \
+HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -p recommendosu-local -f compose.yml -f compose.local.yml up -d --no-deps nginx
+
+### rebuild/recreate frontend and backend without touching nginx
+HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -p recommendosu-local -f compose.yml -f compose.local.yml build frontend backend && \
+HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -p recommendosu-local -f compose.yml -f compose.local.yml up -d --no-deps frontend backend
+
+### soft shutdown and restart to test nginx-only page
+docker compose -p recommendosu-local -f compose.yml -f compose.local.yml stop frontend backend
+docker compose -p recommendosu-local -f compose.yml -f compose.local.yml start frontend backend
+
+### logs
+docker compose -p recommendosu-local -f compose.yml -f compose.local.yml logs -f
+
+### full shutdown
+docker compose -p recommendosu-local -f compose.yml -f compose.local.yml down
+```
+
+- Production
+
+```aiignore
+### everything
+docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml up --build -d
+
+### rebuild/recreate nginx first
+docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml build nginx && \
+docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml up -d --no-deps nginx
+
+### rebuild/recreate frontend and backend without touching nginx
+docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml build frontend backend && \
+docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml up -d --no-deps frontend backend
+
+### soft shutdown and restart to test nginx-only page
+docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml stop frontend backend
+docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml start frontend backend
+
+### logs
+docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml logs -f
+
+### full shutdown
 docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml down
 ```
 
