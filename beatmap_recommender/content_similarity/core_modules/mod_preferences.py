@@ -2,6 +2,7 @@ import math
 from collections import defaultdict
 
 MOD_ORDER = [
+    # Original order
     "EZ",
     "NF",
     "HT",
@@ -10,7 +11,79 @@ MOD_ORDER = [
     "DT",
     "NC",
     "FL",
-    "MR"
+
+    # Difficulty Reduction
+    "DC",
+    "SR",
+    "NR",
+
+    # Difficulty Increase
+    "SD",
+    "PF",
+    "FI",
+    "TC",
+    "CO",
+    "BL",
+    "ST",
+    "AC",
+
+    # Automation
+    "AT",
+    "CN",
+    "RX",
+    "AP",
+    "SO",
+
+    # Conversion
+    "TP",
+    "DA",
+    "CL",
+    "RD",
+    "DS",
+    "MR",
+    "AL",
+    "SW",
+    "SG",
+    "IN",
+    "CS",
+    "HO",
+    "1K",
+    "2K",
+    "3K",
+    "4K",
+    "5K",
+    "6K",
+    "7K",
+    "8K",
+    "9K",
+    "10K",
+
+    # Fun
+    "TR",
+    "WG",
+    "SI",
+    "GR",
+    "DF",
+    "WU",
+    "WD",
+    "BR",
+    "AD",
+    "FF",
+    "MU",
+    "NS",
+    "MG",
+    "RP",
+    "AS",
+    "FR",
+    "BU",
+    "MF",
+    "SY",
+    "DP",
+    "BM",
+
+    # System
+    "TD",
+    "SV2",
 ]
 
 # Longest first is important if parsing concatenated strings.
