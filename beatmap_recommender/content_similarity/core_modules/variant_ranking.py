@@ -577,7 +577,10 @@ def rank_variants(
     star_mean = difficulty_profile.get("star_rating_mean")
     star_std = difficulty_profile.get("star_rating_std")
 
-    if star_mean is not None and star_std is not None:
+    # if min_stars is explicitly requested, set min_difficulty_stars to it
+    if min_stars is not None:
+        min_difficulty_stars = float(min_stars)
+    elif star_mean is not None and star_std is not None:
         star_mean = float(star_mean)
         star_std = float(star_std)
         min_difficulty_stars = star_mean - difficulty_star_std_multiplier * star_std
