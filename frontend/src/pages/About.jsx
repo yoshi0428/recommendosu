@@ -44,10 +44,22 @@ function About() {
             myself that somewhat involved ML/DL.
           </p>
 
-          <p className="mb-0">
+          <p className="mb-3">
             This project uses Python with FastAPI for the backend, SQLite for
             the database, and react-bootstrap for the frontend. It is currently
             deployed on this website using my PC and Docker Compose.
+          </p>
+
+          <p className="mb-0">
+            If you need to contact me, do it via{' '}
+            <a
+              href="https://osu.ppy.sh/users/10961031"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              yoshi0428
+            </a>{' '}
+            at osu!pm or <u>yoshiekn</u> on Discord.
           </p>
         </div>
 
@@ -91,6 +103,8 @@ function About() {
             PP potential or tournament category classification.
           </p>
 
+          <hr className="my-4"/>
+
           <h4 className="mt-4 mb-3">
             Balanced
           </h4>
@@ -108,6 +122,8 @@ function About() {
             --- 5% mod preference
           </p>
 
+          <hr className="my-4"/>
+
           <h4 className="mt-4 mb-3">
             PP Potential
           </h4>
@@ -124,6 +140,8 @@ function About() {
             <strong>Weights:</strong> 45% content similarity --- 25% difficulty
             --- 25% PP potential --- 5% mod preference
           </p>
+
+          <hr className="my-4"/>
 
           <h4 className="mt-4 mb-3">
             NM1–5
@@ -149,11 +167,28 @@ function About() {
             recommendations when the final recommended variant uses mods.
           </p>
 
-          <p className="mb-0">
+          <p>
             <strong>Weights:</strong> 50% content similarity --- 25% difficulty
             --- 20% NM1–5 category match --- 5% mod preference
           </p>
+
+          <hr className="my-4"/>
+
+          {/* QUICK NOTICE */}
+          <h5 className="mb-0">
+            The following sections will go into more depth on difficulty, PP potential, and mod preference scores. I
+            find content similarity pretty intuitive, but just know that it
+            uses{' '}
+            <a
+              href="https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.KDTree.html"
+              target="_blank"
+              rel="noopener noreferrer"
+            >SciPy's KDTree
+            </a>{' '}
+            to find each top & recent play's top 20000 nearest neighbors.
+          </h5>
         </div>
+
 
         {/* DIFFICULTY PROFILE */}
         <div className={`p-4 mb-4 rounded border ${sectionClass}`}>
@@ -168,6 +203,8 @@ function About() {
             according to the selected recommendation goal.
           </p>
 
+          <hr className="my-4"/>
+
           <h4 className="mt-4 mb-3">
             Difficulty Feature Weights
           </h4>
@@ -179,6 +216,8 @@ function About() {
           </p>
 
           <p><strong>Weights:</strong>{' '} SR 4.0 --- AR 1.5 --- OD 1.0 --- BPM 0.5 </p>
+
+          <hr className="my-4"/>
 
           <h4 className="mt-4 mb-3">
             Difficulty Standard Deviation Floors
@@ -198,11 +237,50 @@ function About() {
             HDHRDT combination maps.
           </p>
 
-          <p>
+          <p className={"mb-0"}>
             If you absolutely need to nullify this minimum difficulty threshold, set the
             difficulty profile's standard deviations floors to very large numbers.
           </p>
 
+        </div>
+
+        {/* MOD PREFERENCE */}
+        <div className={`p-4 mb-4 rounded border ${sectionClass}`}>
+          <h3 className="mb-3">
+            Mod Preferences
+          </h3>
+
+          <p>
+            Your mod preferences are inferred from the mod
+            combinations in your recorded plays. Each play contributes a weighted amount based on whether it is a top
+            play
+            or a recent play, with higher-PP plays receiving a small additional contribution.
+          </p>
+
+          <p><strong>Source weights:</strong>{' '} Top plays 3.0x --- Recent plays 1.0x</p>
+
+          <hr className="my-4"/>
+
+          <p>
+            Top plays receive more weight because they may provide stronger evidence of the mod combinations you tend to
+            choose for your strongest performances. Plays that appear in both the top and recent collections are counted
+            only once as top plays.
+          </p>
+
+          <p>
+            PP also provides a small additional weighting factor. Higher-PP plays receive slightly more influence, with
+            diminishing returns so that extremely high-PP scores do not dominate the preference profile.
+          </p>
+
+          <p><strong>Score weight:</strong>{' '} [TOP_WEIGHT or RECENT_WEIGHT] * (1 + PP_WEIGHT * sqrt(PP) / 10)</p>
+
+          <hr className="my-4"/>
+
+          <p className="mb-0">
+            After the weighted preferences are calculated, they are log-transformed and normalized so that your most
+            preferred mod combination has a preference value of 1.0. These normalized preferences are then used as one
+            of the signals when ranking recommendations.
+          </p>
         </div>
 
         {/* ABILITY PROFILE */}
@@ -228,6 +306,8 @@ function About() {
             Top plays 1.0x --- Recent plays 2.0x
           </p>
 
+          <hr className="my-4"/>
+
           <p>
             Plays that appear in both collections are treated as recent plays rather than being counted twice. Higher-PP
             plays also receive slightly more weight when estimating ability. This provides a small additional emphasis
@@ -240,6 +320,7 @@ function About() {
           </p>
         </div>
 
+        {/* PP POTENTIAL EXPLAINED */}
         <div className={`p-4 mb-4 rounded border ${sectionClass}`}>
           <h3 className="mb-3">
             PP Potential Explained
@@ -284,25 +365,6 @@ function About() {
             <strong>PP potential parameters</strong>{' '}
             <p className="mt-0 mb-0">Below-ability threshold (PP Push Target Z) --- 0.75 standard deviations</p>
             <p className="mt-0 mb-0">Maximum difficulty range (PP Push Maximum Z) --- 2.0 standard deviations</p>
-          </p>
-        </div>
-
-        {/* CONTACT */}
-        <div className={`p-4 mb-4 rounded border ${sectionClass}`}>
-          <h3 className="mb-3">
-            Contact
-          </h3>
-
-          <p className="mb-0">
-            If you need to contact me, do it via{' '}
-            <a
-              href="https://osu.ppy.sh/users/10961031"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              yoshi0428
-            </a>{' '}
-            at osu!pm or <u>yoshiekn</u> on Discord.
           </p>
         </div>
 
