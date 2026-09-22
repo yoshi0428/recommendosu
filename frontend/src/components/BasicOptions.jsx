@@ -100,7 +100,7 @@ function BasicOptions({
               />
 
               <Form.Text className="text-muted">
-                Capped at 1000 to prevent overloading.
+                Max 1000 to prevent overloading.
               </Form.Text>
             </Form.Group>
           </Col>

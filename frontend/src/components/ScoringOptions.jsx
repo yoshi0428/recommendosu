@@ -29,7 +29,7 @@ function ScoringOptions({
       <Card.Header> <strong>Scoring & Ability</strong>
       </Card.Header>
       <Card.Body>
-        <h6>Interaction Weights</h6>
+        <h6>Mod Interaction Weights</h6>
 
         <Row className="g-3 mb-4">
           <Col md={3}>

@@ -245,18 +245,10 @@ def recommend_player_sync(
                 get_player_category_preferences(
                     conn,
                     settings.player_id,
-                    recency_half_life_days=(
-                        settings.recency_half_life_days
-                    ),
-                    ability_top_weight=(
-                        settings.ability_top_weight
-                    ),
-                    ability_recent_weight=(
-                        settings.ability_recent_weight
-                    ),
-                    ability_pp_weight=(
-                        settings.ability_pp_weight
-                    ),
+                    recency_half_life_days=settings.recency_half_life_days,
+                    ability_top_weight=settings.ability_top_weight,
+                    ability_recent_weight=settings.ability_recent_weight,
+                    ability_pp_weight=settings.ability_pp_weight,
                 )
             )
 

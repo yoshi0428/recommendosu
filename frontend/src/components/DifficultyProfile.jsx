@@ -38,7 +38,7 @@ function DifficultyProfile({settings, updateNestedSetting}) {
         </p>
 
         <h6 className="mt-3">
-          Standard Deviation Floors
+          Difficulty Standard Deviation Floors
         </h6>
 
         <Row className="g-3 mb-4">
@@ -59,7 +59,7 @@ function DifficultyProfile({settings, updateNestedSetting}) {
           ))}
         </Row>
 
-        <h6>Feature Weights</h6>
+        <h6>Difficulty Feature Weights</h6>
 
         <Row className="g-3">
           {DIFFICULTY_FEATURES.map(([key, label]) => (

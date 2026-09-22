@@ -498,7 +498,6 @@ def calculate_difficulty_scores(
             weighted_squared_distance[valid_variants].sum(axis=1)
             / total_weight[valid_variants]
         )
-        check_cancelled(cancel_event)
         scores[valid_variants] = np.exp(-0.5 * distance ** 2)
 
     check_cancelled(cancel_event)
