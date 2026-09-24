@@ -1,6 +1,6 @@
 import sqlite3
 from pathlib import Path
-from beatmap_recommender.content_similarity.db_modules.db_recommender_insert import insert_score
+from beatmap_recommender.recommender_db_setup.db_recommender_insert import insert_score
 from beatmap_recommender.recommender_db_setup.osu_api_client import OsuAPIClient
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]

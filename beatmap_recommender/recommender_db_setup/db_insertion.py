@@ -28,6 +28,7 @@ def insert_base_beatmap(conn, beatmap_data, md5):
             artist,
             creator,
             version,
+            preview_time,
             hp_drain,
             circle_size,
             od,
@@ -40,7 +41,7 @@ def insert_base_beatmap(conn, beatmap_data, md5):
             length_seconds,
             object_count
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(beatmap_id) DO UPDATE SET
             beatmapset_id = excluded.beatmapset_id,
             md5 = excluded.md5,
@@ -48,6 +49,7 @@ def insert_base_beatmap(conn, beatmap_data, md5):
             artist = excluded.artist,
             creator = excluded.creator,
             version = excluded.version,
+            preview_time = excluded.preview_time,
             hp_drain = excluded.hp_drain,
             circle_size = excluded.circle_size,
             od = excluded.od,
@@ -67,6 +69,7 @@ def insert_base_beatmap(conn, beatmap_data, md5):
         beatmap_data["artist"],
         beatmap_data["creator"],
         beatmap_data["version"],
+        beatmap_data["preview_time"],
         beatmap_data["hp_drain"],
         beatmap_data["circle_size"],
         beatmap_data["od"],

@@ -33,6 +33,8 @@ def parse_osu_file(
     data = {
         "beatmap_id": None,
         "beatmapset_id": None,
+
+        "preview_time": 0, # default to start of song
         "mode": 0,  # Default to standard
 
         "title": "",
@@ -103,6 +105,12 @@ def parse_osu_file(
             key, value = line.split(":", maxsplit=1)
             key = key.strip()
             value = value.strip()
+
+            if key == "PreviewTime":
+                try:
+                    data["preview_time"] = int(value)
+                except ValueError:
+                    data["preview_time"] = 0
 
             if key == "Mode":
                 try:

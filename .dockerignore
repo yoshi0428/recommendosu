@@ -1,21 +1,34 @@
+.env
 .git
 .gitignore
 .idea
 .vscode
-__pycache__
-*.pyc
-*.pyo
-*.pyd
-.pytest_cache
-.mypy_cache
+*.log
 
-.env
+# large recommender datasets
+beatmap_recommender/data/
+beatmap_recommender/data_audio/
+beatmap_recommender/item_item_filtering/
+
+# unused directories
+osdb_parse
+_plans
+
+# local databases
 *.db
 *.db-shm
 *.db-wal
+*.sqlite
+*.sqlite3
 
-# COMMENT THESE OUT IF NEEDED
-/_plans
-/osdb_parse
-/beatmap_classifier/data
-/beatmap_recommender/data
+# python caches / environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+
+# frontend dependencies/build output
+frontend/node_modules/
+frontend/dist/

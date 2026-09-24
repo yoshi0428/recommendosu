@@ -11,6 +11,7 @@ def create_tables(conn):
             artist TEXT NOT NULL,
             creator TEXT NOT NULL,
             version TEXT NOT NULL,
+            preview_time REAL NOT NULL,
             
 
             hp_drain REAL NOT NULL,

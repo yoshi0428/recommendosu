@@ -1,5 +1,8 @@
 import os
+import sqlite3
 import uuid
+from pathlib import Path
+import mimetypes
 
 import httpx
 from pydantic import BaseModel, Field
@@ -11,7 +14,7 @@ from fastapi import (
     Query,
     Response,
 )
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from beatmap_recommender.api.model import RecommendationSettings
 from beatmap_recommender.api.osu_api import get_authenticated_user
 from beatmap_recommender.recommender import recommend_player
@@ -45,10 +48,23 @@ from beatmap_recommender.auth.token_store import (
     initialize_token_store, store_tokens
 )
 
+from beatmap_recommender.data_audio.extract_audio import sanitize_filename
+
 from contextlib import asynccontextmanager
 
 API_PREFIX = "/api/v1"
 SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "false").lower() == "true"
+
+PROJECT_ROOT = Path(__file__).resolve().parents[0]
+AUDIO_DIR = PROJECT_ROOT / "beatmap_recommender" / "data_audio"
+DB_PATH = Path(
+    os.getenv(
+        "DB_PATH",
+        PROJECT_ROOT / "beatmap_recommender/recommender.db",
+    )
+)
+
+AUDIO_INDEX = {}
 
 
 @asynccontextmanager
@@ -56,6 +72,12 @@ async def lifespan(app: FastAPI):
     initialize_token_store()
     initialize_session_store()
     initialize_state_store()
+
+    if AUDIO_DIR.is_dir():
+        for audio_path in AUDIO_DIR.rglob("*"):
+            if audio_path.is_file():
+                AUDIO_INDEX[audio_path.stem] = audio_path
+
     yield
 
 
@@ -464,6 +486,79 @@ async def recommend_cancel(
         "recommendation_id": recommendation_id,
         "cancelled": cancelled,
     }
+
+########################################################################################################################
+########################################################################################################################
+########################################################################################################################
+#
+# MUSIC
+#
+########################################################################################################################
+########################################################################################################################
+########################################################################################################################
+
+@app.get(
+    f"{API_PREFIX}/music/preview",
+    summary="Get beatmap audio preview",
+    tags=["Music"],
+)
+async def music_preview(
+    artist: str = Query(...),
+    title: str = Query(...),
+    creator: str = Query(...),
+):
+    filename_stem = (
+        f"{sanitize_filename(artist)} - "
+        f"{sanitize_filename(title)} - "
+        f"{sanitize_filename(creator)}"
+    )
+
+    audio_path = AUDIO_INDEX.get(filename_stem)
+
+    if audio_path is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Audio preview not found.",
+        )
+
+    conn = sqlite3.connect(DB_PATH)
+
+    cursor = conn.execute(
+        """
+        SELECT preview_time, length_seconds
+        FROM beatmaps
+        WHERE artist = ?
+          AND title = ?
+          AND creator = ?
+        LIMIT 1
+        """,
+        (artist, title, creator),
+    )
+    row = cursor.fetchone()
+    conn.close()
+
+    if row is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Beatmap not found.",
+        )
+
+    preview_time, length_seconds = row
+
+    if preview_time == -1:
+        preview_time = int(length_seconds * 1000 * 0.40)
+
+    media_type, _ = mimetypes.guess_type(audio_path)
+    if media_type is None:
+        media_type = "application/octet-stream"
+
+    return FileResponse(
+        path=audio_path,
+        media_type=media_type,
+        headers={
+            "X-Preview-Time": str(preview_time),
+        },
+    )
 
 
 ########################################################################################################################

@@ -6,7 +6,7 @@ from pathlib import Path
 from osu_tools import OsuCalculator
 from tqdm import tqdm
 
-from beatmap_recommender.content_similarity.db_modules.db_recommender import create_recommender_tables
+from beatmap_recommender.recommender_db_setup.db_recommender import create_recommender_tables
 from db_table_creation import create_tables
 from beatmap_recommender.recommender_db_setup.osu_api_client import OsuAPIClient
 from parser import parse_osu_file
@@ -24,7 +24,7 @@ import hashlib
 # Configuration
 # ============================================================
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DATABASE_PATH = PROJECT_ROOT / "beatmap_recommender/recommender.local.db"
+DATABASE_PATH = PROJECT_ROOT / "beatmap_recommender/dummy.db"
 ROOT_DIR = PROJECT_ROOT / "beatmap_recommender/data"
 NUM_WORKERS = 8
 BATCH_SIZE = 2500
