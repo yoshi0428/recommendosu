@@ -45,7 +45,15 @@ function About() {
           </p>
 
           <p className="mb-3">
-            This project uses Python with FastAPI for the backend, SQLite for
+            This{' '}
+            <a
+              href="https://github.com/yoshi0428/recommendosu"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              project
+            </a>{' '}
+            uses Python with FastAPI for the backend, SQLite for
             the database, and react-bootstrap for the frontend. It is currently
             deployed on this website using my PC and Docker Compose.
           </p>

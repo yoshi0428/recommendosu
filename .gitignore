@@ -41,6 +41,8 @@
 /beatmap_recommender/data/2025
 /beatmap_recommender/data/2026
 
+/beatmap_recommender/data_audio/2*
+
 *.db
 *.db-wal
 *.db-shm
