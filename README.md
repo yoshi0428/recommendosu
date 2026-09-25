@@ -9,7 +9,7 @@ and performs a calculation to find the 20000 nearest neighbors (configurable) to
 If no mod filters are applied, multiply this by the repository's available combinations (20) and we get at worst 4 million vectors to sort and obtain the top recommendations. 
 I have optimized this down to around 10 seconds for outputting the top 1000 recommendations to the frontend.
 
-I opted with a content similarity approach, as I found that performing user-user/item-item collaborative filtering is difficult due to the time needed to gather of per-country user play data.
+I opted with a content similarity approach, as I found that performing user-user/item-item collaborative filtering is difficult due to the time needed to gather per-country user play data.
 
 Credit to [osu!Oracle](https://github.com/token03/osu_oracle) for getting started on this repository's beatmap classifier. 
 See [AlphaOSU](https://github.com/AlphaOSU/AlphaOSU), 
