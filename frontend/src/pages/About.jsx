@@ -58,7 +58,7 @@ function About() {
             deployed on this website using my PC and Docker Compose.
           </p>
 
-          <p className="mb-0">
+          <p className="mb-3">
             If you need to contact me, do it via{' '}
             <a
               href="https://osu.ppy.sh/users/10961031"
@@ -68,6 +68,18 @@ function About() {
               yoshi0428
             </a>{' '}
             at osu!pm or <u>yoshiekn</u> on Discord.
+          </p>
+
+          <p className="mb-0">
+            I've also made a Discord server{' '}
+            <a
+              href="https://discord.gg/Dh4TzKGGB7"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              here
+            </a>
+            , if you want to see the changelogs.
           </p>
         </div>
 
