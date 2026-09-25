@@ -103,7 +103,7 @@ This was meant to be run with Docker compose. See the Docker Commands section la
 
 Some Docker commands to get you started...
 
-- Local
+### Local
 
 ```aiignore
 ### everything
@@ -128,7 +128,7 @@ docker compose -p recommendosu-local -f compose.yml -f compose.local.yml logs -f
 docker compose -p recommendosu-local -f compose.yml -f compose.local.yml down
 ```
 
-- Production
+### Production
 
 ```aiignore
 ### everything
