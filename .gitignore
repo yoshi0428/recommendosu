@@ -43,6 +43,9 @@
 
 /beatmap_recommender/data_audio/2*
 
+# for now, i'd like to exclude this until i can properly resolve the related issue.
+/beatmap_recommender/item_item_filtering
+
 *.db
 *.db-wal
 *.db-shm
