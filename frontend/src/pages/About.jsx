@@ -383,8 +383,8 @@ function About() {
 
           <p className="mb-0">
             <strong>PP potential parameters</strong>{' '}
-            <p className="mt-0 mb-0">Below-ability threshold (PP Push Target Z) --- 0.75 standard deviations</p>
-            <p className="mt-0 mb-0">Maximum difficulty range (PP Push Maximum Z) --- 2.0 standard deviations</p>
+            <span className="d-block">Below-ability threshold (PP Push Target Z) --- 0.75 standard deviations</span>
+            <span className="d-block">Maximum difficulty range (PP Push Maximum Z) --- 2.0 standard deviations</span>
           </p>
         </div>
 

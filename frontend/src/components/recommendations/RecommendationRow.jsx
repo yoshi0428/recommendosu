@@ -327,153 +327,157 @@ function RecommendationRow({
 
       {/* Audio player pill */}
       {audioUrl && (
-        <div
-          className="position-fixed bottom-0 start-50 translate-middle-x mb-3 px-2 px-sm-3 py-2 rounded-pill shadow d-flex align-items-center border border-3"
-          style={{
-            zIndex: 1050,
-            width: 'min(600px, calc(100vw - 1rem))',
-            minWidth: 0,
-            backgroundColor: 'var(--audio-preview-bg-color)',
-            '--bs-border-color': 'var(--audio-preview-border-color)',
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Playback */}
-          <div
-            className="d-flex align-items-center flex-grow-1 rounded"
-            style={{
-              minWidth: 0,
-              gap: '0.5rem',
-              backgroundColor: 'var(--audio-preview-bg-color)',
-              padding: '0.25rem 0.5rem',
-            }}
-          >
-            {/* Play / Pause */}
-            <button
-              type="button"
-              className="btn btn-sm p-0 border-0 bg-transparent d-flex align-items-center justify-content-center flex-shrink-0"
+        <tr>
+          <td colSpan="10" style={{padding: 0, border: 0}}>
+            <div
+              className="position-fixed bottom-0 start-50 translate-middle-x mb-3 px-2 px-sm-3 py-2 rounded-pill shadow d-flex align-items-center border border-3"
               style={{
-                width: '20px',
-                height: '20px',
-                lineHeight: 1,
-                color: 'var(--audio-preview-text-color)',
-              }}
-              onClick={() => {
-                if (!audioRef.current) return
-
-                if (audioRef.current.paused) {
-                  audioRef.current.play()
-                  setIsPlaying(true)
-                } else {
-                  audioRef.current.pause()
-                  setIsPlaying(false)
-                }
-              }}
-              aria-label={isPlaying ? 'Pause preview' : 'Play preview'}
-            >
-              {isPlaying ? (
-                <PauseFill size={20}/>
-              ) : (
-                <PlayFill size={20}/>
-              )}
-            </button>
-
-            {/* Audio time control */}
-            <input
-              type="range"
-              className="form-range mb-0 flex-grow-1 audio-preview-range"
-              style={{
+                zIndex: 1050,
+                width: 'min(600px, calc(100vw - 1rem))',
                 minWidth: 0,
+                backgroundColor: 'var(--audio-preview-bg-color)',
+                '--bs-border-color': 'var(--audio-preview-border-color)',
               }}
-              min="0"
-              max={duration || 0}
-              step="0.01"
-              value={currentTime}
-              onChange={(e) => {
-                const newTime = Number(e.target.value)
-
-                setCurrentTime(newTime)
-
-                if (audioRef.current) {
-                  audioRef.current.currentTime = newTime
-                }
-              }}
-              aria-label="Audio progress"
-            />
-
-            <span
-              className="text-nowrap flex-shrink-0 audio-preview-time"
-              style={{
-                fontSize: '0.65rem',
-                width: '108px',
-                textAlign: 'center',
-                lineHeight: 1,
-                color: 'var(--audio-preview-secondary-color)',
-              }}
+              onClick={(e) => e.stopPropagation()}
             >
-              {formatAudioTime(currentTime)}
-              <span className="audio-preview-duration">
-                {' / '}{formatAudioTime(duration)}
-              </span>
-            </span>
-          </div>
+              {/* Playback */}
+              <div
+                className="d-flex align-items-center flex-grow-1 rounded"
+                style={{
+                  minWidth: 0,
+                  gap: '0.5rem',
+                  backgroundColor: 'var(--audio-preview-bg-color)',
+                  padding: '0.25rem 0.5rem',
+                }}
+              >
+                {/* Play / Pause */}
+                <button
+                  type="button"
+                  className="btn btn-sm p-0 border-0 bg-transparent d-flex align-items-center justify-content-center flex-shrink-0"
+                  style={{
+                    width: '20px',
+                    height: '20px',
+                    lineHeight: 1,
+                    color: 'var(--audio-preview-text-color)',
+                  }}
+                  onClick={() => {
+                    if (!audioRef.current) return
 
-          {/* Volume */}
-          <div
-            className="d-flex align-items-center flex-shrink-0 rounded"
-            style={{
-              gap: '0.5rem',
-              backgroundColor: 'var(--audio-preview-bg-color)',
-              padding: '0.25rem 0.5rem',
-            }}
-          >
-            <VolumeUpFill
-              size={18}
-              style={{
-                color: 'var(--audio-preview-secondary-color)',
-              }}
-            />
+                    if (audioRef.current.paused) {
+                      audioRef.current.play()
+                      setIsPlaying(true)
+                    } else {
+                      audioRef.current.pause()
+                      setIsPlaying(false)
+                    }
+                  }}
+                  aria-label={isPlaying ? 'Pause preview' : 'Play preview'}
+                >
+                  {isPlaying ? (
+                    <PauseFill size={20}/>
+                  ) : (
+                    <PlayFill size={20}/>
+                  )}
+                </button>
 
-            <input
-              type="range"
-              className="form-range mb-0 audio-preview-range"
-              min="0"
-              max="0.10"
-              step="0.001"
-              value={audioVolume}
-              onChange={(e) => {
-                const newVolume = Number(e.target.value)
+                {/* Audio time control */}
+                <input
+                  type="range"
+                  className="form-range mb-0 flex-grow-1 audio-preview-range"
+                  style={{
+                    minWidth: 0,
+                  }}
+                  min="0"
+                  max={duration || 0}
+                  step="0.01"
+                  value={currentTime}
+                  onChange={(e) => {
+                    const newTime = Number(e.target.value)
 
-                setAudioVolume(newVolume)
+                    setCurrentTime(newTime)
 
-                if (audioRef.current) {
-                  audioRef.current.volume = newVolume
-                }
-              }}
-              aria-label="Preview volume"
-              style={{
-                width: '60px',
-              }}
-            />
-          </div>
+                    if (audioRef.current) {
+                      audioRef.current.currentTime = newTime
+                    }
+                  }}
+                  aria-label="Audio progress"
+                />
 
-          {/* Close */}
-          <button
-            type="button"
-            className="btn btn-sm p-0 border-0 bg-transparent d-flex align-items-center justify-content-center flex-shrink-0"
-            style={{
-              width: '20px',
-              height: '20px',
-              lineHeight: 1,
-              marginLeft: '0.5rem',
-              color: 'var(--audio-preview-secondary-color)',
-            }}
-            onClick={closePreview}
-            aria-label="Close audio preview"
-          >
-            <X size={20}/>
-          </button>
-        </div>
+                <span
+                  className="text-nowrap flex-shrink-0 audio-preview-time"
+                  style={{
+                    fontSize: '0.65rem',
+                    width: '108px',
+                    textAlign: 'center',
+                    lineHeight: 1,
+                    color: 'var(--audio-preview-secondary-color)',
+                  }}
+                >
+                  {formatAudioTime(currentTime)}
+                  <span className="audio-preview-duration">
+                    {' / '}{formatAudioTime(duration)}
+                  </span>
+                </span>
+              </div>
+
+              {/* Volume */}
+              <div
+                className="d-flex align-items-center flex-shrink-0 rounded"
+                style={{
+                  gap: '0.5rem',
+                  backgroundColor: 'var(--audio-preview-bg-color)',
+                  padding: '0.25rem 0.5rem',
+                }}
+              >
+                <VolumeUpFill
+                  size={18}
+                  style={{
+                    color: 'var(--audio-preview-secondary-color)',
+                  }}
+                />
+
+                <input
+                  type="range"
+                  className="form-range mb-0 audio-preview-range"
+                  min="0"
+                  max="0.10"
+                  step="0.001"
+                  value={audioVolume}
+                  onChange={(e) => {
+                    const newVolume = Number(e.target.value)
+
+                    setAudioVolume(newVolume)
+
+                    if (audioRef.current) {
+                      audioRef.current.volume = newVolume
+                    }
+                  }}
+                  aria-label="Preview volume"
+                  style={{
+                    width: '60px',
+                  }}
+                />
+              </div>
+
+              {/* Close */}
+              <button
+                type="button"
+                className="btn btn-sm p-0 border-0 bg-transparent d-flex align-items-center justify-content-center flex-shrink-0"
+                style={{
+                  width: '20px',
+                  height: '20px',
+                  lineHeight: 1,
+                  marginLeft: '0.5rem',
+                  color: 'var(--audio-preview-secondary-color)',
+                }}
+                onClick={closePreview}
+                aria-label="Close audio preview"
+              >
+                <X size={20}/>
+              </button>
+            </div>
+          </td>
+        </tr>
       )}
     </>
   )
