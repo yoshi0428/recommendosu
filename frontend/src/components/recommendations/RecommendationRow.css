@@ -1,0 +1,41 @@
+[data-bs-theme="light"] {
+    --audio-preview-bg-color: #E4E5F1;
+    --audio-preview-border-color: #4F46E5;
+    --audio-preview-text-color: #212529;
+    --audio-preview-secondary-color: #4B5563;
+}
+
+[data-bs-theme="dark"] {
+    --audio-preview-bg-color: #212529;
+    --audio-preview-border-color: #818CF8;
+    --audio-preview-text-color: #f8f9fa;
+    --audio-preview-secondary-color: #9CA3AF;
+}
+
+[data-bs-theme="light"] .audio-preview-range {
+    --audio-preview-range-border: #9ca3af;
+}
+
+[data-bs-theme="dark"] .audio-preview-range {
+    --audio-preview-range-border: #6c757d;
+}
+
+.audio-preview-range::-webkit-slider-runnable-track {
+    border-radius: 999px;
+    box-shadow: inset 0 0 0 1px var(--audio-preview-range-border);
+}
+
+.audio-preview-range::-moz-range-track {
+    border-radius: 999px;
+    box-shadow: inset 0 0 0 1px var(--audio-preview-range-border);
+}
+
+@media (max-width: 576px) {
+    .audio-preview-time {
+        width: 52px !important;
+    }
+
+    .audio-preview-duration {
+        display: none;
+    }
+}

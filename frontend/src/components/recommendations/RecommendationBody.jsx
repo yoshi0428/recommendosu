@@ -13,18 +13,14 @@ function RecommendationBody({
                               loading,
                               onSelectRecommendation,
                             }) {
-  const [visibleCount, setVisibleCount] = useState(
-    RECOMMENDATIONS_PER_BATCH
-  )
+  const [visibleCount, setVisibleCount] = useState(RECOMMENDATIONS_PER_BATCH)
+
+  const [audioVolume, setAudioVolume] = useState(0.01)
 
   const scrollRef = useRef(null)
   const loadMoreRef = useRef(null)
 
-  const visibleRecommendations =
-    recommendations.slice(
-      0,
-      visibleCount
-    )
+  const visibleRecommendations = recommendations.slice(0, visibleCount)
 
   useEffect(() => {
     setVisibleCount(
@@ -97,12 +93,7 @@ function RecommendationBody({
     )
   }
 
-  const hasMore =
-    visibleCount <
-    recommendations.length
-
-  // Width for the 10 remaining columns matching the row layout (2/3 spread across 10 columns)
-  const remainingColumnWidth = `${(2 / 3) / 10 * 100}%`
+  const hasMore = visibleCount < recommendations.length
 
   return (
     <div
@@ -147,6 +138,8 @@ function RecommendationBody({
                   recommendation
                 }
                 onSelectRecommendation={onSelectRecommendation}
+                audioVolume={audioVolume}
+                setAudioVolume={setAudioVolume}
               />
             )
           )}

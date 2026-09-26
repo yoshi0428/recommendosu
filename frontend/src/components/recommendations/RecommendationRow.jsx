@@ -1,4 +1,5 @@
 import {useEffect, useRef, useState} from "react";
+import './RecommendationRow.css'
 
 import {
   PauseFill,
@@ -23,8 +24,9 @@ const formatDuration = (totalSeconds) => {
 
   if (hours > 0) {
     return `${hours}:${pad(minutes)}:${pad(remainingSeconds)}`
+  } else {
+    return `${minutes}:${pad(remainingSeconds)}`
   }
-  return `${minutes}:${pad(remainingSeconds)}`
 }
 
 const formatAudioTime = (seconds) => {
@@ -44,6 +46,8 @@ const formatAudioTime = (seconds) => {
 function RecommendationRow({
                              recommendation,
                              onSelectRecommendation,
+                             audioVolume,
+                             setAudioVolume,
                            }) {
   const {
     beatmap_id,
@@ -69,7 +73,6 @@ function RecommendationRow({
   const audioRef = useRef(null)
   const audioUrlRef = useRef(null)
 
-  const [volume, setVolume] = useState(0.01)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
 
@@ -135,7 +138,7 @@ function RecommendationRow({
           }),
         )
 
-        audioRef.current.volume = volume
+        audioRef.current.volume = audioVolume
         audioRef.current.currentTime = previewTime / 1000
         audioRef.current.play()
         setIsPlaying(true)
@@ -166,32 +169,18 @@ function RecommendationRow({
   useEffect(() => {
     const handleOtherAudioPreview = (event) => {
       if (event.detail === audioRef.current) return
-
-      if (audioRef.current) {
-        audioRef.current.pause()
-        audioRef.current.currentTime = 0
-      }
-
-      if (audioUrlRef.current) {
-        URL.revokeObjectURL(audioUrlRef.current)
-        audioUrlRef.current = null
-      }
-
-      setAudioUrl(null)
-      setIsPlaying(false)
-      setCurrentTime(0)
-      setDuration(0)
+      closePreview()
     }
 
     window.addEventListener(
       AUDIO_PREVIEW_EVENT,
-      handleOtherAudioPreview,
+      handleOtherAudioPreview
     )
 
     return () => {
       window.removeEventListener(
         AUDIO_PREVIEW_EVENT,
-        handleOtherAudioPreview,
+        handleOtherAudioPreview
       )
     }
   }, [])
@@ -339,23 +328,35 @@ function RecommendationRow({
       {/* Audio player pill */}
       {audioUrl && (
         <div
-          className="position-fixed bottom-0 start-50 translate-middle-x mb-3 px-3 py-2 rounded-pill shadow d-flex align-items-center gap-3 bg-body border"
+          className="position-fixed bottom-0 start-50 translate-middle-x mb-3 px-2 px-sm-3 py-2 rounded-pill shadow d-flex align-items-center border border-3"
           style={{
             zIndex: 1050,
-            width: 'min(600px, calc(100vw - 2rem))',
+            width: 'min(600px, calc(100vw - 1rem))',
+            minWidth: 0,
+            backgroundColor: 'var(--audio-preview-bg-color)',
+            '--bs-border-color': 'var(--audio-preview-border-color)',
           }}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Playback */}
-          <div className="d-flex align-items-center gap-3 flex-grow-1">
+          <div
+            className="d-flex align-items-center flex-grow-1 rounded"
+            style={{
+              minWidth: 0,
+              gap: '0.5rem',
+              backgroundColor: 'var(--audio-preview-bg-color)',
+              padding: '0.25rem 0.5rem',
+            }}
+          >
             {/* Play / Pause */}
             <button
               type="button"
-              className="btn btn-sm p-0 border-0 bg-transparent text-body d-flex align-items-center justify-content-center flex-shrink-0"
+              className="btn btn-sm p-0 border-0 bg-transparent d-flex align-items-center justify-content-center flex-shrink-0"
               style={{
                 width: '20px',
                 height: '20px',
                 lineHeight: 1,
+                color: 'var(--audio-preview-text-color)',
               }}
               onClick={() => {
                 if (!audioRef.current) return
@@ -370,24 +371,20 @@ function RecommendationRow({
               }}
               aria-label={isPlaying ? 'Pause preview' : 'Play preview'}
             >
-              <span
-                style={{
-                  fontSize: '0.9rem',
-                  lineHeight: 1,
-                }}
-              >
-                {isPlaying ? (
-                  <PauseFill size={20}/>
-                ) : (
-                  <PlayFill size={20}/>
-                )}
-              </span>
+              {isPlaying ? (
+                <PauseFill size={20}/>
+              ) : (
+                <PlayFill size={20}/>
+              )}
             </button>
 
             {/* Audio time control */}
             <input
               type="range"
-              className="form-range mb-0 flex-grow-1"
+              className="form-range mb-0 flex-grow-1 audio-preview-range"
+              style={{
+                minWidth: 0,
+              }}
               min="0"
               max={duration || 0}
               step="0.01"
@@ -404,40 +401,50 @@ function RecommendationRow({
               aria-label="Audio progress"
             />
 
-            {/* Current time / duration */}
             <span
-              className="text-body-secondary text-nowrap flex-shrink-0"
+              className="text-nowrap flex-shrink-0 audio-preview-time"
               style={{
-                fontSize: '0.8rem',
-                minWidth: '120px',
+                fontSize: '0.65rem',
+                width: '108px',
                 textAlign: 'center',
                 lineHeight: 1,
+                color: 'var(--audio-preview-secondary-color)',
               }}
             >
-              {formatAudioTime(currentTime)} / {formatAudioTime(duration)}
+              {formatAudioTime(currentTime)}
+              <span className="audio-preview-duration">
+                {' / '}{formatAudioTime(duration)}
+              </span>
             </span>
           </div>
 
           {/* Volume */}
           <div
-            className="d-flex align-items-center gap-2 flex-shrink-0"
+            className="d-flex align-items-center flex-shrink-0 rounded"
+            style={{
+              gap: '0.5rem',
+              backgroundColor: 'var(--audio-preview-bg-color)',
+              padding: '0.25rem 0.5rem',
+            }}
           >
             <VolumeUpFill
-              className="text-body-secondary"
-              size={20}
+              size={18}
+              style={{
+                color: 'var(--audio-preview-secondary-color)',
+              }}
             />
 
             <input
               type="range"
-              className="form-range mb-0"
+              className="form-range mb-0 audio-preview-range"
               min="0"
               max="0.10"
               step="0.001"
-              value={volume}
+              value={audioVolume}
               onChange={(e) => {
                 const newVolume = Number(e.target.value)
 
-                setVolume(newVolume)
+                setAudioVolume(newVolume)
 
                 if (audioRef.current) {
                   audioRef.current.volume = newVolume
@@ -445,7 +452,7 @@ function RecommendationRow({
               }}
               aria-label="Preview volume"
               style={{
-                width: '80px',
+                width: '60px',
               }}
             />
           </div>
@@ -453,11 +460,13 @@ function RecommendationRow({
           {/* Close */}
           <button
             type="button"
-            className="btn btn-sm p-0 border-0 bg-transparent text-body-secondary d-flex align-items-center justify-content-center flex-shrink-0"
+            className="btn btn-sm p-0 border-0 bg-transparent d-flex align-items-center justify-content-center flex-shrink-0"
             style={{
               width: '20px',
               height: '20px',
               lineHeight: 1,
+              marginLeft: '0.5rem',
+              color: 'var(--audio-preview-secondary-color)',
             }}
             onClick={closePreview}
             aria-label="Close audio preview"
