@@ -251,6 +251,9 @@ def main():
             file_path = result["file_path"]
             variant_results = result["variant_results"]
 
+            year_name = os.path.basename(os.path.dirname(file_path))
+            year = int(year_name.split()[0])
+
             try:
                 beatmap_data = parse_osu_file(file_path)
             except Exception as e:
@@ -307,7 +310,7 @@ def main():
             variant_label = os.path.basename(os.path.dirname(file_path))
 
             try:
-                insert_base_beatmap(conn, beatmap_data, file_hash)
+                insert_base_beatmap(conn, beatmap_data, file_hash, year)
 
                 # NOTE: WE DON'T NEED THIS FOR THE RECSYS
                 # insert_vectors(conn, beatmap_id, beatmap_data["vectors"])
@@ -316,7 +319,7 @@ def main():
                 # Mod variants
                 # --------------------------------------------
                 for (variant_name, (mods, difficulty_result)) in variant_results.items():
-                    variant_id, mods_string = insert_variant(conn, beatmap_id, beatmapset_id, mods, beatmap_data, difficulty_result)
+                    variant_id, mods_string = insert_variant(conn, beatmap_id, beatmapset_id, year, mods, beatmap_data, difficulty_result)
                     insert_variant_prediction_labels(conn, variant_id, mods_string, variant_label, VARIANT_LABELS)
 
                 successful += 1

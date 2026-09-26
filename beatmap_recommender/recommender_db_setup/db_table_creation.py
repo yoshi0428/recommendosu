@@ -13,6 +13,7 @@ def create_tables(conn):
             version TEXT NOT NULL,
             preview_time REAL NOT NULL,
             
+            year INTEGER NOT NULL DEFAULT 0,
 
             hp_drain REAL NOT NULL,
             circle_size REAL NOT NULL,
@@ -63,6 +64,8 @@ def create_tables(conn):
             beatmap_id TEXT NOT NULL,
             beatmapset_id TEXT,
             mods TEXT NOT NULL,
+            
+            year INTEGER NOT NULL DEFAULT 0,
 
             hp_drain REAL NOT NULL,
             circle_size REAL NOT NULL,

@@ -11,7 +11,7 @@ from beatmap_recommender.content_similarity.core_modules.mod_preferences import 
 # Base Beatmap
 # ============================================================
 
-def insert_base_beatmap(conn, beatmap_data, md5):
+def insert_base_beatmap(conn, beatmap_data, md5, year):
     """
     Insert the base beatmap.
 
@@ -30,6 +30,7 @@ def insert_base_beatmap(conn, beatmap_data, md5):
             creator,
             version,
             preview_time,
+            year,
             hp_drain,
             circle_size,
             od,
@@ -42,7 +43,7 @@ def insert_base_beatmap(conn, beatmap_data, md5):
             length_seconds,
             object_count
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(beatmap_id) DO UPDATE SET
             beatmapset_id = excluded.beatmapset_id,
             md5 = excluded.md5,
@@ -51,6 +52,7 @@ def insert_base_beatmap(conn, beatmap_data, md5):
             creator = excluded.creator,
             version = excluded.version,
             preview_time = excluded.preview_time,
+            year = excluded.year,
             hp_drain = excluded.hp_drain,
             circle_size = excluded.circle_size,
             od = excluded.od,
@@ -71,6 +73,7 @@ def insert_base_beatmap(conn, beatmap_data, md5):
         beatmap_data["creator"],
         beatmap_data["version"],
         beatmap_data["preview_time"],
+        year,
         beatmap_data["hp_drain"],
         beatmap_data["circle_size"],
         beatmap_data["od"],
@@ -140,6 +143,7 @@ def insert_variant(
     conn,
     beatmap_id,
     beatmapset_id,
+    year,
     mods,
     base_data,
     difficulty_result,
@@ -213,6 +217,7 @@ def insert_variant(
             beatmap_id,
             beatmapset_id,
             mods,
+            year,
             hp_drain,
             circle_size,
             od,
@@ -231,13 +236,14 @@ def insert_variant(
             pp_flashlight
         )
         VALUES (
-            ?, ?, ?, ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
         )
 
         ON CONFLICT(beatmap_id, mods)
         DO UPDATE SET
             beatmapset_id = excluded.beatmapset_id,
+            year = excluded.year,
             hp_drain = excluded.hp_drain,
             circle_size = excluded.circle_size,
             od = excluded.od,
@@ -261,6 +267,8 @@ def insert_variant(
             beatmap_id,
             beatmapset_id,
             mods_string,
+
+            year,
 
             stats["hp_drain"],
             stats["circle_size"],
