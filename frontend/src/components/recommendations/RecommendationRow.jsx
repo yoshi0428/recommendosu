@@ -406,7 +406,7 @@ function RecommendationRow({
                 <span
                   className="text-nowrap flex-shrink-0 audio-preview-time"
                   style={{
-                    fontSize: '0.65rem',
+                    fontSize: '0.75rem',
                     width: '108px',
                     textAlign: 'center',
                     lineHeight: 1,
@@ -430,7 +430,7 @@ function RecommendationRow({
                 }}
               >
                 <VolumeUpFill
-                  size={18}
+                  size={20}
                   style={{
                     color: 'var(--audio-preview-secondary-color)',
                   }}
