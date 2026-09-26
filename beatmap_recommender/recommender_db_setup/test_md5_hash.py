@@ -55,10 +55,10 @@ def fetch_beatmap_id_from_api(file_path, file_hash):
 
 
 # Test with a single .osu file path
-sample_path = "../data/2012/SOUND HOLIC - Drive My Life (Scorpiour) [Lunatic].osu"
+sample_path = "../data/output.osu"
 
 beatmap_id, beatmap_ar = fetch_beatmap_id_from_api(sample_path, None)
-# beatmap_id = fetch_beatmap_id_from_api(sample_path, 'fb099ade581d16f3a69926ccf8f2cf7a')
+# beatmap_id = fetch_beatmap_id_from_api(sample_path, '9c9b7e823a2f7e3d82eadba12455c8dc')
 
 
-print(f"Retrieved Beatmap ID: {beatmap_id} and Beatmap AR: {beatmap_ar}")
+# print(f"Retrieved Beatmap ID: {beatmap_id} and Beatmap AR: {beatmap_ar}")
