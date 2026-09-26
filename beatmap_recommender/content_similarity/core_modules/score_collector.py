@@ -1,4 +1,4 @@
-from beatmap_recommender.recommender_db_setup.db_recommender_insert import insert_score
+from beatmap_recommender.recommender_db_setup.db_insertion import insert_score
 
 def fetch_player_scores(api, player_id, limit=None):
     """

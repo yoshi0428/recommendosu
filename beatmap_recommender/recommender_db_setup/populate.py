@@ -6,12 +6,11 @@ from pathlib import Path
 from osu_tools import OsuCalculator
 from tqdm import tqdm
 
-from beatmap_recommender.recommender_db_setup.db_recommender import create_recommender_tables
-from db_table_creation import create_tables
+from beatmap_recommender.recommender_db_setup.db_table_creation import create_tables, create_recommender_tables
 from beatmap_recommender.recommender_db_setup.osu_api_client import OsuAPIClient
-from parser import parse_osu_file
-from beatmap_mods import calculate_difficulty
-from db_insertion import (
+from beatmap_recommender.recommender_db_setup.parser import parse_osu_file
+from beatmap_recommender.recommender_db_setup.beatmap_mods import calculate_difficulty
+from beatmap_recommender.recommender_db_setup.db_insertion import (
     insert_variant,
     insert_base_beatmap,
     insert_variant_prediction_labels,

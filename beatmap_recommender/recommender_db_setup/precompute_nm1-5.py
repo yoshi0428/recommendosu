@@ -10,7 +10,7 @@ from beatmap_classifier.classifier.augment_faster import extract_movement_featur
 from beatmap_classifier.classifier_db_setup.parser import parse_osu_file
 from beatmap_classifier.classifier.utils_training import pad_sequences_pt, load_pytorch_models
 from beatmap_classifier.classifier.cnn_model import CNNModel
-from dot_osu_indexer import build_osu_file_index
+from beatmap_recommender.recommender_db_setup.dot_osu_indexer import build_osu_file_index
 
 # ============================================================
 # Configuration

@@ -8,8 +8,8 @@ from beatmap_recommender.content_similarity.core_modules.cnn_xgboost_influence i
     calculate_classifier_score,
     get_candidate_classifier_predictions,
 )
-from .mod_preferences import canonicalize_mods
-from .pp_potential import calculate_pp_potential, weighted_mean_and_std
+from beatmap_recommender.content_similarity.core_modules.mod_preferences import canonicalize_mods
+from beatmap_recommender.content_similarity.core_modules.pp_potential import calculate_pp_potential, weighted_mean_and_std
 
 
 MOD_ORDER = ["EZ", "NF", "HT", "HD", "HR", "DT", "NC", "FL"]
