@@ -48,6 +48,8 @@ function RecommendationRow({
                              onSelectRecommendation,
                              audioVolume,
                              setAudioVolume,
+                             virtualRow,
+                             rowVirtualizer,
                            }) {
   const {
     beatmap_id,
@@ -188,6 +190,10 @@ function RecommendationRow({
   return (
     <>
       <tr
+        data-index={virtualRow.index}
+        ref={(node) => {
+          rowVirtualizer.measureElement(node)
+        }}
         onClick={() => onSelectRecommendation?.(recommendation)}
         style={{cursor: 'pointer'}}
         title="Click to view score breakdown"

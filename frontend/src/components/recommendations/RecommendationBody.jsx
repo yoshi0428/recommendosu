@@ -3,71 +3,27 @@ import {
   Alert,
   Spinner,
 } from 'react-bootstrap'
-
+import {useVirtualizer} from '@tanstack/react-virtual'
 import RecommendationRow from './RecommendationRow'
-
-const RECOMMENDATIONS_PER_BATCH = 50
 
 function RecommendationBody({
                               recommendations,
                               loading,
                               onSelectRecommendation,
                             }) {
-  const [visibleCount, setVisibleCount] = useState(RECOMMENDATIONS_PER_BATCH)
-
   const [audioVolume, setAudioVolume] = useState(0.01)
-
   const scrollRef = useRef(null)
-  const loadMoreRef = useRef(null)
 
-  const visibleRecommendations = recommendations.slice(0, visibleCount)
+  const rowVirtualizer = useVirtualizer({
+    count: recommendations.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 70,
+    overscan: 10,
+  })
 
   useEffect(() => {
-    setVisibleCount(
-      Math.min(
-        RECOMMENDATIONS_PER_BATCH,
-        recommendations.length
-      )
-    )
+    rowVirtualizer.measure()
   }, [recommendations.length])
-
-  useEffect(() => {
-    const scrollContainer = scrollRef.current
-    const target = loadMoreRef.current
-
-    if (!scrollContainer || !target) {
-      return
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (!entries[0].isIntersecting) {
-          return
-        }
-
-        setVisibleCount((current) =>
-          Math.min(
-            current +
-            RECOMMENDATIONS_PER_BATCH,
-            recommendations.length
-          )
-        )
-      },
-      {
-        root: scrollContainer,
-        rootMargin: '500px',
-      }
-    )
-
-    observer.observe(target)
-
-    return () => {
-      observer.disconnect()
-    }
-  }, [
-    recommendations.length,
-    visibleCount,
-  ])
 
   if (loading) {
     return (
@@ -93,7 +49,15 @@ function RecommendationBody({
     )
   }
 
-  const hasMore = visibleCount < recommendations.length
+  const virtualRows = rowVirtualizer.getVirtualItems()
+
+  const firstRow = virtualRows[0]
+  const lastRow = virtualRows[virtualRows.length - 1]
+
+  const topPadding = firstRow?.start ?? 0
+  const bottomPadding = lastRow
+    ? rowVirtualizer.getTotalSize() - lastRow.end
+    : 0
 
   return (
     <div
@@ -126,49 +90,55 @@ function RecommendationBody({
           </thead>
 
           <tbody>
-          {visibleRecommendations.map(
-            (recommendation, index) => (
+          {topPadding > 0 && (
+            <tr>
+              <td
+                colSpan="10"
+                style={{
+                  height: `${topPadding}px`,
+                  padding: 0,
+                  border: 0,
+                }}
+              />
+            </tr>
+          )}
+
+          {virtualRows.map((virtualRow) => {
+            const recommendation =
+              recommendations[virtualRow.index]
+
+            return (
               <RecommendationRow
                 key={
                   recommendation.variant_id ??
                   recommendation.beatmap_id ??
-                  index
+                  virtualRow.index
                 }
-                recommendation={
-                  recommendation
-                }
+                recommendation={recommendation}
                 onSelectRecommendation={onSelectRecommendation}
                 audioVolume={audioVolume}
                 setAudioVolume={setAudioVolume}
+                virtualRow={virtualRow}
+                rowVirtualizer={rowVirtualizer}
               />
             )
+          })}
+
+          {bottomPadding > 0 && (
+            <tr>
+              <td
+                colSpan="10"
+                style={{
+                  height: `${bottomPadding}px`,
+                  padding: 0,
+                  border: 0,
+                }}
+              />
+            </tr>
           )}
           </tbody>
         </table>
       </div>
-
-      {hasMore && (
-        <div
-          ref={loadMoreRef}
-          className="text-center py-3"
-        >
-          <Spinner
-            animation="border"
-            size="sm"
-          />
-          <div className="mt-2 text-muted small">
-            Loading more recommendations...
-          </div>
-        </div>
-      )}
-
-      {!hasMore && (
-        <div className="text-center text-muted py-3 small">
-          Showing all{' '}
-          {recommendations.length}{' '}
-          recommendations.
-        </div>
-      )}
     </div>
   )
 }
