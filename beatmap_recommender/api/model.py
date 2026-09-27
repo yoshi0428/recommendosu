@@ -83,9 +83,9 @@ class RecommendationSettings(BaseModel):
     player_id: int | None = None
 
     limit: int = Field(
-        default=100,
+        default=1000,
         ge=1,
-        le=5000,
+        le=100000,
     )
 
     goal: str = "balanced"

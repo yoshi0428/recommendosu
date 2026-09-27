@@ -340,9 +340,9 @@ def require_player(session_id: str | None) -> int:
 async def recommend_get(
     session_id: str | None = Cookie(default=None),
     limit: int = Query(
-        default=200,
+        default=1000,
         ge=1,
-        le=5000,
+        le=100000,
         description="Maximum number of recommendations to return.",
         examples=[100],
     ),
