@@ -197,7 +197,7 @@ function BasicOptions({
               <Form.Control
                 type="number"
                 min={1}
-                max={1000}
+                max={5000}
                 step={1}
                 value={settings.limit ?? ''}
                 onChange={(event) => {
@@ -206,7 +206,7 @@ function BasicOptions({
                     updateSetting('limit', null)
                   } else {
                     const parsed = parseInt(val, 10)
-                    const clamped = Math.min(1000, Math.max(1, isNaN(parsed) ? 1 : parsed))
+                    const clamped = Math.min(5000, Math.max(1, isNaN(parsed) ? 1 : parsed))
                     updateSetting('limit', clamped)
                   }
                 }}
