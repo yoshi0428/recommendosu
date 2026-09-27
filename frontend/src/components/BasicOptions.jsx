@@ -35,7 +35,7 @@ function BasicOptions({
       return
     }
 
-    if (settings.max_year != null && year >= settings.max_year) {
+    if (settings.max_year != null && year > settings.max_year) {
       setMinYearInput(settings.min_year?.toString() ?? '')
       return
     }
@@ -60,7 +60,7 @@ function BasicOptions({
       return
     }
 
-    if (settings.min_year != null && year <= settings.min_year) {
+    if (settings.min_year != null && year < settings.min_year) {
       setMaxYearInput(settings.max_year?.toString() ?? '')
       return
     }
