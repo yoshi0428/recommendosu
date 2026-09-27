@@ -66,7 +66,9 @@ EXCLUDED_MODS = ["EZ", "HT", "FL", "HD"]
 
 # ── Candidate filters ──────────────────────────────────────────
 
-MIN_STARS = MAX_STARS = None
+MIN_STARS = 10
+MAX_STARS = None
+
 MIN_BPM = MAX_BPM = None
 MIN_PP = MAX_PP = None
 MIN_AR = MAX_AR = None
@@ -137,7 +139,7 @@ RECOMMENDATION_CONFIG = {
 # ── Difficulty ─────────────────────────────────────────────────
 
 DIFFICULTY_STD_FLOORS = {
-    "star_rating": 0.35,
+    "star_rating": 100000,
     "ar": 0.50,
     "od": 0.50,
     "bpm": 15.0,
@@ -157,7 +159,7 @@ MIN_PROFILE_PLAYS = 5
 
 # ── Content similarity ─────────────────────────────────────────
 
-FEATURE_WEIGHTS = {
+SIMILARITY_FEATURE_WEIGHTS = {
     "star_rating": 3.0,
     "bpm": 1.0,
     "length_seconds": 0.5,
@@ -165,6 +167,9 @@ FEATURE_WEIGHTS = {
     "ar": 1.5,
     "od": 1.5,
     "circle_size": 1.0,
+    "pp_aim": 1.0,
+    "pp_speed": 1.0,
+    "pp_acc": 1.0,
 }
 
 
@@ -236,7 +241,7 @@ def main():
             player_id=PLAYER_ID,
             top_k=NEIGHBORS_K,
             batch_size=BATCH_SIZE,
-            feature_weights=FEATURE_WEIGHTS,
+            similarity_feature_weights=SIMILARITY_FEATURE_WEIGHTS,
             workers=WORKERS,
             exclude_already_played=EXCLUDE_ALREADY_PLAYED,
         )

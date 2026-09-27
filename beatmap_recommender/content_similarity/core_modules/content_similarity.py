@@ -2,7 +2,7 @@ import numpy as np
 from scipy.spatial import KDTree
 from tqdm import tqdm
 
-FEATURES = [
+SIMILARITY_FEATURES = [
     "star_rating",
     "bpm",
     "length_seconds",
@@ -10,11 +10,14 @@ FEATURES = [
     "ar",
     "od",
     "circle_size",
+    "pp_aim",
+    "pp_acc",
+    "pp_speed",
 ]
 
 MAP_COLUMNS = [
     "beatmap_id",
-    *FEATURES,
+    *SIMILARITY_FEATURES,
 ]
 
 
@@ -32,7 +35,10 @@ def get_player_seed_maps(conn, player_id):
             bv.object_count,
             bv.ar,
             bv.od,
-            bv.circle_size
+            bv.circle_size,
+            bv.pp_aim,
+            bv.pp_acc,
+            bv.pp_speed
         FROM scores AS s
         JOIN beatmap_variants AS bv
             ON bv.beatmap_id = s.beatmap_id
@@ -54,7 +60,10 @@ def get_maps(conn, mods="NM", player_id=None):
             bv.object_count,
             bv.ar,
             bv.od,
-            bv.circle_size
+            bv.circle_size,
+            bv.pp_aim,
+            bv.pp_acc,
+            bv.pp_speed
         FROM beatmap_variants AS bv
         WHERE bv.mods = ?
     """
@@ -85,7 +94,7 @@ def build_feature_matrix(maps):
     """
 
     if not maps:
-        return [], np.empty((0, len(FEATURES)), dtype=np.float32)
+        return [], np.empty((0, len(SIMILARITY_FEATURES)), dtype=np.float32)
 
     beatmap_ids = [str(beatmap["beatmap_id"])for beatmap in maps]
     matrix = np.asarray(
@@ -93,7 +102,7 @@ def build_feature_matrix(maps):
             [
                 float(beatmap[feature])
                 if beatmap[feature] is not None else 0.0
-                for feature in FEATURES
+                for feature in SIMILARITY_FEATURES
             ]
             for beatmap in maps
         ],
@@ -107,7 +116,7 @@ def calculate_seed_similarity(
     candidate_maps,
     top_k=50,
     batch_size=8192,
-    feature_weights=None,
+    similarity_feature_weights=None,
     workers=-1,
 ):
     """
@@ -160,7 +169,7 @@ def calculate_seed_similarity(
     # Scaling each feature by its weight turns this into ordinary Euclidean distance.
     # ---------------------------------------------------------
     weights = np.asarray(
-        [feature_weights[feature] for feature in FEATURES],
+        [similarity_feature_weights[feature] for feature in SIMILARITY_FEATURES],
         dtype=np.float32,
     )
 
@@ -237,7 +246,7 @@ def build_seed_similarity_index(
     player_id,
     top_k=50,
     batch_size=8192,
-    feature_weights=None,
+    similarity_feature_weights=None,
     workers=-1,
     exclude_already_played=True,
 ):
@@ -265,6 +274,6 @@ def build_seed_similarity_index(
         candidate_maps=candidate_maps,
         top_k=top_k,
         batch_size=batch_size,
-        feature_weights=feature_weights,
+        similarity_feature_weights=similarity_feature_weights,
         workers=workers,
     )

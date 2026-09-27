@@ -15,7 +15,7 @@ DIFFICULTY_FEATURE_WEIGHTS = {
     "bpm": 0.5,
 }
 
-FEATURE_WEIGHTS = {
+SIMILARITY_FEATURE_WEIGHTS = {
     "star_rating": 3.0,
     "bpm": 1.0,
     "length_seconds": 0.5,
@@ -23,6 +23,9 @@ FEATURE_WEIGHTS = {
     "ar": 1.5,
     "od": 1.5,
     "circle_size": 1.0,
+    "pp_aim": 1.0,
+    "pp_speed": 1.0,
+    "pp_acc": 1.0,
 }
 
 TOP_WEIGHT = 3.0
@@ -162,8 +165,8 @@ class RecommendationSettings(BaseModel):
     )
 
     # ── Content similarity ─────────────────────────────────────
-    feature_weights: dict[str, float] = Field(
-        default_factory=lambda: FEATURE_WEIGHTS.copy()
+    similarity_feature_weights: dict[str, float] = Field(
+        default_factory=lambda: SIMILARITY_FEATURE_WEIGHTS.copy()
     )
 
     # ── Mod preferences ───────────────────────────────────────

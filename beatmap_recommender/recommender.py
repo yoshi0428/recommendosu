@@ -176,7 +176,7 @@ def recommend_player_sync(
             player_id=settings.player_id,
             top_k=NEIGHBORS_K,
             batch_size=BATCH_SIZE,
-            feature_weights=settings.feature_weights,
+            similarity_feature_weights=settings.similarity_feature_weights,
             workers=WORKERS,
             exclude_already_played=settings.exclude_already_played,
         )
