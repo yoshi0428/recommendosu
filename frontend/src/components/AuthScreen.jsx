@@ -33,8 +33,8 @@ function AuthScreen() {
 
           <p className={'text-muted mb-4'}>
             Logging in is required so recommendations can be generated using your own osu! account.
-            This avoids overloading a single shared OAuth token when multiple people are using the site.
-            If this still doesn't convince you, you can have a look at the <a
+            This avoids overloading a single shared OAuth token when multiple people are using the site and repeatedly
+            fetching top/recent plays. If this still doesn't convince you, you can have a look at the <a
             href="https://github.com/yoshi0428/osu-predict"
             target="_blank"
             rel="noopener noreferrer"
