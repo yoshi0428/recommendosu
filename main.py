@@ -342,7 +342,7 @@ async def recommend_get(
     limit: int = Query(
         default=200,
         ge=1,
-        le=1000,
+        le=5000,
         description="Maximum number of recommendations to return.",
         examples=[100],
     ),

@@ -41,7 +41,6 @@ DB_PATH = Path(
     )
 )
 
-NEIGHBORS_K = 20_000
 BATCH_SIZE = 16_384
 RECOMMENDATION_CONCURRENCY = 4
 WORKERS = -1
@@ -178,7 +177,7 @@ def recommend_player_sync(
         similarity_index = build_seed_similarity_index(
             conn,
             player_id=settings.player_id,
-            top_k=NEIGHBORS_K,
+            top_k=settings.neighbors_k,
             batch_size=BATCH_SIZE,
             similarity_feature_weights=settings.similarity_feature_weights,
             workers=WORKERS,

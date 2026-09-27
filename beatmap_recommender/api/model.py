@@ -85,10 +85,19 @@ class RecommendationSettings(BaseModel):
     limit: int = Field(
         default=100,
         ge=1,
-        le=1000,
+        le=5000,
     )
 
     goal: str = "balanced"
+
+    neighbors_k: int = Field(
+        default=20000,
+        ge=1,
+        le=146096
+    )
+
+    min_year: int | None = None
+    max_year: int | None = None
 
     mods: list[str] | None = Field(
         default=None,

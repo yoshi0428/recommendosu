@@ -1,4 +1,5 @@
 import {Card, Col, Form, Row} from 'react-bootstrap'
+import {useState} from "react";
 
 const GOALS = [
   ['balanced', 'Balanced'],
@@ -9,6 +10,65 @@ function BasicOptions({
                         settings,
                         updateSetting,
                       }) {
+
+  const [minYearInput, setMinYearInput] = useState(
+    settings.min_year?.toString() ?? ''
+  )
+  const [maxYearInput, setMaxYearInput] = useState(
+    settings.max_year?.toString() ?? ''
+  )
+
+  const commitMinYear = () => {
+    if (minYearInput === '') {
+      updateSetting('min_year', null)
+      return
+    }
+
+    const year = parseInt(minYearInput, 10)
+
+    if (
+      minYearInput.length !== 4 ||
+      year < 2007 ||
+      year > 2026
+    ) {
+      setMinYearInput(settings.min_year?.toString() ?? '')
+      return
+    }
+
+    if (settings.max_year != null && year >= settings.max_year) {
+      setMinYearInput(settings.min_year?.toString() ?? '')
+      return
+    }
+
+    updateSetting('min_year', year)
+  }
+
+  const commitMaxYear = () => {
+    if (maxYearInput === '') {
+      updateSetting('max_year', null)
+      return
+    }
+
+    const year = parseInt(maxYearInput, 10)
+
+    if (
+      maxYearInput.length !== 4 ||
+      year < 2007 ||
+      year > 2026
+    ) {
+      setMaxYearInput(settings.max_year?.toString() ?? '')
+      return
+    }
+
+    if (settings.min_year != null && year <= settings.min_year) {
+      setMaxYearInput(settings.max_year?.toString() ?? '')
+      return
+    }
+
+    updateSetting('max_year', year)
+  }
+
+
   return (
     <Card className="mb-4">
       <Card.Header>
@@ -42,7 +102,7 @@ function BasicOptions({
               />
 
               <Form.Text className="text-muted">
-                Defaults to your osu! player ID.
+                Defaults to your ID.
               </Form.Text>
             </Form.Group>
           </Col>
@@ -74,36 +134,6 @@ function BasicOptions({
             </Form.Group>
           </Col>
 
-          <Col md={3}>
-            <Form.Group>
-              <Form.Label>
-                Number of Recommendations
-              </Form.Label>
-
-              <Form.Control
-                type="number"
-                min={1}
-                max={1000}
-                step={1}
-                value={settings.limit ?? ''}
-                onChange={(event) => {
-                  const val = event.target.value
-                  if (val === '') {
-                    updateSetting('limit', null)
-                  } else {
-                    const parsed = parseInt(val, 10)
-                    const clamped = Math.min(1000, Math.max(1, isNaN(parsed) ? 1 : parsed))
-                    updateSetting('limit', clamped)
-                  }
-                }}
-              />
-
-              <Form.Text className="text-muted">
-                Max 1000 to prevent overloading.
-              </Form.Text>
-            </Form.Group>
-          </Col>
-
           <Col md={2}>
             <Form.Group>
               <Form.Label>
@@ -126,10 +156,6 @@ function BasicOptions({
                   Include
                 </option>
               </Form.Select>
-
-              <Form.Text className="text-muted">
-                Choose whether maps you've already played can be recommended.
-              </Form.Text>
             </Form.Group>
 
           </Col>
@@ -156,12 +182,112 @@ function BasicOptions({
                   Exclude
                 </option>
               </Form.Select>
-
-              <Form.Text className="text-muted">
-                Choose whether your recent plays affects recommendations.
-              </Form.Text>
             </Form.Group>
 
+          </Col>
+        </Row>
+
+        <Row className="g-3 mt-1">
+          <Col md={3}>
+            <Form.Group>
+              <Form.Label>
+                Number of Recommendations
+              </Form.Label>
+
+              <Form.Control
+                type="number"
+                min={1}
+                max={1000}
+                step={1}
+                value={settings.limit ?? ''}
+                onChange={(event) => {
+                  const val = event.target.value
+                  if (val === '') {
+                    updateSetting('limit', null)
+                  } else {
+                    const parsed = parseInt(val, 10)
+                    const clamped = Math.min(1000, Math.max(1, isNaN(parsed) ? 1 : parsed))
+                    updateSetting('limit', clamped)
+                  }
+                }}
+              />
+
+              <Form.Text className="text-muted">
+                Max 5000, have fun :)
+              </Form.Text>
+            </Form.Group>
+          </Col>
+
+          <Col md={3}>
+            <Form.Group>
+              <Form.Label>
+                Number of Neighbors
+              </Form.Label>
+
+              <Form.Control
+                type="number"
+                min={1}
+                max={146096}
+                step={1}
+                value={settings.neighbors_k ?? 20000}
+                onChange={(event) => {
+                  const val = event.target.value
+                  if (val === '') {
+                    updateSetting('neighbors_k', '')
+                    return
+                  }
+                  const parsed = parseInt(val, 10)
+                  const clamped = Math.min(146096, Math.max(1, isNaN(parsed) ? 1 : parsed))
+                  updateSetting('neighbors_k', clamped)
+                }}
+              />
+
+              <Form.Text className="text-muted">
+                Defaults to 20000, max 146096
+              </Form.Text>
+            </Form.Group>
+          </Col>
+
+          <Col md={6}>
+            <Form.Group>
+              <Form.Label>
+                Year range (WIP)
+              </Form.Label>
+
+              <div className="d-flex gap-2">
+                <Form.Control
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={4}
+                  placeholder="From"
+                  value={minYearInput}
+                  onChange={(event) => {
+                    setMinYearInput(
+                      event.target.value.replace(/\D/g, '').slice(0, 4)
+                    )
+                  }}
+                  onBlur={commitMinYear}
+                />
+
+                <Form.Control
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={4}
+                  placeholder="To"
+                  value={maxYearInput}
+                  onChange={(event) => {
+                    setMaxYearInput(
+                      event.target.value.replace(/\D/g, '').slice(0, 4)
+                    )
+                  }}
+                  onBlur={commitMaxYear}
+                />
+              </div>
+
+              <Form.Text className="text-muted">
+                Inclusive range
+              </Form.Text>
+            </Form.Group>
           </Col>
         </Row>
       </Card.Body>
