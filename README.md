@@ -21,7 +21,7 @@ This project was developed on my PC (shown below), and does not require a GPU to
 The GPU was used to train the CNN-XGboost model for classifying maps in tournament categories NM1 to NM5. 
 I precomputed the classifier's predictions on the ranked beatmaps from 2007-2026, and inserted them into `/beatmap_recommender/recommender.local.db` (or equivalently `beatmap_recommender/recommender.db`).
 
-```aiignore
+```
 OS - Fedora 44
 IDE - PyCharm, with the miniconda distribution
 CPU - AMD Ryzen 7 5700X
@@ -44,7 +44,7 @@ I will provide the download link to the .osu files, the classifier database, and
 
 Required Python libraries are:
 
-```aiignore
+```
 fastapi
 httpx
 matplotlib
@@ -106,7 +106,7 @@ Some Docker commands to get you started...
 
 ### Local
 
-```aiignore
+```
 ### everything
 HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -p recommendosu-local -f compose.yml -f compose.local.yml up --build -d
 
@@ -131,7 +131,7 @@ docker compose -p recommendosu-local -f compose.yml -f compose.local.yml down
 
 ### Production
 
-```aiignore
+```
 ### everything
 docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml up --build -d
 
@@ -152,6 +152,15 @@ docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml log
 
 ### full shutdown
 docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml down
+```
+
+### Clearing Cache
+
+```
+docker builder du
+docker builder prune -a
+docker builder du
+docker system df
 ```
 
 # Tips

@@ -154,7 +154,6 @@ def recommend_player_sync(
         conn.execute("PRAGMA foreign_keys=ON")
 
         # ── Update player scores ───────────────────────────────
-
         if update_scores:
             check_cancelled(cancel_event)
 
@@ -165,7 +164,6 @@ def recommend_player_sync(
                 conn,
                 OsuAPIClient(access_token=access_token),
                 settings.player_id,
-                settings.limit,
             )
 
         check_cancelled(cancel_event)
@@ -190,7 +188,6 @@ def recommend_player_sync(
             return []
 
         # ── Mod preferences ───────────────────────────────────
-
         preferred_mods = get_preferred_mods(
             conn,
             player_id=settings.player_id,
@@ -208,9 +205,7 @@ def recommend_player_sync(
             print(f"  {mods}: {preference:.3f}")
 
         # ── Difficulty profile ────────────────────────────────
-
         print(f"\nEXCLUDE RECENT PLAYS: {settings.exclude_recent_plays}")
-
         difficulty_profile, _ = get_player_difficulty_profiles(
             conn,
             player_id=settings.player_id,
@@ -224,7 +219,6 @@ def recommend_player_sync(
         )
 
         check_cancelled(cancel_event)
-
         print(f"\nPlayer {settings.player_id} difficulty profile:")
 
         for feature in (
@@ -240,10 +234,6 @@ def recommend_player_sync(
                 print(f"  {feature}: mean={mean:.3f}, std={std:.3f}")
 
         # ── Classifier preferences ─────────────────────────────
-
-        # if classifier_weight <= 0:
-        #     category_preferences = {}
-        # else:
         category_preferences = (
             get_player_category_preferences(
                 conn,

@@ -63,7 +63,7 @@ export const DEFAULT_RECOMMENDATION_CONFIG = {
 export function createDefaultSettings() {
   return {
     player_id: null,
-    limit: 100,
+    limit: 1000,
     goal: 'balanced',
     mods: [],
 

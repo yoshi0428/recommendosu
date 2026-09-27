@@ -1,6 +1,7 @@
 from beatmap_recommender.recommender_db_setup.db_insertion import insert_score
 
-def fetch_player_scores(api, player_id, limit=None):
+
+def fetch_player_scores(api, player_id, limit=200):
     """
     Fetch a player's top and recent scores from the osu! API.
 
@@ -25,6 +26,7 @@ def fetch_player_scores(api, player_id, limit=None):
     )
 
     return top_scores, recent_scores
+
 
 def normalize_score(score, source):
     """
@@ -66,12 +68,15 @@ def normalize_score(score, source):
         "source": source,
     }
 
+
 def store_player_scores(conn, top_scores, recent_scores):
     stored = 0
     skipped = 0
 
-    all_scores = ([(score, "top") for score in top_scores] +
-                  [(score, "recent") for score in recent_scores])
+    all_scores = (
+        [(score, "top") for score in top_scores] +
+        [(score, "recent") for score in recent_scores]
+    )
 
     for score, source in all_scores:
         normalized = normalize_score(score, source)
@@ -97,9 +102,13 @@ def store_player_scores(conn, top_scores, recent_scores):
     print(f"Stored: {stored}, Skipped: {skipped}")
     return stored
 
-def update_player_scores(conn, api, player_id, limit=None):
+
+def update_player_scores(conn, api, player_id, limit=200):
     """
     Fetch and store a player's top and recent scores.
+
+    Previously collected scores remain in the database, so repeated
+    API updates build up the player's score history over time.
 
     Returns:
         Number of score records processed.
