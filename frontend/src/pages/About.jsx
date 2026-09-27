@@ -117,10 +117,9 @@ function About() {
           </h3>
 
           <p>
-            recommendosu offers several recommendation profiles that adjust how
-            candidate beatmaps are ranked. Each profile combines content
-            similarity, difficulty, mod preference, and optional signals such as
-            PP potential or tournament category classification.
+            recommendosu offers several recommendation profiles that adjust how candidate beatmaps are ranked. Each
+            profile combines content similarity, difficulty, mod preference, and additional signals such as tournament
+            category classification or PP potential.
           </p>
 
           <hr className="my-4"/>
@@ -130,16 +129,15 @@ function About() {
           </h4>
 
           <p>
-            The <strong>Balanced</strong> profile is the default recommendation
-            mode. It primarily prioritizes maps that are similar to your
-            existing plays, while also considering how closely their difficulty
-            matches your preferences. Mod preferences have a small influence on
-            the final ranking.
+            The <strong>Balanced</strong> profile is the default recommendation mode. It primarily prioritizes maps that
+            are similar to your existing plays, while also considering the types of tournament categories you tend to
+            play. Difficulty provides a smaller adjustment to help keep recommendations near your demonstrated ability,
+            while mod preferences have a small influence on the final ranking.
           </p>
 
           <p>
-            <strong>Weights:</strong> 65% content similarity --- 30% difficulty
-            --- 5% mod preference
+            <strong>Weights:</strong> 60% content similarity --- 25% NM1–5 category match --- 10% difficulty --- 5% mod
+            preference
           </p>
 
           <hr className="my-4"/>
@@ -149,47 +147,35 @@ function About() {
           </h4>
 
           <p>
-            The <strong>PP Potential</strong> profile places additional emphasis
-            on maps that may offer higher performance-point potential. Content
-            similarity remains the largest factor, while difficulty and
-            estimated PP potential each have a substantial influence on the
-            ranking. See the "PP Potential Explained" section below.
+            The <strong>PP Potential</strong> profile places additional emphasis on maps that may offer higher
+            performance-point potential. Content similarity remains the largest factor, while PP potential and
+            tournament category classification provide additional signals. Difficulty has a smaller influence, helping
+            recommendations remain appropriate for the player's demonstrated ability without dominating the ranking.
           </p>
 
           <p>
-            <strong>Weights:</strong> 45% content similarity --- 25% difficulty
-            --- 25% PP potential --- 5% mod preference
+            <strong>Weights:</strong> 50% content similarity --- 25% PP potential --- 10% NM1–5 category match --- 10%
+            difficulty --- 5% mod preference
           </p>
 
           <hr className="my-4"/>
 
-          <h4 className="mt-4 mb-3">
-            NM1–5
-          </h4>
-
           <p>
-            The <strong>NM1–5 Classifier</strong> profile incorporates a player's
-            preferences across the five No Mod tournament categories (NM1–NM5).
-            These player preferences are derived from their past plays, taking
-            into account factors such as recency, top-play performance, and PP
-            performance.
+            The <strong>NM1–5 classifier</strong> is used in both recommendation profiles. It estimates the tournament
+            category characteristics of each beatmap and compares them with the player's category preferences. These
+            preferences are derived from past plays, taking into account factors such as recency, top-play performance,
+            and PP performance.
           </p>
 
           <p>
             For each candidate, the recommendation system compares the player's category preferences against the
-            precomputed CNN-XGBoost classification probabilities of the beatmap's NM variant. The resulting similarity
-            is used as an additional component of the recommendation score.
+            CNN-XGBoost model's precomputed classification probabilities of the beatmap's NM variant. The resulting
+            similarity contributes to the final recommendation score.
           </p>
 
           <p>
-            Since the classification is based on the base beatmap rather than
-            a specific modded variant, this signal can still influence
-            recommendations when the final recommended variant uses mods.
-          </p>
-
-          <p>
-            <strong>Weights:</strong> 50% content similarity --- 25% difficulty
-            --- 20% NM1–5 category match --- 5% mod preference
+            Since the classification is based on the base beatmap rather than a specific modded variant, this signal can
+            still influence recommendations when the final recommended variant uses mods.
           </p>
 
           <hr className="my-4"/>
@@ -197,13 +183,13 @@ function About() {
           {/* QUICK NOTICE */}
           <h5 className="mb-0">
             The following sections will go into more depth on difficulty, PP potential, and mod preference scores. I
-            find content similarity pretty intuitive, but just know that it
-            uses{' '}
+            find content similarity pretty intuitive, but just know that it uses{' '}
             <a
               href="https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.KDTree.html"
               target="_blank"
               rel="noopener noreferrer"
-            >SciPy's KDTree
+            >
+              SciPy's KDTree
             </a>{' '}
             to find each top & recent play's top 20000 nearest neighbors.
           </h5>

@@ -12,61 +12,50 @@ export const DEFAULT_DIFFICULTY_FEATURE_WEIGHTS = {
   bpm: 0.5,
 }
 
-export const DEFAULT_FEATURE_WEIGHTS = {
+export const DEFAULT_SIMILARITY_FEATURE_WEIGHTS = {
   star_rating: 3.0,
   bpm: 1.0,
   length_seconds: 0.5,
   object_count: 0.5,
-  ar: 1.5,
-  od: 1.5,
+  ar: 1.0,
+  od: 1.0,
   circle_size: 1.0,
+  pp_aim: 1.5,
+  pp_speed: 1.5,
+  pp_acc: 1.5,
 }
 
 export const DEFAULT_RECOMMENDATION_CONFIG = {
   balanced: {
     weights: {
-      content: 0.65,
+      content: 0.60,
       mod_preference: 0.05,
-      difficulty: 0.30,
-      classifier: 0.00,
+      difficulty: 0.10,
+      classifier: 0.25,
       pp_potential: 0.00,
     },
     sort_keys: [
-      'final_score',
-      'difficulty_score',
-      'content_similarity',
+      "final_score",
+      "difficulty_score",
+      "content_similarity",
+      "classifier_score",
     ],
   },
 
   pp_potential: {
     weights: {
-      content: 0.45,
+      content: 0.50,
       mod_preference: 0.05,
-      difficulty: 0.25,
-      classifier: 0.00,
+      difficulty: 0.10,
+      classifier: 0.10,
       pp_potential: 0.25,
     },
     sort_keys: [
-      'final_score',
-      'pp_potential',
-      'difficulty_score',
-      'content_similarity',
-    ],
-  },
-
-  NM1_to_5: {
-    weights: {
-      content: 0.55,
-      mod_preference: 0.05,
-      difficulty: 0.25,
-      classifier: 0.15,
-      pp_potential: 0.00,
-    },
-    sort_keys: [
-      'final_score',
-      'classifier_score',
-      'difficulty_score',
-      'content_similarity',
+      "final_score",
+      "pp_potential",
+      "difficulty_score",
+      "content_similarity",
+      "classifier_score",
     ],
   },
 }
@@ -97,8 +86,8 @@ export function createDefaultSettings() {
       ...DEFAULT_DIFFICULTY_FEATURE_WEIGHTS,
     },
 
-    feature_weights: {
-      ...DEFAULT_FEATURE_WEIGHTS,
+    similarity_feature_weights: {
+      ...DEFAULT_SIMILARITY_FEATURE_WEIGHTS,
     },
 
     top_weight: 3.0,
@@ -144,15 +133,18 @@ export function normalizeSettings(settings) {
     max_od: settings.max_od ?? null,
 
     difficulty_std_floors: {
-      ...settings.difficulty_std_floors,
+      ...DEFAULT_DIFFICULTY_STD_FLOORS,
+      ...(settings.difficulty_std_floors ?? {}),
     },
 
     difficulty_feature_weights: {
-      ...settings.difficulty_feature_weights,
+      ...DEFAULT_DIFFICULTY_FEATURE_WEIGHTS,
+      ...(settings.difficulty_feature_weights ?? {}),
     },
 
-    feature_weights: {
-      ...settings.feature_weights,
+    similarity_feature_weights: {
+      ...DEFAULT_SIMILARITY_FEATURE_WEIGHTS,
+      ...(settings.similarity_feature_weights ?? {}),
     },
   }
 }

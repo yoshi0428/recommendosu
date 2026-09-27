@@ -11,8 +11,8 @@ SIMILARITY_FEATURES = [
     "od",
     "circle_size",
     "pp_aim",
-    "pp_acc",
     "pp_speed",
+    "pp_acc",
 ]
 
 MAP_COLUMNS = [

@@ -129,6 +129,10 @@ def recommend_player_sync(
     goal_config = recommendation_config[settings.goal]
     classifier_weight = goal_config["weights"]["classifier"]
 
+    print(f"[recommend_player_sync] Recommendation config: {recommendation_config}")
+    print(f"[recommend_player_sync] Goal config: {goal_config}")
+    print(f"[recommend_player_sync] Classifier weight: {classifier_weight}")
+
     requested_mods = (
         {
             mod.strip().upper()
@@ -168,8 +172,8 @@ def recommend_player_sync(
         check_cancelled(cancel_event)
 
         # ── Content similarity ────────────────────────────────
-
         print(f"ALREADY PLAYED: {settings.exclude_already_played}")
+        print(settings.similarity_feature_weights)
 
         similarity_index = build_seed_similarity_index(
             conn,
@@ -238,23 +242,23 @@ def recommend_player_sync(
 
         # ── Classifier preferences ─────────────────────────────
 
-        if classifier_weight <= 0:
-            category_preferences = {}
-        else:
-            category_preferences = (
-                get_player_category_preferences(
-                    conn,
-                    settings.player_id,
-                    recency_half_life_days=settings.recency_half_life_days,
-                    ability_top_weight=settings.ability_top_weight,
-                    ability_recent_weight=settings.ability_recent_weight,
-                    ability_pp_weight=settings.ability_pp_weight,
-                )
+        # if classifier_weight <= 0:
+        #     category_preferences = {}
+        # else:
+        category_preferences = (
+            get_player_category_preferences(
+                conn,
+                settings.player_id,
+                recency_half_life_days=settings.recency_half_life_days,
+                ability_top_weight=settings.ability_top_weight,
+                ability_recent_weight=settings.ability_recent_weight,
+                ability_pp_weight=settings.ability_pp_weight,
             )
+        )
 
-            print()
-            for label, probability in category_preferences.items():
-                print(f"{label}: {float(probability) * 100:.2f}%")
+        print()
+        for label, probability in category_preferences.items():
+            print(f"{label}: {float(probability) * 100:.2f}%")
 
         check_cancelled(cancel_event)
 
@@ -307,24 +311,19 @@ def recommend_player_sync(
             print(
                 f"{i:2d}. "
                 f"beatmap={variant['beatmap_id']}, "
-                f"beatmapset={variant['beatmapset_id']}, "
-                f"variant={variant['variant_id']}, "
+                f"set={variant['beatmapset_id']}, "
+                f"pp={variant['pp']}, "
                 f"mods={variant['mods']}, "
                 f"star={variant['star_rating']:.2f}, "
                 f"bpm={variant['bpm']:.1f}, "
                 f"AR={variant['ar']:.1f}, "
                 f"OD={variant['od']:.1f}, "
-                f"content="
-                f"{variant['content_similarity']:.4f}, "
-                f"mod_pref="
-                f"{variant['mod_preference']:.4f}, "
-                f"difficulty="
-                f"{variant['difficulty_score']:.4f}, "
-                f"pp={variant['pp']:.4f}, "
-                f"pp_potential="
-                f"{variant['pp_potential']:.4f}, "
-                f"score="
-                f"{variant['final_score']:.4f}"
+                f"content={variant['content_similarity']:.4f}, "
+                f"mod_pref={variant['mod_preference']:.4f}, "
+                f"difficulty={variant['difficulty_score']:.4f}, "
+                f"classifier={variant['classifier_score']:.4f}, "
+                f"pp_potential={variant['pp_potential']:.4f}, "
+                f"final={variant['final_score']:.4f}"
             )
 
         return ranked_variants

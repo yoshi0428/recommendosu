@@ -104,6 +104,9 @@ function RecommendationsPage({
     try {
       const requestSettings = normalizeSettings(settings)
 
+
+      console.log('Normalized similarity weights:', requestSettings.similarity_feature_weights)
+      
       const data = await getRecommendations(
         requestSettings,
         {

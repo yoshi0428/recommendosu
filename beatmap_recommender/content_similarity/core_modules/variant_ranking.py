@@ -716,16 +716,18 @@ def rank_variants(
     start = time.perf_counter()
     classifier_predictions = {}
 
+    print(f"[rank_variants] Classifier weight: {classifier_weight}")
+    print(f"[rank_variants] Category preferences: {category_preferences}")
+
     if classifier_weight > 0 and category_preferences:
-        variant_ids = [
-            variant["variant_id"]
+        beatmap_ids = [
+            variant["beatmap_id"]
             for index, variant in enumerate(variants)
             if difficulty_mask[index]
-            and variant["mods"] == "NM"
         ]
 
-        if variant_ids:
-            classifier_predictions = get_candidate_classifier_predictions(conn, variant_ids)
+        print(f"[rank_variants] Classifier candidate beatmaps: " f"{len(beatmap_ids)}")
+        classifier_predictions = get_candidate_classifier_predictions(conn, beatmap_ids)
 
     check_cancelled(cancel_event)
 
@@ -734,6 +736,10 @@ def rank_variants(
         f"{time.perf_counter() - start:.4f}s "
         f"({len(classifier_predictions)} predictions)"
     )
+
+    if classifier_predictions:
+        first_beatmap_id = next(iter(classifier_predictions))
+        print(f"[rank_variants] Example classifier prediction for {first_beatmap_id}: {classifier_predictions[first_beatmap_id]}")
 
     # ── Difficulty scores ──────────────────────────────────────
     start = time.perf_counter()
@@ -798,13 +804,11 @@ def rank_variants(
         mod_preference = mod_preferences.get(mods, 0.0)
         difficulty_score = float(difficulty_scores[index])
 
-        if classifier_weight <= 0:
-            classifier_score = 0.5
-        elif mods == "NM" and category_preferences:
-            probabilities = classifier_predictions.get(variant["variant_id"])
+        if category_preferences:
+            probabilities = classifier_predictions.get(variant["beatmap_id"])
             classifier_score = calculate_classifier_score(probabilities, category_preferences)
         else:
-            classifier_score = 0.5
+            classifier_score = 0.0
 
         if pp_potential_weight > 0:
             pp_potential = calculate_pp_potential(
@@ -816,7 +820,7 @@ def rank_variants(
                 pp_push_max_z,
             )
         else:
-            pp_potential = 0.5
+            pp_potential = 0.0
 
         final_score = score_variant(
             content_similarity,

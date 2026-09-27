@@ -20,12 +20,12 @@ SIMILARITY_FEATURE_WEIGHTS = {
     "bpm": 1.0,
     "length_seconds": 0.5,
     "object_count": 0.5,
-    "ar": 1.5,
-    "od": 1.5,
+    "ar": 1.0,
+    "od": 1.0,
     "circle_size": 1.0,
-    "pp_aim": 1.0,
-    "pp_speed": 1.0,
-    "pp_acc": 1.0,
+    "pp_aim": 1.5,
+    "pp_speed": 1.5,
+    "pp_acc": 1.5,
 }
 
 TOP_WEIGHT = 3.0
@@ -45,25 +45,26 @@ DIFFICULTY_STAR_STD_MULTIPLIER = 0.75
 RECOMMENDATION_CONFIG = {
     "balanced": {
         "weights": {
-            "content": 0.65,
+            "content": 0.60,
             "mod_preference": 0.05,
-            "difficulty": 0.30,
-            "classifier": 0.00,
+            "difficulty": 0.10,
+            "classifier": 0.25,
             "pp_potential": 0.00,
         },
         "sort_keys": (
             "final_score",
             "difficulty_score",
             "content_similarity",
+            "classifier_score",
         ),
     },
 
     "pp_potential": {
         "weights": {
-            "content": 0.45,
+            "content": 0.50,
             "mod_preference": 0.05,
-            "difficulty": 0.25,
-            "classifier": 0.00,
+            "difficulty": 0.10,
+            "classifier": 0.10,
             "pp_potential": 0.25,
         },
         "sort_keys": (
@@ -71,22 +72,7 @@ RECOMMENDATION_CONFIG = {
             "pp_potential",
             "difficulty_score",
             "content_similarity",
-        ),
-    },
-
-    "NM1_to_5": {
-        "weights": {
-            "content": 0.50,
-            "mod_preference": 0.05,
-            "difficulty": 0.25,
-            "classifier": 0.20,
-            "pp_potential": 0.00,
-        },
-        "sort_keys": (
-            "final_score",
             "classifier_score",
-            "difficulty_score",
-            "content_similarity",
         ),
     },
 }

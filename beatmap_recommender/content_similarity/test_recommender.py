@@ -66,7 +66,7 @@ EXCLUDED_MODS = ["EZ", "HT", "FL", "HD"]
 
 # ── Candidate filters ──────────────────────────────────────────
 
-MIN_STARS = 10
+MIN_STARS = 9
 MAX_STARS = None
 
 MIN_BPM = MAX_BPM = None
@@ -89,52 +89,37 @@ MIN_CS = MAX_CS = None
 RECOMMENDATION_CONFIG = {
     "balanced": {
         "weights": {
-            "content": 0.65,
+            "content": 0.60,
             "mod_preference": 0.05,
-            "difficulty": 0.30,
-            "classifier": 0.00,
+            "difficulty": 0.25,
+            "classifier": 0.10,
             "pp_potential": 0.00,
         },
         "sort_keys": (
             "final_score",
             "difficulty_score",
             "content_similarity",
+            "classifier_score",
         ),
     },
 
     "pp_potential": {
         "weights": {
-            "content": 0.45,
+            "content": 0.40,
             "mod_preference": 0.05,
-            "difficulty": 0.25,
-            "classifier": 0.00,
-            "pp_potential": 0.25,
+            "difficulty": 0.20,
+            "classifier": 0.15,
+            "pp_potential": 0.20,
         },
         "sort_keys": (
             "final_score",
             "pp_potential",
             "difficulty_score",
             "content_similarity",
-        ),
-    },
-
-    "NM1_to_5": {
-        "weights": {
-            "content": 0.55,
-            "mod_preference": 0.05,
-            "difficulty": 0.25,
-            "classifier": 0.15,
-            "pp_potential": 0.00,
-        },
-        "sort_keys": (
-            "final_score",
             "classifier_score",
-            "difficulty_score",
-            "content_similarity",
         ),
     },
 }
-
 
 # ── Difficulty ─────────────────────────────────────────────────
 
@@ -164,12 +149,12 @@ SIMILARITY_FEATURE_WEIGHTS = {
     "bpm": 1.0,
     "length_seconds": 0.5,
     "object_count": 0.5,
-    "ar": 1.5,
-    "od": 1.5,
+    "ar": 1.0,
+    "od": 1.0,
     "circle_size": 1.0,
-    "pp_aim": 1.0,
-    "pp_speed": 1.0,
-    "pp_acc": 1.0,
+    "pp_aim": 1.5,
+    "pp_speed": 1.5,
+    "pp_acc": 1.5,
 }
 
 
@@ -235,7 +220,7 @@ def main():
         )
 
         # ── Content similarity ────────────────────────────────
-
+        print(SIMILARITY_FEATURE_WEIGHTS)
         similarity_index = build_seed_similarity_index(
             conn,
             player_id=PLAYER_ID,
@@ -420,13 +405,12 @@ def main():
 
         print(f"\nRecommendation goal: {RECOMMENDATION_GOAL}")
         print(f"\nTop {len(ranked_variants)} recommendations:")
-
-        for i, variant in enumerate(ranked_variants, start=1):
+        for i, variant in enumerate(ranked_variants, 1):
             print(
                 f"{i:2d}. "
                 f"beatmap={variant['beatmap_id']}, "
-                f"beatmapset={variant['beatmapset_id']}, "
-                f"variant={variant['variant_id']}, "
+                f"set={variant['beatmapset_id']}, "
+                f"pp={variant['pp']}, "
                 f"mods={variant['mods']}, "
                 f"star={variant['star_rating']:.2f}, "
                 f"bpm={variant['bpm']:.1f}, "
@@ -435,9 +419,9 @@ def main():
                 f"content={variant['content_similarity']:.4f}, "
                 f"mod_pref={variant['mod_preference']:.4f}, "
                 f"difficulty={variant['difficulty_score']:.4f}, "
-                f"pp={variant['pp']:.4f}, "
+                f"classifier={variant['classifier_score']:.4f}, "
                 f"pp_potential={variant['pp_potential']:.4f}, "
-                f"score={variant['final_score']:.4f}"
+                f"final={variant['final_score']:.4f}"
             )
 
     finally:

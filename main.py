@@ -352,7 +352,7 @@ async def recommend_get(
             "Recommendation strategy. The available goals are defined by "
             "the server's recommendation configuration."
         ),
-        examples=["balanced", "pp_potential", "NM1_to_5"],
+        examples=["balanced", "pp_potential"],
     ),
     exclude_already_played: bool = Query(
         default=True,
@@ -416,6 +416,8 @@ async def recommend_post(
         alias="X-Recommendation-Id",
     ),
 ):
+    # print("POST similarity weights:", settings.similarity_feature_weights)
+    # print("POST full settings:", settings.model_dump())
     session_player_id = require_player(session_id)
 
     if settings.player_id is None:

@@ -3,7 +3,6 @@ import {Card, Col, Form, Row} from 'react-bootstrap'
 const GOALS = [
   ['balanced', 'Balanced'],
   ['pp_potential', 'PP Potential'],
-  ['NM1_to_5', 'NM1–5 Classifier'],
 ]
 
 function BasicOptions({
@@ -84,7 +83,7 @@ function BasicOptions({
               <Form.Control
                 type="number"
                 min={1}
-                max={10000}
+                max={1000}
                 step={1}
                 value={settings.limit ?? ''}
                 onChange={(event) => {

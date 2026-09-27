@@ -2,7 +2,14 @@ from beatmap_recommender.content_similarity.core_modules.ability import get_abil
 
 NM_LABELS = ("NM1", "NM2", "NM3", "NM4", "NM5")
 
-def get_player_category_preferences(conn, player_id, recency_half_life_days, ability_top_weight, ability_recent_weight, ability_pp_weight):
+def get_player_category_preferences(
+    conn,
+    player_id,
+    recency_half_life_days,
+    ability_top_weight,
+    ability_recent_weight,
+    ability_pp_weight,
+):
     """
     Calculate the player's preference for each NM tournament category.
 
@@ -23,7 +30,8 @@ def get_player_category_preferences(conn, player_id, recency_half_life_days, abi
         }
     """
 
-    rows = conn.execute("""
+    rows = conn.execute(
+        """
         SELECT
             s.source,
             s.pp,
@@ -45,7 +53,9 @@ def get_player_category_preferences(conn, player_id, recency_half_life_days, abi
           AND vp.nm3 IS NOT NULL
           AND vp.nm4 IS NOT NULL
           AND vp.nm5 IS NOT NULL
-    """, (player_id,)).fetchall()
+        """,
+        (player_id,),
+    ).fetchall()
 
     totals = {
         label: 0.0
@@ -67,7 +77,10 @@ def get_player_category_preferences(conn, player_id, recency_half_life_days, abi
             source,
             pp,
             created_at,
-            recency_half_life_days, ability_top_weight, ability_recent_weight, ability_pp_weight
+            recency_half_life_days,
+            ability_top_weight,
+            ability_recent_weight,
+            ability_pp_weight,
         )
 
         probabilities = {
@@ -79,7 +92,7 @@ def get_player_category_preferences(conn, player_id, recency_half_life_days, abi
         }
 
         for label, probability in probabilities.items():
-            totals[label] += (weight * float(probability))
+            totals[label] += weight * float(probability)
 
     total = sum(totals.values())
 
@@ -92,14 +105,13 @@ def get_player_category_preferences(conn, player_id, recency_half_life_days, abi
     }
 
 
-def get_candidate_classifier_predictions(conn, variant_ids):
+def get_candidate_classifier_predictions(conn, beatmap_ids):
     """
     Fetch precomputed NM1-NM5 classifier probabilities for candidate variants.
 
     Returns:
-
         {
-            variant_id: {
+            beatmap_id: {
                 "NM1": probability,
                 "NM2": probability,
                 ...
@@ -107,29 +119,31 @@ def get_candidate_classifier_predictions(conn, variant_ids):
         }
     """
 
-    if not variant_ids:
+    if not beatmap_ids:
         return {}
 
     chunk_size = 1000
-    variant_ids_list = list(variant_ids)
+    beatmap_ids_list = list(beatmap_ids)
     all_rows = []
 
-    # Process variant_ids in batches to avoid database parameter limits
-    for i in range(0, len(variant_ids_list), chunk_size):
-        chunk = variant_ids_list[i: i + chunk_size]
+    for i in range(0, len(beatmap_ids_list), chunk_size):
+        chunk = beatmap_ids_list[i:i + chunk_size]
         placeholders = ",".join("?" for _ in chunk)
 
         rows = conn.execute(
             f"""
             SELECT
-                variant_id,
-                nm1,
-                nm2,
-                nm3,
-                nm4,
-                nm5
-            FROM variant_predictions
-            WHERE variant_id IN ({placeholders})
+                bv.beatmap_id,
+                vp.nm1,
+                vp.nm2,
+                vp.nm3,
+                vp.nm4,
+                vp.nm5
+            FROM beatmap_variants bv
+            JOIN variant_predictions vp
+                ON vp.variant_id = bv.variant_id
+            WHERE bv.beatmap_id IN ({placeholders})
+              AND bv.mods = 'NM'
             """,
             chunk,
         ).fetchall()
@@ -137,7 +151,7 @@ def get_candidate_classifier_predictions(conn, variant_ids):
         all_rows.extend(rows)
 
     return {
-        variant_id: {
+        beatmap_id: {
             "NM1": nm1,
             "NM2": nm2,
             "NM3": nm3,
@@ -145,7 +159,7 @@ def get_candidate_classifier_predictions(conn, variant_ids):
             "NM5": nm5,
         }
         for (
-            variant_id,
+            beatmap_id,
             nm1,
             nm2,
             nm3,
@@ -153,6 +167,7 @@ def get_candidate_classifier_predictions(conn, variant_ids):
             nm5,
         ) in all_rows
     }
+
 
 def calculate_classifier_score(
     probabilities,
@@ -162,19 +177,20 @@ def calculate_classifier_score(
     Calculate how well a candidate's NM1-NM5 prediction matches
     the player's NM category preferences.
 
-    Returns approximately [0, 1]:
+    Returns [0, 1]:
 
         1.0 = strong match
         0.0 = weak match
-        0.5 = unknown / neutral
+
+    Missing classifier probabilities or player preferences return 0.0
+    rather than a neutral 0.5 fallback.
     """
 
     if not probabilities or not preferences:
-        return 0.5
+        return 0.0
 
     score = sum(
-        (probabilities.get(label) or 0.0)
-        * (preferences.get(label) or 0.0)
+        (probabilities.get(label) or 0.0) * (preferences.get(label) or 0.0)
         for label in NM_LABELS
     )
 
@@ -184,6 +200,6 @@ def calculate_classifier_score(
     )
 
     if max_preference <= 0:
-        return 0.5
+        return 0.0
 
     return min(max(score / max_preference, 0.0), 1.0)

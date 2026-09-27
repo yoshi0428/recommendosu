@@ -39,20 +39,20 @@ def calculate_pp_potential(
     """
 
     if not difficulty_profile:
-        return 0.5
+        return 0.0
 
     pp = variant.get("pp")
 
     if pp is None:
-        return 0.5
+        return 0.0
 
     try:
         pp = float(pp)
     except (TypeError, ValueError):
-        return 0.5
+        return 0.0
 
     if pp <= 0:
-        return 0.5
+        return 0.0
 
     # ---------------------------------------------------------------
     # Calculate weighted difficulty distance.
@@ -88,7 +88,7 @@ def calculate_pp_potential(
         total_weight += feature_weight
 
     if total_weight <= 0:
-        return 0.5
+        return 0.0
 
     difficulty_distance = np.sqrt(weighted_squared_distance / total_weight)
 
