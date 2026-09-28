@@ -136,7 +136,7 @@ function About() {
           </p>
 
           <p>
-            <strong>Weights:</strong> 60% content similarity --- 25% NM1–5 category match --- 10% difficulty --- 5% mod
+            <strong>Weights:</strong> 50% content similarity --- 25% difficulty --- 20% NM1–5 category match --- 5% mod
             preference
           </p>
 
@@ -236,18 +236,11 @@ function About() {
 
           <p><strong>Threshold values:</strong>{' '} SR 0.35 --- AR 0.50 --- OD 0.50 --- BPM 15 </p>
 
-          <p>
-            The recommender also applies a <strong>minimum difficulty threshold</strong> based on your demonstrated Star
-            Rating. This prevents content similarity from causing recommendations to fall substantially below your
-            demonstrated difficulty level. There used to be an issue where mrekk was recommended 6-7* NM maps and 10-11*
-            HDHRDT combination maps.
-          </p>
-
           <p className={"mb-0"}>
-            If you absolutely need to nullify this minimum difficulty threshold, set the
-            difficulty profile's standard deviations floors to very large numbers.
+            The recommender also applies a <strong>minimum/maximum difficulty threshold</strong> based on your
+            demonstrated Star Rating. This prevents content similarity from causing recommendations to fall
+            substantially below/above your demonstrated difficulty level.
           </p>
-
         </div>
 
         {/* MOD PREFERENCE */}

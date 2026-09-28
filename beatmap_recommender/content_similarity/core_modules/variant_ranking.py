@@ -591,15 +591,36 @@ def rank_variants(
     star_mean = difficulty_profile.get("star_rating_mean")
     star_std = difficulty_profile.get("star_rating_std")
 
-    # if min_stars is explicitly requested, set min_difficulty_stars to it
-    if min_stars is not None:
-        min_difficulty_stars = float(min_stars)
-    elif star_mean is not None and star_std is not None:
+    # ── Player difficulty range ────────────────────────────────
+    if star_mean is not None and star_std is not None:
         star_mean = float(star_mean)
         star_std = float(star_std)
+
         min_difficulty_stars = star_mean - difficulty_star_std_multiplier * star_std
+        max_difficulty_stars = star_mean + difficulty_star_std_multiplier * star_std
+
+        # Explicit star filters override the automatic difficulty bounds.
+        if min_stars is not None:
+            min_difficulty_stars = float(min_stars)
+
+        if max_stars is not None:
+            max_difficulty_stars = float(max_stars)
+
+            # Allow deliberately low max-star filters to bypass the automatic minimum difficulty bound.
+            if min_difficulty_stars > max_difficulty_stars:
+                min_difficulty_stars = 0.0
     else:
-        min_difficulty_stars = None
+        min_difficulty_stars = (
+            float(min_stars)
+            if min_stars is not None
+            else None
+        )
+
+        max_difficulty_stars = (
+            float(max_stars)
+            if max_stars is not None
+            else None
+        )
 
     # ── Validate filters ───────────────────────────────────────
     filter_ranges = (
@@ -670,6 +691,8 @@ def rank_variants(
         cancel_event=cancel_event,
     )
 
+    print(f"[rank_variants] Candidate variants after SQL filters: {len(variants)}")
+
     check_cancelled(cancel_event)
     print(f"[rank_variants] Load candidate variants: {time.perf_counter() - start:.4f}s ({len(variants)} variants)")
     if not variants:
@@ -680,7 +703,7 @@ def rank_variants(
         difficulty_mask = np.array(
             [
                 variant["star_rating"] is not None
-                and float(variant["star_rating"]) >= min_difficulty_stars
+                and min_difficulty_stars <= float(variant["star_rating"]) <= max_difficulty_stars
                 for variant in variants
             ],
             dtype=bool,
@@ -691,14 +714,15 @@ def rank_variants(
             dtype=bool,
         )
 
+    print(f"[rank_variants] Candidate variants after difficulty filter: {int(difficulty_mask.sum())}/{len(variants)}")
     check_cancelled(cancel_event)
-
     eligible_count = int(difficulty_mask.sum())
 
     if min_difficulty_stars is not None:
         print(
-            f"[rank_variants] Difficulty star floor: "
-            f"{min_difficulty_stars:.2f}★ "
+            f"[rank_variants] Difficulty star range: "
+            f"{min_difficulty_stars:.2f}★ - "
+            f"{max_difficulty_stars:.2f}★ "
             f"(mean={star_mean:.2f}★, "
             f"std={star_std:.2f}, "
             f"multiplier={difficulty_star_std_multiplier:.2f}) "

@@ -45,10 +45,10 @@ DIFFICULTY_STAR_STD_MULTIPLIER = 0.75
 RECOMMENDATION_CONFIG = {
     "balanced": {
         "weights": {
-            "content": 0.60,
+            "content": 0.50,
             "mod_preference": 0.05,
-            "difficulty": 0.10,
-            "classifier": 0.25,
+            "difficulty": 0.25,
+            "classifier": 0.20,
             "pp_potential": 0.00,
         },
         "sort_keys": (
