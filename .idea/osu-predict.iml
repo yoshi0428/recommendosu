@@ -5,7 +5,7 @@
       <excludeFolder url="file://$MODULE_DIR$/beatmap_classifier/classifier_db_setup/extracted_osu" />
       <excludeFolder url="file://$MODULE_DIR$/beatmap_classifier/classifier_db_setup/osz_files" />
     </content>
-    <orderEntry type="jdk" jdkName="$USER_HOME$/miniconda3" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="C:\miniconda3" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
 </module>

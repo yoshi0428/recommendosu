@@ -44,25 +44,46 @@ export async function getRecommendations(body, options = {}) {
     signal: options.signal,
   })
 
-  const data = await response.json()
+  const contentType = response.headers.get('content-type') || ''
 
-  if (!response.ok) {
-    const detail = Array.isArray(data.detail)
-      ? data.detail
-        .map((error) => {
-          const location = error.loc?.join('.') ?? ''
-          return `${location}: ${error.msg}`
-        })
-        .join('\n')
-      : data.detail
-
+  // Nginx can return an HTML 504 page when the recommendation backend takes too long to respond.
+  // Do not try to parse that HTML response as JSON.
+  if (response.status === 504) {
     throw new Error(
-      detail ||
-      `Request failed with status ${response.status}`
+      'Recommendation generation took too long. ' +
+      'The server timed out while waiting for the recommendations.'
     )
   }
 
-  return data
+  // Only parse the response as JSON when the server actually says that it returned JSON.
+  if (contentType.includes('application/json')) {
+    const data = await response.json()
+
+    if (!response.ok) {
+      const detail = Array.isArray(data.detail)
+        ? data.detail
+            .map((error) => {
+              const location = error.loc?.join('.') ?? ''
+              return `${location}: ${error.msg}`
+            })
+            .join('\n')
+        : data.detail
+
+      throw new Error(
+        detail ||
+        `Recommendation request failed with status ${response.status}`
+      )
+    }
+
+    return data
+  }
+
+  // Any other non-JSON response is unexpected.
+  // This handles HTML error pages and other proxy/server responses safely.
+  throw new Error(
+    `Recommendation request failed with status ${response.status}. ` +
+    `Server returned ${contentType || 'an unknown response type'}.`
+  )
 }
 
 export async function cancelRecommendation(recommendationId) {
