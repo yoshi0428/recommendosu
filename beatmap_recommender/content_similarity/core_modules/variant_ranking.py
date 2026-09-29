@@ -238,6 +238,8 @@ def get_candidate_variants(
     excluded_mods=None,
     min_stars=None,
     max_stars=None,
+    difficulty_min_stars=None,
+    difficulty_max_stars=None,
     min_bpm=None,
     max_bpm=None,
     min_pp=None,
@@ -312,7 +314,11 @@ def get_candidate_variants(
 
     # ── Numeric filters ────────────────────────────────────────
     numeric_filters = (
-        ("bv.star_rating", min_stars, max_stars),
+        (
+            "bv.star_rating",
+            difficulty_min_stars if difficulty_min_stars is not None else min_stars,
+            difficulty_max_stars if difficulty_max_stars is not None else max_stars,
+        ),
         ("bv.bpm", min_bpm, max_bpm),
         ("bv.pp", min_pp, max_pp),
         ("bv.ar", min_ar, max_ar),
@@ -568,13 +574,11 @@ def rank_variants(
 
     Candidate processing:
         1. Keep the best similarity per beatmap.
-        2. Load candidate variants.
-        3. Apply SQL filters.
-        4. Apply the hard star-rating difficulty constraint.
-        5. Calculate difficulty scores for eligible candidates.
-        6. Calculate recommendation scores.
-        7. Keep the best variant per beatmap.
-        8. Sort and truncate.
+        2. Load candidate variants with SQL-level filters.
+        3. Calculate difficulty scores.
+        4. Calculate recommendation scores.
+        5. Keep the best variant per beatmap.
+        6. Sort and truncate.
     """
     check_cancelled(cancel_event)
     total_start = time.perf_counter()
@@ -591,7 +595,6 @@ def rank_variants(
     star_mean = difficulty_profile.get("star_rating_mean")
     star_std = difficulty_profile.get("star_rating_std")
 
-    # ── Player difficulty range ────────────────────────────────
     if star_mean is not None and star_std is not None:
         star_mean = float(star_mean)
         star_std = float(star_std)
@@ -603,10 +606,14 @@ def rank_variants(
         if min_stars is not None:
             min_difficulty_stars = float(min_stars)
 
+            # A deliberately high minimum should not be contradicted by the automatic maximum.
+            if min_difficulty_stars > max_difficulty_stars:
+                max_difficulty_stars = float("inf")
+
         if max_stars is not None:
             max_difficulty_stars = float(max_stars)
 
-            # Allow deliberately low max-star filters to bypass the automatic minimum difficulty bound.
+            # A deliberately low max-star filter should not be contradicted by the automatic minimum difficulty.
             if min_difficulty_stars > max_difficulty_stars:
                 min_difficulty_stars = 0.0
     else:
@@ -674,6 +681,8 @@ def rank_variants(
         excluded_mods=excluded_mods,
         min_stars=min_stars,
         max_stars=max_stars,
+        difficulty_min_stars=min_difficulty_stars,
+        difficulty_max_stars=max_difficulty_stars,
         min_bpm=min_bpm,
         max_bpm=max_bpm,
         min_pp=min_pp,
@@ -691,32 +700,13 @@ def rank_variants(
         cancel_event=cancel_event,
     )
 
-    print(f"[rank_variants] Candidate variants after SQL filters: {len(variants)}")
-
     check_cancelled(cancel_event)
     print(f"[rank_variants] Load candidate variants: {time.perf_counter() - start:.4f}s ({len(variants)} variants)")
     if not variants:
         return []
 
-    # ── Hard star-rating difficulty constraint ──────────────────
-    if min_difficulty_stars is not None:
-        difficulty_mask = np.array(
-            [
-                variant["star_rating"] is not None
-                and min_difficulty_stars <= float(variant["star_rating"]) <= max_difficulty_stars
-                for variant in variants
-            ],
-            dtype=bool,
-        )
-    else:
-        difficulty_mask = np.ones(
-            len(variants),
-            dtype=bool,
-        )
-
-    print(f"[rank_variants] Candidate variants after difficulty filter: {int(difficulty_mask.sum())}/{len(variants)}")
-    check_cancelled(cancel_event)
-    eligible_count = int(difficulty_mask.sum())
+    # get_candidate_variants() now applies the hard difficulty range directly in SQL, so no Python-side star filtering is necessary.
+    eligible_count = len(variants)
 
     if min_difficulty_stars is not None:
         print(
@@ -726,14 +716,10 @@ def rank_variants(
             f"(mean={star_mean:.2f}★, "
             f"std={star_std:.2f}, "
             f"multiplier={difficulty_star_std_multiplier:.2f}) "
-            f"({eligible_count}/{len(variants)} variants)"
+            f"({eligible_count} variants)"
         )
     else:
         print("[rank_variants] Difficulty star floor: disabled (no player star-rating profile)")
-
-    if not difficulty_mask.any():
-        print("[rank_variants] No variants passed the difficulty star-rating constraint.")
-        return []
 
     # ── Classifier predictions ─────────────────────────────────
     check_cancelled(cancel_event)
@@ -744,14 +730,14 @@ def rank_variants(
     print(f"[rank_variants] Category preferences: {category_preferences}")
 
     if classifier_weight > 0 and category_preferences:
-        beatmap_ids = [
+        # Deduplicate because a beatmap can have multiple candidate variants.
+        classifier_beatmap_ids = list({
             variant["beatmap_id"]
-            for index, variant in enumerate(variants)
-            if difficulty_mask[index]
-        ]
+            for variant in variants
+        })
 
-        print(f"[rank_variants] Classifier candidate beatmaps: " f"{len(beatmap_ids)}")
-        classifier_predictions = get_candidate_classifier_predictions(conn, beatmap_ids)
+        print(f"[rank_variants] Classifier candidate beatmaps: {len(classifier_beatmap_ids)}")
+        classifier_predictions = get_candidate_classifier_predictions(conn, classifier_beatmap_ids)
 
     check_cancelled(cancel_event)
 
@@ -766,60 +752,25 @@ def rank_variants(
         print(f"[rank_variants] Example classifier prediction for {first_beatmap_id}: {classifier_predictions[first_beatmap_id]}")
 
     # ── Difficulty scores ──────────────────────────────────────
+    # The current ranker uses the global difficulty profile. Therefore there is no reason to split variants by mod.
     start = time.perf_counter()
-    difficulty_scores = np.full(
-        len(variants),
-        0.5,
-        dtype=np.float32,
+    difficulty_scores = calculate_difficulty_scores(
+        variants,
+        difficulty_profile,
+        difficulty_std_floors,
+        difficulty_feature_weights,
+        cancel_event=cancel_event,
     )
-
-    variant_indices_by_mod = {}
-
-    for index, variant in enumerate(variants):
-        if not difficulty_mask[index]:
-            continue
-
-        variant_indices_by_mod.setdefault(
-            variant["mods"],
-            [],
-        ).append(index)
-
-    for mods, indices in variant_indices_by_mod.items():
-        check_cancelled(cancel_event)
-
-        mod_variants = [
-            variants[index]
-            for index in indices
-        ]
-
-        scores = calculate_difficulty_scores(
-            mod_variants,
-            difficulty_profile,
-            difficulty_std_floors,
-            difficulty_feature_weights,
-            cancel_event=cancel_event,
-        )
-
-        difficulty_scores[indices] = scores
 
     check_cancelled(cancel_event)
+    print(f"[rank_variants] Difficulty scores: {time.perf_counter() - start:.4f}s ({eligible_count} variants)")
 
-    print(
-        f"[rank_variants] Difficulty scores: "
-        f"{time.perf_counter() - start:.4f}s "
-        f"({eligible_count}/{len(variants)} variants eligible)"
-    )
-
-    # ── Score variants ─────────────────────────────────────────
+    # ── Score variants + keep best per beatmap ─────────────────
     start = time.perf_counter()
-    scored_variants = []
-
+    best_by_beatmap = {}
     for index, variant in enumerate(variants):
         if index % 1024 == 0:
             check_cancelled(cancel_event)
-
-        if not difficulty_mask[index]:
-            continue
 
         beatmap_id = variant["beatmap_id"]
         mods = variant["mods"]
@@ -856,44 +807,26 @@ def rank_variants(
             recommendation_config,
         )
 
-        scored_variants.append({
-            **variant,
-            "content_similarity": content_similarity,
-            "mod_preference": mod_preference,
-            "difficulty_score": difficulty_score,
-            "classifier_score": classifier_score,
-            "pp_potential": pp_potential,
-            "final_score": final_score,
-        })
-
-    check_cancelled(cancel_event)
-
-    print(
-        f"[rank_variants] Score variants: "
-        f"{time.perf_counter() - start:.4f}s "
-        f"({len(scored_variants)} variants)"
-    )
-
-    # ── Best variant per beatmap ───────────────────────────────
-    start = time.perf_counter()
-    best_by_beatmap = {}
-
-    for index, variant in enumerate(scored_variants):
-        if index % 1024 == 0:
-            check_cancelled(cancel_event)
-
-        beatmap_id = variant["beatmap_id"]
+        # Avoid creating an intermediate scored_variants list.
         previous = best_by_beatmap.get(beatmap_id)
-
-        if previous is None or variant["final_score"] > previous["final_score"]:
-            best_by_beatmap[beatmap_id] = variant
+        if previous is None or final_score > previous["final_score"]:
+            best_by_beatmap[beatmap_id] = {
+                **variant,
+                "content_similarity": content_similarity,
+                "mod_preference": mod_preference,
+                "difficulty_score": difficulty_score,
+                "classifier_score": classifier_score,
+                "pp_potential": pp_potential,
+                "final_score": final_score,
+            }
 
     check_cancelled(cancel_event)
 
     print(
-        f"[rank_variants] Best variants: "
+        f"[rank_variants] Score + best variant selection: "
         f"{time.perf_counter() - start:.4f}s "
-        f"({len(best_by_beatmap)} beatmaps)"
+        f"({eligible_count} variants -> "
+        f"{len(best_by_beatmap)} beatmaps)"
     )
 
     # ── Sort and truncate ──────────────────────────────────────
@@ -916,15 +849,6 @@ def rank_variants(
     if top_k is not None:
         ranked = ranked[:top_k]
 
-    print(
-        f"[rank_variants] Sort and truncate: "
-        f"{time.perf_counter() - start:.4f}s "
-        f"({len(ranked)} results)"
-    )
-
-    print(
-        f"[rank_variants] TOTAL: "
-        f"{time.perf_counter() - total_start:.4f}s"
-    )
-
+    print(f"[rank_variants] Sort and truncate: {time.perf_counter() - start:.4f}s ({len(ranked)} results)")
+    print(f"[rank_variants] TOTAL: {time.perf_counter() - total_start:.4f}s")
     return ranked
