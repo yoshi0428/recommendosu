@@ -3,14 +3,11 @@ httpx
 matplotlib
 numpy
 pandas
-polars
 scikit-learn
 osu-tools-py
 pydantic
 python-dotenv
 Requests
-scipy
-torch
 tqdm
 optuna
 uvicorn[standard]

@@ -1,5 +1,4 @@
 import numpy as np
-import polars as pl
 from sklearn.neighbors import NearestNeighbors
 from tqdm import tqdm
 
@@ -17,49 +16,64 @@ SIMILARITY_FEATURES = [
 ]
 
 
+def _fetch_maps_as_numpy(conn, query, params=()):
+    """Helper to fetch DB rows directly into NumPy arrays without DataFrame overhead."""
+    cursor = conn.execute(query, params)
+    rows = cursor.fetchall()
+
+    if not rows:
+        return np.array([], dtype=object), np.empty((0, len(SIMILARITY_FEATURES)), dtype=np.float32)
+
+    # Fast unpacking
+    beatmap_ids = np.array([str(r[0]) for r in rows], dtype=object)
+
+    # Extract feature matrix and replace None/nulls with 0.0 directly
+    matrix_data = [
+        [0.0 if val is None else val for val in r[1:]]
+        for r in rows
+    ]
+    matrix = np.array(matrix_data, dtype=np.float32)
+
+    return beatmap_ids, matrix
+
+
 def get_player_seed_maps(conn, player_id):
-    """
-    Fetch seed maps directly into a Polars DataFrame and extract zero-copy
-    NumPy arrays for beatmap IDs and feature matrices.
-    """
     query = """
         SELECT DISTINCT
             bv.beatmap_id,
-            bv.star_rating, bv.bpm, bv.length_seconds, bv.object_count,
-            bv.ar, bv.od, bv.circle_size, bv.pp_aim, bv.pp_acc, bv.pp_speed
+            COALESCE(bv.star_rating, 0.0),
+            COALESCE(bv.bpm, 0.0),
+            COALESCE(bv.length_seconds, 0.0),
+            COALESCE(bv.object_count, 0.0),
+            COALESCE(bv.ar, 0.0),
+            COALESCE(bv.od, 0.0),
+            COALESCE(bv.circle_size, 0.0),
+            COALESCE(bv.pp_aim, 0.0),
+            COALESCE(bv.pp_acc, 0.0),
+            COALESCE(bv.pp_speed, 0.0)
         FROM scores AS s
         JOIN beatmap_variants AS bv
             ON bv.beatmap_id = s.beatmap_id
             AND bv.mods = 'NM'
         WHERE s.player_id = ?
     """
-    df = pl.read_database(query=query, connection=conn, execute_options={"parameters": [player_id]})
-
-    if df.is_empty():
-        return np.array([], dtype=object), np.empty((0, len(SIMILARITY_FEATURES)), dtype=np.float32)
-
-    beatmap_ids = df["beatmap_id"].cast(pl.Utf8).to_numpy()
-
-    # Fill nulls with 0.0 and convert feature columns directly to a contiguous float32 C-array
-    matrix = (
-        df.select(SIMILARITY_FEATURES)
-        .fill_null(0.0)
-        .to_numpy()
-        .astype(np.float32, copy=False)
-    )
-
-    return beatmap_ids, matrix
+    return _fetch_maps_as_numpy(conn, query, (player_id,))
 
 
 def get_maps(conn, mods="NM", player_id=None):
-    """
-    Fetch candidate map pool directly into a Polars DataFrame.
-    """
     query = """
         SELECT
             bv.beatmap_id,
-            bv.star_rating, bv.bpm, bv.length_seconds, bv.object_count,
-            bv.ar, bv.od, bv.circle_size, bv.pp_aim, bv.pp_acc, bv.pp_speed
+            COALESCE(bv.star_rating, 0.0),
+            COALESCE(bv.bpm, 0.0),
+            COALESCE(bv.length_seconds, 0.0),
+            COALESCE(bv.object_count, 0.0),
+            COALESCE(bv.ar, 0.0),
+            COALESCE(bv.od, 0.0),
+            COALESCE(bv.circle_size, 0.0),
+            COALESCE(bv.pp_aim, 0.0),
+            COALESCE(bv.pp_acc, 0.0),
+            COALESCE(bv.pp_speed, 0.0)
         FROM beatmap_variants AS bv
         WHERE bv.mods = ?
     """
@@ -76,21 +90,7 @@ def get_maps(conn, mods="NM", player_id=None):
         """
         params.append(player_id)
 
-    df = pl.read_database(query=query, connection=conn, execute_options={"parameters": params})
-
-    if df.is_empty():
-        return np.array([], dtype=object), np.empty((0, len(SIMILARITY_FEATURES)), dtype=np.float32)
-
-    beatmap_ids = df["beatmap_id"].cast(pl.Utf8).to_numpy()
-
-    matrix = (
-        df.select(SIMILARITY_FEATURES)
-        .fill_null(0.0)
-        .to_numpy()
-        .astype(np.float32, copy=False)
-    )
-
-    return beatmap_ids, matrix
+    return _fetch_maps_as_numpy(conn, query, params)
 
 
 def calculate_seed_similarity(

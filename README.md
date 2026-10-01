@@ -50,11 +50,11 @@ httpx
 matplotlib
 numpy
 pandas
+scikit-learn
 osu-tools-py
 pydantic
 python-dotenv
 Requests
-scipy
 torch
 tqdm
 optuna

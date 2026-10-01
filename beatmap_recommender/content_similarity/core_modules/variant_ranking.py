@@ -47,24 +47,30 @@ def get_player_played_variants(
     beatmap_ids = sorted({str(row[0]) for row in score_rows})
     check_cancelled(cancel_event)
 
-    # ── Fetch variants ─────────────────────────────────────────
-    placeholders = ",".join("?" for _ in beatmap_ids)
+    # ── Fetch variants (Chunked to respect SQLite parameter limits) ─────────
+    variant_rows = []
+    chunk_size = 900
+    for i in range(0, len(beatmap_ids), chunk_size):
+        check_cancelled(cancel_event)
+        chunk = beatmap_ids[i:i + chunk_size]
+        placeholders = ",".join("?" for _ in chunk)
 
-    variant_rows = conn.execute(
-        f"""
-        SELECT
-            variant_id,
-            beatmap_id,
-            mods,
-            star_rating,
-            ar,
-            od,
-            bpm
-        FROM beatmap_variants
-        WHERE beatmap_id IN ({placeholders})
-        """,
-        beatmap_ids,
-    ).fetchall()
+        rows = conn.execute(
+            f"""
+            SELECT
+                variant_id,
+                beatmap_id,
+                mods,
+                star_rating,
+                ar,
+                od,
+                bpm
+            FROM beatmap_variants
+            WHERE beatmap_id IN ({placeholders})
+            """,
+            chunk,
+        ).fetchall()
+        variant_rows.extend(rows)
 
     check_cancelled(cancel_event)
     variants_by_key = {}
@@ -260,123 +266,11 @@ def get_candidate_variants(
     if not beatmap_ids:
         return []
 
-    placeholders = ",".join("?" for _ in beatmap_ids)
-    params = list(beatmap_ids)
-    conditions = [f"bv.beatmap_id IN ({placeholders})"]
+    beatmap_ids = list(beatmap_ids)
+    all_rows = []
+    chunk_size = 900
 
-    # ── Mod filters ────────────────────────────────────────────
-    if requested_mods:
-        requested_mods = {
-            mod.strip().upper()
-            for mod in requested_mods
-        }
-
-        # account for exact mods toggle
-        if exact_mods:
-            valid_variants = [
-                "".join(
-                    mod
-                    for mod in MOD_ORDER
-                    if mod in requested_mods
-                )
-            ]
-
-            if not valid_variants[0]:
-                valid_variants = ["NM"]
-        else:
-            gameplay_mods = [
-                mod
-                for mod in MOD_ORDER
-                if mod in requested_mods
-            ]
-
-            valid_variants = ["NM"] if "NM" in requested_mods else []
-
-            for mask in range(1, 1 << len(gameplay_mods)):
-                combination = [
-                    gameplay_mods[index]
-                    for index in range(len(gameplay_mods))
-                    if mask & (1 << index)
-                ]
-                valid_variants.append("".join(combination))
-
-        mod_placeholders = ",".join("?" for _ in valid_variants)
-        conditions.append(f"bv.mods IN ({mod_placeholders})")
-        params.extend(valid_variants)
-
-    if excluded_mods:
-        for mod in excluded_mods:
-            if mod == "NM":
-                conditions.append("bv.mods != 'NM'")
-            else:
-                conditions.append("bv.mods NOT LIKE ?")
-                params.append(f"%{mod}%")
-
-    # ── Numeric filters ────────────────────────────────────────
-    numeric_filters = (
-        (
-            "bv.star_rating",
-            difficulty_min_stars if difficulty_min_stars is not None else min_stars,
-            difficulty_max_stars if difficulty_max_stars is not None else max_stars,
-        ),
-        ("bv.bpm", min_bpm, max_bpm),
-        ("bv.pp", min_pp, max_pp),
-        ("bv.ar", min_ar, max_ar),
-        ("bv.od", min_od, max_od),
-        ("bv.length_seconds", min_length, max_length),
-        ("bv.max_combo", min_combo, max_combo),
-        ("bv.circle_size", min_cs, max_cs),
-    )
-
-    for column, minimum, maximum in numeric_filters:
-        if minimum is not None:
-            conditions.append(f"{column} >= ?")
-            params.append(minimum)
-
-        if maximum is not None:
-            conditions.append(f"{column} <= ?")
-            params.append(maximum)
-
-    # ── Query ──────────────────────────────────────────────────
-    check_cancelled(cancel_event)
-    start = time.perf_counter()
-
-    rows = conn.execute(
-        f"""
-        SELECT
-            bv.variant_id,
-            bv.beatmap_id,
-            bv.beatmapset_id,
-            bv.mods,
-            b.title,
-            b.artist,
-            b.creator,
-            b.version,
-            bv.hp_drain,
-            bv.circle_size,
-            bv.od,
-            bv.ar,
-            bv.star_rating,
-            bv.max_combo,
-            bv.bpm,
-            bv.length_seconds,
-            bv.object_count,
-            bv.pp,
-            bv.pp_aim,
-            bv.pp_speed,
-            bv.pp_acc,
-            bv.pp_flashlight
-        FROM beatmap_variants AS bv
-        JOIN beatmaps AS b
-            ON b.beatmap_id = bv.beatmap_id
-        WHERE {" AND ".join(conditions)}
-        """,
-        params,
-    ).fetchall()
-
-    check_cancelled(cancel_event)
-
-    print(f"[get_candidate_variants] SQLite query: {time.perf_counter() - start:.4f}s ({len(rows)} rows)")
+    start_query_time = time.perf_counter()
 
     columns = [
         "variant_id",
@@ -403,15 +297,131 @@ def get_candidate_variants(
         "pp_flashlight",
     ]
 
-    start = time.perf_counter()
+    for i in range(0, len(beatmap_ids), chunk_size):
+        check_cancelled(cancel_event)
+        chunk = beatmap_ids[i:i + chunk_size]
+        placeholders = ",".join("?" for _ in chunk)
+        params = list(chunk)
+        conditions = [f"bv.beatmap_id IN ({placeholders})"]
+
+        # ── Mod filters ────────────────────────────────────────────
+        if requested_mods:
+            requested_mods_set = {
+                mod.strip().upper()
+                for mod in requested_mods
+            }
+
+            if exact_mods:
+                valid_variants = [
+                    "".join(
+                        mod
+                        for mod in MOD_ORDER
+                        if mod in requested_mods_set
+                    )
+                ]
+
+                if not valid_variants[0]:
+                    valid_variants = ["NM"]
+            else:
+                gameplay_mods = [
+                    mod
+                    for mod in MOD_ORDER
+                    if mod in requested_mods_set
+                ]
+
+                valid_variants = ["NM"] if "NM" in requested_mods_set else []
+
+                for mask in range(1, 1 << len(gameplay_mods)):
+                    combination = [
+                        gameplay_mods[index]
+                        for index in range(len(gameplay_mods))
+                        if mask & (1 << index)
+                    ]
+                    valid_variants.append("".join(combination))
+
+            mod_placeholders = ",".join("?" for _ in valid_variants)
+            conditions.append(f"bv.mods IN ({mod_placeholders})")
+            params.extend(valid_variants)
+
+        if excluded_mods:
+            for mod in excluded_mods:
+                if mod == "NM":
+                    conditions.append("bv.mods != 'NM'")
+                else:
+                    conditions.append("bv.mods NOT LIKE ?")
+                    params.append(f"%{mod}%")
+
+        # ── Numeric filters ────────────────────────────────────────
+        numeric_filters = (
+            (
+                "bv.star_rating",
+                difficulty_min_stars if difficulty_min_stars is not None else min_stars,
+                difficulty_max_stars if difficulty_max_stars is not None else max_stars,
+            ),
+            ("bv.bpm", min_bpm, max_bpm),
+            ("bv.pp", min_pp, max_pp),
+            ("bv.ar", min_ar, max_ar),
+            ("bv.od", min_od, max_od),
+            ("bv.length_seconds", min_length, max_length),
+            ("bv.max_combo", min_combo, max_combo),
+            ("bv.circle_size", min_cs, max_cs),
+        )
+
+        for column, minimum, maximum in numeric_filters:
+            if minimum is not None:
+                conditions.append(f"{column} >= ?")
+                params.append(minimum)
+
+            if maximum is not None:
+                conditions.append(f"{column} <= ?")
+                params.append(maximum)
+
+        rows = conn.execute(
+            f"""
+            SELECT
+                bv.variant_id,
+                CAST(bv.beatmap_id AS TEXT),
+                bv.beatmapset_id,
+                bv.mods,
+                b.title,
+                b.artist,
+                b.creator,
+                b.version,
+                bv.hp_drain,
+                bv.circle_size,
+                bv.od,
+                bv.ar,
+                bv.star_rating,
+                bv.max_combo,
+                bv.bpm,
+                bv.length_seconds,
+                bv.object_count,
+                bv.pp,
+                bv.pp_aim,
+                bv.pp_speed,
+                bv.pp_acc,
+                bv.pp_flashlight
+            FROM beatmap_variants AS bv
+            JOIN beatmaps AS b
+                ON b.beatmap_id = bv.beatmap_id
+            WHERE {" AND ".join(conditions)}
+            """,
+            params,
+        ).fetchall()
+        all_rows.extend(rows)
+
+    check_cancelled(cancel_event)
+    print(f"[get_candidate_variants] SQLite query: {time.perf_counter() - start_query_time:.4f}s ({len(all_rows)} rows)")
+
+    start_conv_time = time.perf_counter()
 
     variants = [
         dict(zip(columns, row))
-        for row in rows
+        for row in all_rows
     ]
 
     check_cancelled(cancel_event)
-    print(f"[get_candidate_variants] Python conversion: {time.perf_counter() - start:.4f}s ({len(variants)} variants)")
+    print(f"[get_candidate_variants] Python conversion: {time.perf_counter() - start_conv_time:.4f}s ({len(variants)} variants)")
     return variants
 
 
@@ -726,9 +736,6 @@ def rank_variants(
     start = time.perf_counter()
     classifier_predictions = {}
 
-    print(f"[rank_variants] Classifier weight: {classifier_weight}")
-    print(f"[rank_variants] Category preferences: {category_preferences}")
-
     if classifier_weight > 0 and category_preferences:
         # Deduplicate because a beatmap can have multiple candidate variants.
         classifier_beatmap_ids = list({
@@ -736,7 +743,6 @@ def rank_variants(
             for variant in variants
         })
 
-        print(f"[rank_variants] Classifier candidate beatmaps: {len(classifier_beatmap_ids)}")
         classifier_predictions = get_candidate_classifier_predictions(conn, classifier_beatmap_ids)
 
     check_cancelled(cancel_event)
@@ -746,10 +752,6 @@ def rank_variants(
         f"{time.perf_counter() - start:.4f}s "
         f"({len(classifier_predictions)} predictions)"
     )
-
-    if classifier_predictions:
-        first_beatmap_id = next(iter(classifier_predictions))
-        print(f"[rank_variants] Example classifier prediction for {first_beatmap_id}: {classifier_predictions[first_beatmap_id]}")
 
     # ── Difficulty scores ──────────────────────────────────────
     # The current ranker uses the global difficulty profile. Therefore there is no reason to split variants by mod.
