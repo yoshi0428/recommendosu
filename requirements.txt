@@ -3,6 +3,8 @@ httpx
 matplotlib
 numpy
 pandas
+polars
+scikit-learn
 osu-tools-py
 pydantic
 python-dotenv

@@ -90,9 +90,8 @@ function About() {
           </h3>
 
           <p>
-            You can exclude mods by clicking the checkbox twice for a minus
-            sign. The unchecked mods will be part of mod combinations that may
-            get recommended.
+            You can exclude mods by clicking the checkbox twice for a minus sign. The unchecked mods will be part of mod
+            combinations that may get recommended.
           </p>
 
           <p>
@@ -183,13 +182,20 @@ function About() {
           {/* QUICK NOTICE */}
           <h5 className="mb-0">
             The following sections will go into more depth on difficulty, PP potential, and mod preference scores. I
-            find content similarity pretty intuitive, but just know that it uses{' '}
+            find content similarity pretty intuitive, but just know that it uses a combination of{' '}
             <a
-              href="https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.KDTree.html"
+              href="https://docs.pola.rs/user-guide/getting-started/"
               target="_blank"
               rel="noopener noreferrer"
             >
-              SciPy's KDTree
+              polars
+            </a>{' and scikit-learn\'s '}
+            <a
+              href="https://scikit-learn.org/stable/modules/generated/sklearn.neighbors.NearestNeighbors.html"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              NearestNeighbors
             </a>{' '}
             to find each top & recent play's top 20000 nearest neighbors.
           </h5>

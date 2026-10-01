@@ -1,5 +1,6 @@
 import numpy as np
-from scipy.spatial import KDTree
+import polars as pl
+from sklearn.neighbors import NearestNeighbors
 from tqdm import tqdm
 
 SIMILARITY_FEATURES = [
@@ -15,58 +16,54 @@ SIMILARITY_FEATURES = [
     "pp_acc",
 ]
 
-MAP_COLUMNS = [
-    "beatmap_id",
-    *SIMILARITY_FEATURES,
-]
-
 
 def get_player_seed_maps(conn, player_id):
     """
-    Get the player's played base beatmaps and resolve them to their NM variants.
+    Fetch seed maps directly into a Polars DataFrame and extract zero-copy
+    NumPy arrays for beatmap IDs and feature matrices.
     """
-
-    rows = conn.execute("""
+    query = """
         SELECT DISTINCT
             bv.beatmap_id,
-            bv.star_rating,
-            bv.bpm,
-            bv.length_seconds,
-            bv.object_count,
-            bv.ar,
-            bv.od,
-            bv.circle_size,
-            bv.pp_aim,
-            bv.pp_acc,
-            bv.pp_speed
+            bv.star_rating, bv.bpm, bv.length_seconds, bv.object_count,
+            bv.ar, bv.od, bv.circle_size, bv.pp_aim, bv.pp_acc, bv.pp_speed
         FROM scores AS s
         JOIN beatmap_variants AS bv
             ON bv.beatmap_id = s.beatmap_id
             AND bv.mods = 'NM'
         WHERE s.player_id = ?
-    """, (player_id,)).fetchall()
+    """
+    df = pl.read_database(query=query, connection=conn, execute_options={"parameters": [player_id]})
 
-    return [dict(zip(MAP_COLUMNS, row)) for row in rows]
+    if df.is_empty():
+        return np.array([], dtype=object), np.empty((0, len(SIMILARITY_FEATURES)), dtype=np.float32)
+
+    beatmap_ids = df["beatmap_id"].cast(pl.Utf8).to_numpy()
+
+    # Fill nulls with 0.0 and convert feature columns directly to a contiguous float32 C-array
+    matrix = (
+        df.select(SIMILARITY_FEATURES)
+        .fill_null(0.0)
+        .to_numpy()
+        .astype(np.float32, copy=False)
+    )
+
+    return beatmap_ids, matrix
+
 
 def get_maps(conn, mods="NM", player_id=None):
-    params = [mods]
-
+    """
+    Fetch candidate map pool directly into a Polars DataFrame.
+    """
     query = """
         SELECT
             bv.beatmap_id,
-            bv.star_rating,
-            bv.bpm,
-            bv.length_seconds,
-            bv.object_count,
-            bv.ar,
-            bv.od,
-            bv.circle_size,
-            bv.pp_aim,
-            bv.pp_acc,
-            bv.pp_speed
+            bv.star_rating, bv.bpm, bv.length_seconds, bv.object_count,
+            bv.ar, bv.od, bv.circle_size, bv.pp_aim, bv.pp_acc, bv.pp_speed
         FROM beatmap_variants AS bv
         WHERE bv.mods = ?
     """
+    params = [mods]
 
     if player_id is not None:
         query += """
@@ -79,201 +76,117 @@ def get_maps(conn, mods="NM", player_id=None):
         """
         params.append(player_id)
 
-    rows = conn.execute(query, params).fetchall()
+    df = pl.read_database(query=query, connection=conn, execute_options={"parameters": params})
 
-    return [dict(zip(MAP_COLUMNS, row))for row in rows]
+    if df.is_empty():
+        return np.array([], dtype=object), np.empty((0, len(SIMILARITY_FEATURES)), dtype=np.float32)
 
-def build_feature_matrix(maps):
-    """
-    Convert beatmap dictionaries into:
+    beatmap_ids = df["beatmap_id"].cast(pl.Utf8).to_numpy()
 
-        beatmap_ids
-        float32 feature matrix
-
-    Missing numeric values are represented as 0.0.
-    """
-
-    if not maps:
-        return [], np.empty((0, len(SIMILARITY_FEATURES)), dtype=np.float32)
-
-    beatmap_ids = [str(beatmap["beatmap_id"])for beatmap in maps]
-    matrix = np.asarray(
-        [
-            [
-                float(beatmap[feature])
-                if beatmap[feature] is not None else 0.0
-                for feature in SIMILARITY_FEATURES
-            ]
-            for beatmap in maps
-        ],
-        dtype=np.float32,
+    matrix = (
+        df.select(SIMILARITY_FEATURES)
+        .fill_null(0.0)
+        .to_numpy()
+        .astype(np.float32, copy=False)
     )
 
     return beatmap_ids, matrix
 
+
 def calculate_seed_similarity(
-    seed_maps,
-    candidate_maps,
-    top_k=50,
-    batch_size=8192,
-    similarity_feature_weights=None,
-    workers=-1,
+        seed_beatmap_ids,
+        seed_matrix,
+        candidate_beatmap_ids,
+        candidate_matrix,
+        top_k=50,
+        batch_size=8192,
+        similarity_feature_weights=None,
+        n_jobs=-1,
 ):
-    """
-    Calculate top-K content similarity for player seed maps
-    against the candidate pool.
-
-    Similarity is based on weighted Euclidean distance after
-    z-score standardization using the candidate distribution.
-
-        similarity = 1 / (1 + distance)
-
-    KDTree is used because feature weighting converts the
-    weighted Euclidean metric into ordinary Euclidean distance.
-
-    The candidate pool is expected to already exclude maps
-    played by the player, so seed maps cannot occur in the
-    candidate results.
-    """
-
-    if not seed_maps or not candidate_maps:
+    if len(seed_beatmap_ids) == 0 or len(candidate_beatmap_ids) == 0:
         return {}
 
-    # ---------------------------------------------------------
-    # Build feature matrices.
-    # ---------------------------------------------------------
-    seed_beatmap_ids, seed_matrix = build_feature_matrix(seed_maps)
-    candidate_beatmap_ids, candidate_matrix = build_feature_matrix(candidate_maps)
-    if not seed_beatmap_ids or not candidate_beatmap_ids:
-        return {}
-
-    # ---------------------------------------------------------
-    # Standardize using candidate distribution.
-    # ---------------------------------------------------------
     means = candidate_matrix.mean(axis=0)
     stds = candidate_matrix.std(axis=0)
-
-    # Avoid division by zero for constant features.
     stds[stds == 0] = 1.0
 
-    seed_matrix = ((seed_matrix - means) / stds).astype(np.float32, copy=False)
-    candidate_matrix = ((candidate_matrix - means) / stds).astype(np.float32, copy=False)
+    seed_matrix = (seed_matrix - means) / stds
+    candidate_matrix = (candidate_matrix - means) / stds
 
-    # ---------------------------------------------------------
-    # Apply feature weights.
-    #
-    # Weighted Euclidean distance:
-    #
-    # sqrt(sum((x_i - y_i)^2 * weight_i^2))
-    #
-    # Scaling each feature by its weight turns this into ordinary Euclidean distance.
-    # ---------------------------------------------------------
-    weights = np.asarray(
-        [similarity_feature_weights[feature] for feature in SIMILARITY_FEATURES],
-        dtype=np.float32,
-    )
+    if similarity_feature_weights:
+        weights = np.asarray(
+            [similarity_feature_weights[feature] for feature in SIMILARITY_FEATURES],
+            dtype=np.float32,
+        )
+        seed_matrix *= weights
+        candidate_matrix *= weights
 
-    seed_matrix *= weights
-    candidate_matrix *= weights
-
-    # ---------------------------------------------------------
-    # Number of neighbors.
-    #
-    # The candidate pool already excludes the player's played
-    # maps, so the seed itself cannot appear here.
-    # ---------------------------------------------------------
     n_candidates = len(candidate_beatmap_ids)
-    if n_candidates == 0:
-        return {}
-
     query_k = min(top_k, n_candidates)
 
-    # ---------------------------------------------------------
-    # Build nearest-neighbor index.
-    # ---------------------------------------------------------
-    tree = KDTree(candidate_matrix)
-    candidate_beatmap_ids_array = np.asarray(candidate_beatmap_ids, dtype=object)
+    nn = NearestNeighbors(n_neighbors=query_k, algorithm="brute", metric="euclidean", n_jobs=n_jobs)
+    nn.fit(candidate_matrix)
 
-    # ---------------------------------------------------------
-    # Query seeds in batches.
-    # ---------------------------------------------------------
     similarities = {}
+    n_seeds = len(seed_beatmap_ids)
+
     for start in tqdm(
-        range(0, len(seed_beatmap_ids), batch_size),
-        desc="Calculating seed similarities",
-        unit="batch",
+            range(0, n_seeds, batch_size),
+            desc="Calculating seed similarities",
+            unit="batch",
     ):
-        end = min(start + batch_size, len(seed_beatmap_ids))
-        seed_batch = seed_matrix[start:end]
-        distances, indices = tree.query(seed_batch, k=query_k, workers=workers)
+        end = min(start + batch_size, n_seeds)
+        batch_seeds = seed_matrix[start:end]
 
-        # cKDTree/KDTree returns 1D arrays when k == 1.
-        if query_k == 1:
-            distances = distances[:, None]
-            indices = indices[:, None]
+        distances, indices = nn.kneighbors(batch_seeds)
 
-        # -----------------------------------------------------
-        # Convert nearest-neighbor results into similarities.
-        # -----------------------------------------------------
+        # Vectorized conversion: similarity = 1 / (1 + distance)
+        sim_scores = 1.0 / (1.0 + distances)
+        matched_ids = candidate_beatmap_ids[indices]
+
         for local_i in range(end - start):
             global_i = start + local_i
-            seed_beatmap_id = seed_beatmap_ids[global_i]
-
-            candidate_indices = indices[local_i]
-            candidate_distances = distances[local_i]
-
-            results = []
-
-            for candidate_index, distance in zip(candidate_indices, candidate_distances):
-                if not np.isfinite(distance):
-                    continue
-
-                candidate_index = int(candidate_index)
-                similarity = 1.0 / (1.0 + float(distance))
-
-                results.append(
-                    (candidate_beatmap_ids_array[candidate_index], similarity)
-                )
-
-            if results:
-                similarities[seed_beatmap_id] = results
+            seed_id = seed_beatmap_ids[global_i]
+            similarities[seed_id] = list(zip(matched_ids[local_i], sim_scores[local_i]))
 
     return similarities
 
 
 def build_seed_similarity_index(
-    conn,
-    player_id,
-    top_k=50,
-    batch_size=8192,
-    similarity_feature_weights=None,
-    workers=-1,
-    exclude_already_played=True,
+        conn,
+        player_id,
+        top_k=50,
+        batch_size=8192,
+        similarity_feature_weights=None,
+        workers=-1,
+        exclude_already_played=True,
 ):
-    seed_maps = get_player_seed_maps(conn, player_id)
-    if not seed_maps:
+    seed_beatmap_ids, seed_matrix = get_player_seed_maps(conn, player_id)
+    if len(seed_beatmap_ids) == 0:
         print(f"Player {player_id}: no NM seed maps found.")
         return {}
 
-    print(f"Player {player_id}: {len(seed_maps):,} seed maps.")
+    print(f"Player {player_id}: {len(seed_beatmap_ids):,} seed maps.")
 
     # excludes already played beatmaps within your scores, if True
     if exclude_already_played:
-        candidate_maps = get_maps(conn, mods="NM", player_id=player_id)
+        candidate_beatmap_ids, candidate_matrix = get_maps(conn, mods="NM", player_id=player_id)
     else:
-        candidate_maps = get_maps(conn, mods="NM", player_id=None)
+        candidate_beatmap_ids, candidate_matrix = get_maps(conn, mods="NM", player_id=None)
 
-    if not candidate_maps:
+    if len(candidate_beatmap_ids) == 0:
         print("No unplayed NM candidate maps remain.")
         return {}
 
-    print(f"\nNM candidate pool: {len(candidate_maps):,} maps.\n")
+    print(f"\nNM candidate pool: {len(candidate_beatmap_ids):,} maps.\n")
 
     return calculate_seed_similarity(
-        seed_maps=seed_maps,
-        candidate_maps=candidate_maps,
+        seed_beatmap_ids=seed_beatmap_ids,
+        seed_matrix=seed_matrix,
+        candidate_beatmap_ids=candidate_beatmap_ids,
+        candidate_matrix=candidate_matrix,
         top_k=top_k,
         batch_size=batch_size,
         similarity_feature_weights=similarity_feature_weights,
-        workers=workers,
+        n_jobs=workers,
     )

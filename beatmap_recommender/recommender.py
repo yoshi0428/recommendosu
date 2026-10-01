@@ -294,9 +294,11 @@ def recommend_player_sync(
         # ── Output ─────────────────────────────────────────────
 
         print(f"\nRecommendation goal: {settings.goal}")
+        print(f"\nTop {len(ranked_variants)} recommendations (cut to 10):")
 
-        print(f"\nTop {len(ranked_variants)} recommendations:")
-        for i, variant in enumerate(ranked_variants, 1):
+        top_variants = ranked_variants[:10]
+
+        for i, variant in enumerate(top_variants, 1):
             print(
                 f"{i:2d}. "
                 f"beatmap={variant['beatmap_id']}, "
@@ -314,7 +316,6 @@ def recommend_player_sync(
                 f"pp_potential={variant['pp_potential']:.4f}, "
                 f"final={variant['final_score']:.4f}"
             )
-
         return ranked_variants
 
     finally:
