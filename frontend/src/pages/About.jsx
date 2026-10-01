@@ -182,14 +182,7 @@ function About() {
           {/* QUICK NOTICE */}
           <h5 className="mb-0">
             The following sections will go into more depth on difficulty, PP potential, and mod preference scores. I
-            find content similarity pretty intuitive, but just know that it uses a combination of{' '}
-            <a
-              href="https://docs.pola.rs/user-guide/getting-started/"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              polars
-            </a>{' and scikit-learn\'s '}
+            find content similarity pretty intuitive, but just know that it uses scikit-learn's{' '}
             <a
               href="https://scikit-learn.org/stable/modules/generated/sklearn.neighbors.NearestNeighbors.html"
               target="_blank"
