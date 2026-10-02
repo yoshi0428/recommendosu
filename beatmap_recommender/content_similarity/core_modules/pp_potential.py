@@ -24,6 +24,8 @@ def calculate_pp_potential(
     difficulty_feature_weights,
     pp_push_target_z,
     pp_push_max_z,
+    pp_min=None,
+    pp_max=None,
 ):
     """
     Estimate the PP potential of a candidate relative to the player's demonstrated difficulty.
@@ -52,6 +54,12 @@ def calculate_pp_potential(
         return 0.0
 
     if pp <= 0:
+        return 0.0
+
+    if pp_min is not None and pp < pp_min:
+        return 0.0
+
+    if pp_max is not None and pp > pp_max:
         return 0.0
 
     # ---------------------------------------------------------------
@@ -114,15 +122,25 @@ def calculate_pp_potential(
     # PP itself.
     # log1p prevents very high PP values from completely dominating.
     # ---------------------------------------------------------------
-    pp_factor = np.log1p(pp)
+    pp_mean = difficulty_profile.get("pp_mean")
+    pp_std = difficulty_profile.get("pp_std")
 
-    # Normalize PP factor to a practical range.
-    # 300pp -> roughly 0.85
-    # 400pp -> roughly 0.90
-    # 500pp -> roughly 0.93
-    #
-    # This intentionally has diminishing returns.
-    pp_factor = pp_factor / np.log1p(500.0)
+    if pp_mean is None or pp_std is None:
+        return 0.0
+
+    try:
+        pp_mean = float(pp_mean)
+        pp_std = float(pp_std)
+    except (TypeError, ValueError):
+        return 0.0
+
+    if pp_std <= 0:
+        pp_std = 1.0
+
+    pp_z = (pp - pp_mean) / pp_std
+    pp_factor = 1.0 / (1.0 + np.exp(-pp_z))
+
+    # Normalize PP factor to a practical range. This intentionally has diminishing returns.
     pp_factor = min(max(pp_factor, 0.0), 1.0)
     score = (pp_factor * difficulty_factor)
 

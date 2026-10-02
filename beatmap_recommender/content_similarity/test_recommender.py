@@ -202,7 +202,6 @@ def main():
         api = OsuAPIClient()
 
         # ── Update scores ──────────────────────────────────────
-
         print(f"Updating Player {PLAYER_ID} top & recent scores...")
         update_player_scores(
             conn,
@@ -210,14 +209,8 @@ def main():
             PLAYER_ID,
             limit=SCORE_LIMIT,
         )
-        print(
-            f"Finished updating Player {PLAYER_ID} "
-            "top & recent scores!"
-        )
-
-        print(
-            f"\nBuilding recommendations for player {PLAYER_ID}..."
-        )
+        print(f"Finished updating Player {PLAYER_ID} top & recent scores!")
+        print(f"\nBuilding recommendations for player {PLAYER_ID}...")
 
         # ── Content similarity ────────────────────────────────
         print(SIMILARITY_FEATURE_WEIGHTS)
@@ -231,10 +224,7 @@ def main():
             exclude_already_played=EXCLUDE_ALREADY_PLAYED,
         )
 
-        print(
-            f"Player {PLAYER_ID}: "
-            f"{len(similarity_index)} seed maps with similarity results."
-        )
+        print(f"Player {PLAYER_ID}: {len(similarity_index)} seed maps with similarity results.")
 
         if not similarity_index:
             print("No similarity results found.")
@@ -305,10 +295,9 @@ def main():
             print(f"  {mods}: {preference:.3f}")
 
         # ── Difficulty profiles ───────────────────────────────
-        difficulty_profile, _ = get_player_difficulty_profiles(
+        difficulty_profile, mod_profiles = get_player_difficulty_profiles(
             conn,
             player_id=PLAYER_ID,
-            difficulty_std_floors=DIFFICULTY_STD_FLOORS,
             recency_half_life_days=RECENCY_HALF_LIFE_DAYS,
             ability_top_weight=ABILITY_TOP_WEIGHT,
             ability_recent_weight=ABILITY_RECENT_WEIGHT,
@@ -336,10 +325,7 @@ def main():
 
             print()
             for label, probability in category_preferences.items():
-                print(
-                    f"{label}: "
-                    f"{float(probability) * 100:.2f}%"
-                )
+                print(f"{label}: {float(probability) * 100:.2f}%")
 
         # ── Final ranking ─────────────────────────────────────
 
@@ -348,6 +334,7 @@ def main():
             similarity_index=similarity_index,
             mod_preferences=mod_preferences,
             difficulty_profile=difficulty_profile,
+            mod_profiles=mod_profiles,
             difficulty_star_std_multiplier=DIFFICULTY_STAR_STD_MULTIPLIER,
             category_preferences=category_preferences,
             top_k=NUM_RECOMMENDATIONS,

@@ -46,12 +46,10 @@ def get_ability_score_weight(source, pp, created_at, recency_half_life_days, abi
     # ---------------------------------------------------------------
     # "top" scores provide a stable historical baseline.
     # "recent" scores are more representative of current ability.
-    # "top,recent" means the same score appeared in both collections. Treat it as recent rather than double-counting it.
-    if source == "top":
+    # "top,recent" means the same score appeared in both collections. Treat it as top to avoid giving it extra weight merely because it was present in both collections.
+    if source in ("top", "top,recent"):
         weight *= ability_top_weight
     elif source == "recent":
-        weight *= ability_recent_weight
-    elif source == "top,recent":
         weight *= ability_recent_weight
     else:
         weight *= 1.0

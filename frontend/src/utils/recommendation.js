@@ -36,8 +36,8 @@ export const DEFAULT_RECOMMENDATION_CONFIG = {
     },
     sort_keys: [
       "final_score",
-      "difficulty_score",
       "content_similarity",
+      "difficulty_score",
       "classifier_score",
     ],
   },
@@ -52,9 +52,9 @@ export const DEFAULT_RECOMMENDATION_CONFIG = {
     },
     sort_keys: [
       "final_score",
+      "content_similarity",
       "pp_potential",
       "difficulty_score",
-      "content_similarity",
       "classifier_score",
     ],
   },
@@ -99,8 +99,8 @@ export function createDefaultSettings() {
     ability_pp_weight: 0.05,
     recency_half_life_days: 30.0,
 
-    pp_push_target_z: 0.75,
-    pp_push_max_z: 2.0,
+    pp_push_target_z: 2.50,
+    pp_push_max_z: 7.50,
 
     recommendation_config: structuredClone(
       DEFAULT_RECOMMENDATION_CONFIG

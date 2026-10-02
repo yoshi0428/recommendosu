@@ -206,10 +206,9 @@ def recommend_player_sync(
 
         # ── Difficulty profile ────────────────────────────────
         print(f"\nEXCLUDE RECENT PLAYS: {settings.exclude_recent_plays}")
-        difficulty_profile, _ = get_player_difficulty_profiles(
+        difficulty_profile, mod_profiles = get_player_difficulty_profiles(
             conn,
             player_id=settings.player_id,
-            difficulty_std_floors=settings.difficulty_std_floors,
             recency_half_life_days=settings.recency_half_life_days,
             ability_top_weight=settings.ability_top_weight,
             ability_recent_weight=settings.ability_recent_weight,
@@ -226,6 +225,7 @@ def recommend_player_sync(
             "ar",
             "od",
             "bpm",
+            "pp"
         ):
             mean = difficulty_profile.get(f"{feature}_mean")
             std = difficulty_profile.get(f"{feature}_std")
@@ -258,6 +258,7 @@ def recommend_player_sync(
             similarity_index=similarity_index,
             mod_preferences=mod_preferences,
             difficulty_profile=difficulty_profile,
+            mod_profiles=mod_profiles,
             difficulty_star_std_multiplier=settings.difficulty_star_std_multiplier,
             category_preferences=category_preferences,
             top_k=settings.limit,

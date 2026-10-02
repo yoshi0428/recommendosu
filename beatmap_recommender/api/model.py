@@ -37,10 +37,10 @@ ABILITY_RECENT_WEIGHT = 2.0
 ABILITY_PP_WEIGHT = 0.05
 RECENCY_HALF_LIFE_DAYS = 30.0
 
-PP_PUSH_TARGET_Z = 0.75
-PP_PUSH_MAX_Z = 2.0
+PP_PUSH_TARGET_Z = 2.50
+PP_PUSH_MAX_Z = 7.50
 
-DIFFICULTY_STAR_STD_MULTIPLIER = 0.75
+DIFFICULTY_STAR_STD_MULTIPLIER = 1.00
 
 RECOMMENDATION_CONFIG = {
     "balanced": {
@@ -53,8 +53,8 @@ RECOMMENDATION_CONFIG = {
         },
         "sort_keys": (
             "final_score",
-            "difficulty_score",
             "content_similarity",
+            "difficulty_score",
             "classifier_score",
         ),
     },
@@ -69,9 +69,9 @@ RECOMMENDATION_CONFIG = {
         },
         "sort_keys": (
             "final_score",
+            "content_similarity",
             "pp_potential",
             "difficulty_score",
-            "content_similarity",
             "classifier_score",
         ),
     },

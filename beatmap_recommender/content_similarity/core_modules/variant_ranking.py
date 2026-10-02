@@ -111,7 +111,7 @@ def get_player_played_variants(
         # True False -> False False which would not append recent plays
         # False True -> True True which would append top plays
         # False False -> True False which would append recent plays
-        if not exclude_recent_plays or source == "top":
+        if not exclude_recent_plays or source in ("top", "top,recent"):
             played_variants.append({
                 **variant,
                 "source": source,
@@ -126,7 +126,6 @@ def get_player_played_variants(
 def get_player_difficulty_profiles(
     conn,
     player_id,
-    difficulty_std_floors,
     recency_half_life_days,
     ability_top_weight,
     ability_recent_weight,
@@ -156,10 +155,27 @@ def get_player_difficulty_profiles(
     if not played_variants:
         return {}, {}
 
-    features = ("star_rating", "ar", "od", "bpm")
+    features = ("star_rating", "ar", "od", "bpm", "pp")
 
     def build_profile(variants):
         profile = {}
+
+        top_plays = sorted(
+            (
+                variant
+                for variant in variants
+                if variant["source"] in ("top", "top,recent") and variant.get("pp") is not None
+            ),
+            key=lambda variant: float(variant["pp"]),
+            reverse=True,
+        )
+
+        # Highest PP top play in this profile.
+        top_pp = (
+            float(top_plays[0]["pp"])
+            if top_plays
+            else 0.0
+        )
 
         for feature in features:
             check_cancelled(cancel_event)
@@ -167,7 +183,12 @@ def get_player_difficulty_profiles(
             values = []
             weights = []
 
-            for index, variant in enumerate(variants):
+            if feature == "pp":
+                profile_variants = top_plays
+            else:
+                profile_variants = variants
+
+            for index, variant in enumerate(profile_variants):
                 if index % 1024 == 0:
                     check_cancelled(cancel_event)
 
@@ -181,15 +202,43 @@ def get_player_difficulty_profiles(
                 except (TypeError, ValueError):
                     continue
 
-                weight = get_ability_score_weight(
-                    variant["source"],
-                    variant["pp"],
-                    variant["created_at"],
-                    recency_half_life_days,
-                    ability_top_weight,
-                    ability_recent_weight,
-                    ability_pp_weight,
-                )
+                if feature == "pp":
+                    rank = index + 1
+
+                    # #1 = 1.0, with a strong decay toward lower-ranked top plays.
+                    weight = 0.80 ** (rank - 1)
+
+                elif feature == "star_rating":
+                    ability_weight = get_ability_score_weight(
+                        variant["source"],
+                        variant["pp"],
+                        variant["created_at"],
+                        recency_half_life_days,
+                        ability_top_weight,
+                        ability_recent_weight,
+                        ability_pp_weight,
+                    )
+
+                    pp = variant.get("pp")
+
+                    if pp is None or top_pp <= 0:
+                        continue
+
+                    # Higher-PP performances give more influence to the player's demonstrated star-rating profile.
+                    pp_weight = np.sqrt(float(pp) / top_pp)
+
+                    weight = ability_weight * pp_weight
+
+                else:
+                    weight = get_ability_score_weight(
+                        variant["source"],
+                        variant["pp"],
+                        variant["created_at"],
+                        recency_half_life_days,
+                        ability_top_weight,
+                        ability_recent_weight,
+                        ability_pp_weight,
+                    )
 
                 values.append(value)
                 weights.append(weight)
@@ -198,7 +247,8 @@ def get_player_difficulty_profiles(
                 continue
 
             mean, std = weighted_mean_and_std(values, weights)
-            std = max(std, difficulty_std_floors[feature])
+            if feature == "pp":
+                print(f"[difficulty_profile] PP: mean={mean:.2f}, std={std:.2f}")
 
             profile[f"{feature}_mean"] = mean
             profile[f"{feature}_std"] = std
@@ -570,6 +620,7 @@ def rank_variants(
     similarity_index,
     mod_preferences,
     difficulty_profile,
+    mod_profiles=None,
     difficulty_star_std_multiplier=0.50,
     category_preferences=None,
     top_k=None,
@@ -643,17 +694,11 @@ def rank_variants(
         # Explicit star filters override the automatic difficulty bounds.
         if min_stars is not None:
             min_difficulty_stars = float(min_stars)
-
-            # A deliberately high minimum should not be contradicted by the automatic maximum.
-            if min_difficulty_stars > max_difficulty_stars:
-                max_difficulty_stars = float("inf")
+            max_difficulty_stars = float("inf")
 
         if max_stars is not None:
             max_difficulty_stars = float(max_stars)
-
-            # A deliberately low max-star filter should not be contradicted by the automatic minimum difficulty.
-            if min_difficulty_stars > max_difficulty_stars:
-                min_difficulty_stars = 0.0
+            min_difficulty_stars = 0.0
     else:
         min_difficulty_stars = (
             float(min_stars)
@@ -665,6 +710,32 @@ def rank_variants(
             float(max_stars)
             if max_stars is not None
             else None
+        )
+
+    # ── PP push range ──────────────────────────────────────────
+    pp_mean = difficulty_profile.get("pp_mean")
+    pp_std = difficulty_profile.get("pp_std")
+
+    pp_potential_min = None
+    pp_potential_max = None
+
+    if (
+        pp_mean is not None
+        and pp_std is not None
+        and pp_push_target_z is not None
+        and pp_push_max_z is not None
+    ):
+        pp_mean = float(pp_mean)
+        pp_std = float(pp_std)
+
+        pp_potential_min = pp_mean + pp_push_target_z * pp_std
+        pp_potential_max = pp_mean + pp_push_max_z * pp_std
+
+        print(
+            f"\n[rank_variants] PP potential range: "
+            f"{pp_potential_min:.1f} - {pp_potential_max:.1f} PP "
+            f"(z={pp_push_target_z:.2f} to {pp_push_max_z:.2f}, "
+            f"mean={pp_mean:.1f}, std={pp_std:.1f})"
         )
 
     # ── Validate filters ───────────────────────────────────────
@@ -699,11 +770,7 @@ def rank_variants(
 
     check_cancelled(cancel_event)
 
-    print(
-        f"\n[rank_variants] Collapse similarities: "
-        f"{time.perf_counter() - start:.4f}s "
-        f"({len(candidate_similarity)} candidate beatmaps)"
-    )
+    print(f"[rank_variants] Collapse similarities: {time.perf_counter() - start:.4f}s ({len(candidate_similarity)} candidate beatmaps)")
 
     if not candidate_similarity:
         return []
@@ -775,22 +842,42 @@ def rank_variants(
 
     check_cancelled(cancel_event)
 
-    print(
-        f"[rank_variants] Classifier predictions: "
-        f"{time.perf_counter() - start:.4f}s "
-        f"({len(classifier_predictions)} predictions)"
-    )
+    print(f"[rank_variants] Classifier predictions: {time.perf_counter() - start:.4f}s ({len(classifier_predictions)} predictions)")
 
     # ── Difficulty scores ──────────────────────────────────────
-    # The current ranker uses the global difficulty profile. Therefore there is no reason to split variants by mod.
     start = time.perf_counter()
-    difficulty_scores = calculate_difficulty_scores(
-        variants,
-        difficulty_profile,
-        difficulty_std_floors,
-        difficulty_feature_weights,
-        cancel_event=cancel_event,
-    )
+    difficulty_scores = np.empty(len(variants), dtype=np.float32)
+    variants_by_mod = {}
+
+    for index, variant in enumerate(variants):
+        variants_by_mod.setdefault(
+            variant["mods"],
+            [],
+        ).append(index)
+
+    for mods, indices in variants_by_mod.items():
+        check_cancelled(cancel_event)
+
+        profile = (
+            mod_profiles.get(mods)
+            if mod_profiles
+            else None
+        )
+
+        if profile is None:
+            profile = difficulty_profile
+
+        mod_variants = [variants[index] for index in indices]
+
+        scores = calculate_difficulty_scores(
+            mod_variants,
+            profile,
+            difficulty_std_floors,
+            difficulty_feature_weights,
+            cancel_event=cancel_event,
+        )
+
+        difficulty_scores[indices] = scores
 
     check_cancelled(cancel_event)
     print(f"[rank_variants] Difficulty scores: {time.perf_counter() - start:.4f}s ({eligible_count} variants)")
@@ -811,6 +898,15 @@ def rank_variants(
         mod_preference = mod_preferences.get(mods, 0.0)
         difficulty_score = float(difficulty_scores[index])
 
+        difficulty_profile_for_variant = (
+            mod_profiles.get(mods)
+            if mod_profiles
+            else None
+        )
+
+        if difficulty_profile_for_variant is None:
+            difficulty_profile_for_variant = difficulty_profile
+
         if category_preferences:
             probabilities = classifier_predictions.get(beatmap_id)
             classifier_score = calculate_classifier_score(probabilities, category_preferences)
@@ -820,11 +916,13 @@ def rank_variants(
         if pp_potential_weight > 0:
             pp_potential = calculate_pp_potential(
                 variant,
-                difficulty_profile,
+                difficulty_profile_for_variant,
                 difficulty_std_floors,
                 difficulty_feature_weights,
                 pp_push_target_z,
                 pp_push_max_z,
+                pp_min=pp_potential_min,
+                pp_max=pp_potential_max,
             )
         else:
             pp_potential = 0.0
