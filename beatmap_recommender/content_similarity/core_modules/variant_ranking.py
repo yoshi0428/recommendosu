@@ -277,10 +277,6 @@ def get_candidate_variants(
         "beatmap_id",
         "beatmapset_id",
         "mods",
-        "title",
-        "artist",
-        "creator",
-        "version",
         "hp_drain",
         "circle_size",
         "od",
@@ -383,10 +379,6 @@ def get_candidate_variants(
                 CAST(bv.beatmap_id AS TEXT),
                 bv.beatmapset_id,
                 bv.mods,
-                b.title,
-                b.artist,
-                b.creator,
-                b.version,
                 bv.hp_drain,
                 bv.circle_size,
                 bv.od,
@@ -402,8 +394,6 @@ def get_candidate_variants(
                 bv.pp_acc,
                 bv.pp_flashlight
             FROM beatmap_variants AS bv
-            JOIN beatmaps AS b
-                ON b.beatmap_id = bv.beatmap_id
             WHERE {" AND ".join(conditions)}
             """,
             params,
@@ -423,6 +413,37 @@ def get_candidate_variants(
     check_cancelled(cancel_event)
     print(f"[get_candidate_variants] Python conversion: {time.perf_counter() - start_conv_time:.4f}s ({len(variants)} variants)")
     return variants
+
+
+def fetch_beatmap_metadata(conn, beatmap_ids):
+    """Fetch beatmap string metadata for final selected candidates."""
+    if not beatmap_ids:
+        return {}
+
+    metadata = {}
+    chunk_size = 900
+    beatmap_ids = list(beatmap_ids)
+
+    for i in range(0, len(beatmap_ids), chunk_size):
+        chunk = beatmap_ids[i:i + chunk_size]
+        placeholders = ",".join("?" for _ in chunk)
+        rows = conn.execute(
+            f"""
+            SELECT CAST(beatmap_id AS TEXT), title, artist, creator, version
+            FROM beatmaps
+            WHERE beatmap_id IN ({placeholders})
+            """,
+            chunk,
+        ).fetchall()
+        for b_id, title, artist, creator, version in rows:
+            metadata[b_id] = {
+                "title": title,
+                "artist": artist,
+                "creator": creator,
+                "version": version,
+            }
+
+    return metadata
 
 
 def calculate_difficulty_scores(
@@ -601,6 +622,13 @@ def rank_variants(
     classifier_weight = weights["classifier"]
     pp_potential_weight = weights["pp_potential"]
 
+    # Local copies of weights to eliminate dict access overhead inside loop
+    w_content = weights["content"]
+    w_mod = weights["mod_preference"]
+    w_diff = weights["difficulty"]
+    w_class = weights["classifier"]
+    w_pp = weights["pp_potential"]
+
     # ── Player difficulty target ───────────────────────────────
     star_mean = difficulty_profile.get("star_rating_mean")
     star_std = difficulty_profile.get("star_rating_std")
@@ -770,6 +798,8 @@ def rank_variants(
     # ── Score variants + keep best per beatmap ─────────────────
     start = time.perf_counter()
     best_by_beatmap = {}
+    best_scores = {}
+
     for index, variant in enumerate(variants):
         if index % 1024 == 0:
             check_cancelled(cancel_event)
@@ -782,7 +812,7 @@ def rank_variants(
         difficulty_score = float(difficulty_scores[index])
 
         if category_preferences:
-            probabilities = classifier_predictions.get(variant["beatmap_id"])
+            probabilities = classifier_predictions.get(beatmap_id)
             classifier_score = calculate_classifier_score(probabilities, category_preferences)
         else:
             classifier_score = 0.0
@@ -799,28 +829,27 @@ def rank_variants(
         else:
             pp_potential = 0.0
 
-        final_score = score_variant(
-            content_similarity,
-            mod_preference,
-            difficulty_score,
-            classifier_score,
-            pp_potential,
-            recommendation_goal,
-            recommendation_config,
+        final_score = (
+            w_content * content_similarity
+            + w_mod * mod_preference
+            + w_diff * difficulty_score
+            + w_class * classifier_score
+            + w_pp * pp_potential
         )
 
-        # Avoid creating an intermediate scored_variants list.
-        previous = best_by_beatmap.get(beatmap_id)
-        if previous is None or final_score > previous["final_score"]:
-            best_by_beatmap[beatmap_id] = {
-                **variant,
-                "content_similarity": content_similarity,
-                "mod_preference": mod_preference,
-                "difficulty_score": difficulty_score,
-                "classifier_score": classifier_score,
-                "pp_potential": pp_potential,
-                "final_score": final_score,
-            }
+        # Avoid creating an intermediate scored_variants list or dict unpacking until a beatmap is replaced.
+        previous_score = best_scores.get(beatmap_id)
+        if previous_score is None or final_score > previous_score:
+            best_scores[beatmap_id] = final_score
+            best_by_beatmap[beatmap_id] = (
+                variant,
+                content_similarity,
+                mod_preference,
+                difficulty_score,
+                classifier_score,
+                pp_potential,
+                final_score,
+            )
 
     check_cancelled(cancel_event)
 
@@ -835,10 +864,30 @@ def rank_variants(
     check_cancelled(cancel_event)
     start = time.perf_counter()
 
-    ranked = list(best_by_beatmap.values())
+    # Reconstruct dict items for remaining deduplicated candidates
+    ranked_candidates = []
+    for (
+        variant,
+        content_similarity,
+        mod_preference,
+        difficulty_score,
+        classifier_score,
+        pp_potential,
+        final_score,
+    ) in best_by_beatmap.values():
+        ranked_candidates.append({
+            **variant,
+            "content_similarity": content_similarity,
+            "mod_preference": mod_preference,
+            "difficulty_score": difficulty_score,
+            "classifier_score": classifier_score,
+            "pp_potential": pp_potential,
+            "final_score": final_score,
+        })
+
     sort_keys = config["sort_keys"]
 
-    ranked.sort(
+    ranked_candidates.sort(
         key=lambda variant: tuple(
             variant[key]
             for key in sort_keys
@@ -849,7 +898,22 @@ def rank_variants(
     check_cancelled(cancel_event)
 
     if top_k is not None:
-        ranked = ranked[:top_k]
+        ranked_candidates = ranked_candidates[:top_k]
+
+    # Fetch beatmap string metadata only for top_k maps
+    winning_beatmap_ids = [v["beatmap_id"] for v in ranked_candidates]
+    metadata_map = fetch_beatmap_metadata(conn, winning_beatmap_ids)
+
+    ranked = []
+    for variant in ranked_candidates:
+        b_meta = metadata_map.get(variant["beatmap_id"], {})
+        ranked.append({
+            **variant,
+            "title": b_meta.get("title"),
+            "artist": b_meta.get("artist"),
+            "creator": b_meta.get("creator"),
+            "version": b_meta.get("version"),
+        })
 
     print(f"[rank_variants] Sort and truncate: {time.perf_counter() - start:.4f}s ({len(ranked)} results)")
     print(f"[rank_variants] TOTAL: {time.perf_counter() - total_start:.4f}s")
