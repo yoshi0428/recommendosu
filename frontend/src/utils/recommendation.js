@@ -100,7 +100,9 @@ export function createDefaultSettings() {
     recency_half_life_days: 30.0,
 
     pp_push_target_z: 2.50,
-    pp_push_max_z: 7.50,
+    pp_push_max_z: 5.00,
+    feature_target_z: 1.00,
+    feature_max_z: 3.00,
 
     recommendation_config: structuredClone(
       DEFAULT_RECOMMENDATION_CONFIG

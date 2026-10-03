@@ -206,7 +206,7 @@ def recommend_player_sync(
 
         # ── Difficulty profile ────────────────────────────────
         print(f"\nEXCLUDE RECENT PLAYS: {settings.exclude_recent_plays}")
-        difficulty_profile, mod_profiles = get_player_difficulty_profiles(
+        difficulty_profile = get_player_difficulty_profiles(
             conn,
             player_id=settings.player_id,
             recency_half_life_days=settings.recency_half_life_days,
@@ -258,7 +258,6 @@ def recommend_player_sync(
             similarity_index=similarity_index,
             mod_preferences=mod_preferences,
             difficulty_profile=difficulty_profile,
-            mod_profiles=mod_profiles,
             difficulty_star_std_multiplier=settings.difficulty_star_std_multiplier,
             category_preferences=category_preferences,
             top_k=settings.limit,
@@ -287,6 +286,8 @@ def recommend_player_sync(
             difficulty_feature_weights=settings.difficulty_feature_weights,
             pp_push_target_z=settings.pp_push_target_z,
             pp_push_max_z=settings.pp_push_max_z,
+            feature_target_z=settings.feature_target_z,
+            feature_max_z=settings.feature_max_z,
             cancel_event=cancel_event,
         )
 

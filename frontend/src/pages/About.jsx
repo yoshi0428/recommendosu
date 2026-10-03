@@ -340,29 +340,22 @@ function About() {
           </p>
 
           <p>
-            The system uses <strong>0.75 standard deviations</strong> above your demonstrated
-            difficulty as the point at which the below-ability penalty stops. Candidates closer than 0.75 standard
-            deviations to your profile receive a reduced PP-potential score. Candidates between <strong>0.75 and 2.0
+            The system uses <strong>2.50 standard deviations</strong> above your demonstrated
+            difficulty as the point at which the below-ability penalty stops. Candidates closer than 2.50 standard
+            deviations to your profile receive a reduced PP-potential score. Candidates between <strong>2.50 and 5.00
             standard deviations</strong> above or below this range do not receive an additional difficulty penalty.
           </p>
 
           <p>
-            Candidates more than <strong>2.0 standard deviations</strong> from your demonstrated difficulty receive an
+            Candidates more than <strong>5.00 standard deviations</strong> from your demonstrated difficulty receive an
             increasingly strong penalty. This prevents extremely difficult maps from receiving a high PP-potential score
             solely because their raw PP is high.
           </p>
 
-          <p>
-            Candidate PP is transformed using a logarithmic scale, so
-            higher PP values increase the score with diminishing returns. This prevents extremely high-PP maps from
-            completely dominating the recommendation.
-
-          </p>
-
           <p className="mb-0">
             <strong>PP potential parameters</strong>{' '}
-            <span className="d-block">Below-ability threshold (PP Push Target Z) --- 0.75 standard deviations</span>
-            <span className="d-block">Maximum difficulty range (PP Push Maximum Z) --- 2.0 standard deviations</span>
+            <span className="d-block">Below-ability threshold (PP Push Target Z) --- 2.50 standard deviations</span>
+            <span className="d-block">Maximum difficulty range (PP Push Maximum Z) --- 5.00 standard deviations</span>
           </p>
         </div>
 

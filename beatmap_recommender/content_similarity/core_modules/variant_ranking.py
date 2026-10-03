@@ -131,7 +131,6 @@ def get_player_difficulty_profiles(
     ability_recent_weight,
     ability_pp_weight,
     exclude_recent_plays,
-    min_profile_plays=5,
     cancel_event=None,
 ):
     """
@@ -248,42 +247,16 @@ def get_player_difficulty_profiles(
 
             mean, std = weighted_mean_and_std(values, weights)
             if feature == "pp":
-                print(f"[difficulty_profile] PP: mean={mean:.2f}, std={std:.2f}")
+                print(f"[difficulty_profile] Global Profile --- PP: mean={mean:.2f}, std={std:.2f}")
 
             profile[f"{feature}_mean"] = mean
             profile[f"{feature}_std"] = std
 
         return profile
 
-    # ── Global profile ─────────────────────────────────────────
     global_profile = build_profile(played_variants)
-
-    # ── Group by exact mod combination ─────────────────────────
-    variants_by_mod = {}
-
-    for variant in played_variants:
-        variants_by_mod.setdefault(
-            variant["mods"],
-            [],
-        ).append(variant)
-
-    # ── Exact-mod profiles ─────────────────────────────────────
-    mod_profiles = {}
-
-    for mods, variants in variants_by_mod.items():
-        check_cancelled(cancel_event)
-
-        if len(variants) < min_profile_plays:
-            continue
-
-        profile = build_profile(variants)
-
-        if profile:
-            mod_profiles[mods] = profile
-
     check_cancelled(cancel_event)
-
-    return global_profile, mod_profiles
+    return global_profile
 
 
 def get_candidate_variants(
@@ -620,7 +593,6 @@ def rank_variants(
     similarity_index,
     mod_preferences,
     difficulty_profile,
-    mod_profiles=None,
     difficulty_star_std_multiplier=0.50,
     category_preferences=None,
     top_k=None,
@@ -649,6 +621,8 @@ def rank_variants(
     difficulty_feature_weights=None,
     pp_push_target_z=None,
     pp_push_max_z=None,
+    feature_target_z=None,
+    feature_max_z=None,
     cancel_event=None,
 ):
     """
@@ -845,39 +819,15 @@ def rank_variants(
     print(f"[rank_variants] Classifier predictions: {time.perf_counter() - start:.4f}s ({len(classifier_predictions)} predictions)")
 
     # ── Difficulty scores ──────────────────────────────────────
+    # The current ranker uses the global difficulty profile. Therefore there is no reason to split variants by mod.
     start = time.perf_counter()
-    difficulty_scores = np.empty(len(variants), dtype=np.float32)
-    variants_by_mod = {}
-
-    for index, variant in enumerate(variants):
-        variants_by_mod.setdefault(
-            variant["mods"],
-            [],
-        ).append(index)
-
-    for mods, indices in variants_by_mod.items():
-        check_cancelled(cancel_event)
-
-        profile = (
-            mod_profiles.get(mods)
-            if mod_profiles
-            else None
-        )
-
-        if profile is None:
-            profile = difficulty_profile
-
-        mod_variants = [variants[index] for index in indices]
-
-        scores = calculate_difficulty_scores(
-            mod_variants,
-            profile,
-            difficulty_std_floors,
-            difficulty_feature_weights,
-            cancel_event=cancel_event,
-        )
-
-        difficulty_scores[indices] = scores
+    difficulty_scores = calculate_difficulty_scores(
+        variants,
+        difficulty_profile,
+        difficulty_std_floors,
+        difficulty_feature_weights,
+        cancel_event=cancel_event,
+    )
 
     check_cancelled(cancel_event)
     print(f"[rank_variants] Difficulty scores: {time.perf_counter() - start:.4f}s ({eligible_count} variants)")
@@ -898,15 +848,6 @@ def rank_variants(
         mod_preference = mod_preferences.get(mods, 0.0)
         difficulty_score = float(difficulty_scores[index])
 
-        difficulty_profile_for_variant = (
-            mod_profiles.get(mods)
-            if mod_profiles
-            else None
-        )
-
-        if difficulty_profile_for_variant is None:
-            difficulty_profile_for_variant = difficulty_profile
-
         if category_preferences:
             probabilities = classifier_predictions.get(beatmap_id)
             classifier_score = calculate_classifier_score(probabilities, category_preferences)
@@ -916,11 +857,13 @@ def rank_variants(
         if pp_potential_weight > 0:
             pp_potential = calculate_pp_potential(
                 variant,
-                difficulty_profile_for_variant,
+                difficulty_profile,
                 difficulty_std_floors,
                 difficulty_feature_weights,
                 pp_push_target_z,
                 pp_push_max_z,
+                feature_target_z,
+                feature_max_z,
                 pp_min=pp_potential_min,
                 pp_max=pp_potential_max,
             )

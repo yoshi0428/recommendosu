@@ -38,7 +38,9 @@ ABILITY_PP_WEIGHT = 0.05
 RECENCY_HALF_LIFE_DAYS = 30.0
 
 PP_PUSH_TARGET_Z = 2.50
-PP_PUSH_MAX_Z = 7.50
+PP_PUSH_MAX_Z = 5.00
+FEATURE_TARGET_Z = 1.00
+FEATURE_MAX_Z = 3.00
 
 DIFFICULTY_STAR_STD_MULTIPLIER = 1.00
 
@@ -178,6 +180,8 @@ class RecommendationSettings(BaseModel):
     # ── PP push ────────────────────────────────────────────────
     pp_push_target_z: float = PP_PUSH_TARGET_Z
     pp_push_max_z: float = PP_PUSH_MAX_Z
+    feature_target_z: float = FEATURE_TARGET_Z
+    feature_max_z: float = FEATURE_MAX_Z
 
     # ── Recommendation scoring ────────────────────────────────
     recommendation_config: dict = Field(
