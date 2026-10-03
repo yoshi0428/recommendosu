@@ -66,7 +66,7 @@ EXCLUDED_MODS = ["EZ", "HT", "FL", "HD"]
 
 # ── Candidate filters ──────────────────────────────────────────
 
-MIN_STARS = 9
+MIN_STARS = None
 MAX_STARS = None
 
 MIN_BPM = MAX_BPM = None
@@ -89,33 +89,33 @@ MIN_CS = MAX_CS = None
 RECOMMENDATION_CONFIG = {
     "balanced": {
         "weights": {
-            "content": 0.60,
+            "content": 0.50,
             "mod_preference": 0.05,
             "difficulty": 0.25,
-            "classifier": 0.10,
+            "classifier": 0.20,
             "pp_potential": 0.00,
         },
         "sort_keys": (
             "final_score",
-            "difficulty_score",
             "content_similarity",
+            "difficulty_score",
             "classifier_score",
         ),
     },
 
     "pp_potential": {
         "weights": {
-            "content": 0.40,
+            "content": 0.50,
             "mod_preference": 0.05,
-            "difficulty": 0.20,
-            "classifier": 0.15,
-            "pp_potential": 0.20,
+            "difficulty": 0.10,
+            "classifier": 0.10,
+            "pp_potential": 0.25,
         },
         "sort_keys": (
             "final_score",
+            "content_similarity",
             "pp_potential",
             "difficulty_score",
-            "content_similarity",
             "classifier_score",
         ),
     },
@@ -124,7 +124,7 @@ RECOMMENDATION_CONFIG = {
 # ── Difficulty ─────────────────────────────────────────────────
 
 DIFFICULTY_STD_FLOORS = {
-    "star_rating": 100000,
+    "star_rating": 0.35,
     "ar": 0.50,
     "od": 0.50,
     "bpm": 15.0,
@@ -137,9 +137,7 @@ DIFFICULTY_FEATURE_WEIGHTS = {
     "bpm": 0.5,
 }
 
-DIFFICULTY_STAR_STD_MULTIPLIER = 0.50
-
-MIN_PROFILE_PLAYS = 5
+DIFFICULTY_STAR_STD_MULTIPLIER = 1.00
 
 
 # ── Content similarity ─────────────────────────────────────────
@@ -168,8 +166,8 @@ PP_WEIGHT = 0.25
 # ── Ability profile ────────────────────────────────────────────
 
 ABILITY_TOP_WEIGHT = 1.0
-ABILITY_RECENT_WEIGHT = 4.0
-ABILITY_PP_WEIGHT = 0.10
+ABILITY_RECENT_WEIGHT = 2.0
+ABILITY_PP_WEIGHT = 0.05
 RECENCY_HALF_LIFE_DAYS = 30.0
 
 
@@ -177,6 +175,8 @@ RECENCY_HALF_LIFE_DAYS = 30.0
 
 PP_PUSH_TARGET_Z = 0.75
 PP_PUSH_MAX_Z = 2.0
+FEATURE_TARGET_Z = 1.00
+FEATURE_MAX_Z = 3.00
 
 
 # ── Play filtering ─────────────────────────────────────────────
@@ -295,7 +295,7 @@ def main():
             print(f"  {mods}: {preference:.3f}")
 
         # ── Difficulty profiles ───────────────────────────────
-        difficulty_profile, mod_profiles = get_player_difficulty_profiles(
+        difficulty_profile = get_player_difficulty_profiles(
             conn,
             player_id=PLAYER_ID,
             recency_half_life_days=RECENCY_HALF_LIFE_DAYS,
@@ -303,7 +303,6 @@ def main():
             ability_recent_weight=ABILITY_RECENT_WEIGHT,
             ability_pp_weight=ABILITY_PP_WEIGHT,
             exclude_recent_plays=EXCLUDE_RECENT_PLAYS,
-            min_profile_plays=MIN_PROFILE_PLAYS,
         )
 
         print("\nGLOBAL DIFFICULTY PROFILE:")
@@ -334,7 +333,6 @@ def main():
             similarity_index=similarity_index,
             mod_preferences=mod_preferences,
             difficulty_profile=difficulty_profile,
-            mod_profiles=mod_profiles,
             difficulty_star_std_multiplier=DIFFICULTY_STAR_STD_MULTIPLIER,
             category_preferences=category_preferences,
             top_k=NUM_RECOMMENDATIONS,
@@ -369,6 +367,8 @@ def main():
             difficulty_feature_weights=DIFFICULTY_FEATURE_WEIGHTS,
             pp_push_target_z=PP_PUSH_TARGET_Z,
             pp_push_max_z=PP_PUSH_MAX_Z,
+            feature_target_z=FEATURE_TARGET_Z,
+            feature_max_z=FEATURE_MAX_Z,
         )
 
         # ── Results ────────────────────────────────────────────

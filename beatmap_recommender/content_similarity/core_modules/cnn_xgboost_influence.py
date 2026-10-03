@@ -13,8 +13,7 @@ def get_player_category_preferences(
     """
     Calculate the player's preference for each NM tournament category.
 
-    Player scores are weighted using the same ability weighting as the
-    difficulty profile:
+    Player scores are weighted using the same ability weighting as the difficulty profile:
         - recent scores have more influence
         - top scores provide historical influence
         - PP provides a small additional weighting
@@ -174,16 +173,14 @@ def calculate_classifier_score(
     preferences,
 ):
     """
-    Calculate how well a candidate's NM1-NM5 prediction matches
-    the player's NM category preferences.
+    Calculate how well a candidate's NM1-NM5 prediction matches the player's NM category preferences.
 
     Returns [0, 1]:
 
         1.0 = strong match
         0.0 = weak match
 
-    Missing classifier probabilities or player preferences return 0.0
-    rather than a neutral 0.5 fallback.
+    Missing classifier probabilities or player preferences return 0.0 rather than a neutral 0.5 fallback.
     """
 
     if not probabilities or not preferences:

@@ -24,9 +24,8 @@ def get_player_played_variants(
     """
     Get the actual beatmap variants represented in the player's scores.
 
-    Score-specific data comes from scores. Variant-specific data comes
-    from beatmap_variants. Mod strings are canonicalized before matching
-    so representations such as DTHD and HDDT resolve to the same variant.
+    Score-specific data comes from scores. Variant-specific data comes from beatmap_variants. Mod strings are
+    canonicalized before matching so representations such as DTHD and HDDT resolve to the same variant.
     """
     check_cancelled(cancel_event)
 
@@ -134,11 +133,8 @@ def get_player_difficulty_profiles(
     cancel_event=None,
 ):
     """
-    Calculate the player's global and exact-mod difficulty profiles.
-
-    The global profile is used by recommendation ranking as the player's
-    overall demonstrated difficulty level. Exact-mod profiles are retained
-    for future mod-specific difficulty refinement.
+    Calculate the player's global difficulty profile.
+    The global profile is used by recommendation ranking as the player's overall demonstrated difficulty level.
     """
     check_cancelled(cancel_event)
 
@@ -819,7 +815,7 @@ def rank_variants(
     print(f"[rank_variants] Classifier predictions: {time.perf_counter() - start:.4f}s ({len(classifier_predictions)} predictions)")
 
     # ── Difficulty scores ──────────────────────────────────────
-    # The current ranker uses the global difficulty profile. Therefore there is no reason to split variants by mod.
+    # The current ranker uses the global difficulty profile. Therefore, there is no reason to split variants by mod.
     start = time.perf_counter()
     difficulty_scores = calculate_difficulty_scores(
         variants,
