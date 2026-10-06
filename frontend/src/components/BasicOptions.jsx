@@ -185,7 +185,7 @@ function BasicOptions({ settings, updateSetting }) {
               <Form.Control
                 type="number"
                 min={1}
-                max={146096}
+                max={147152}
                 step={1}
                 value={settings.neighbors_k ?? 20000}
                 onChange={(event) => {
@@ -196,7 +196,7 @@ function BasicOptions({ settings, updateSetting }) {
                   }
                   const parsed = parseInt(val, 10);
                   const clamped = Math.min(
-                    146096,
+                    147152,
                     Math.max(1, isNaN(parsed) ? 1 : parsed)
                   );
                   updateSetting("neighbors_k", clamped);
@@ -204,7 +204,7 @@ function BasicOptions({ settings, updateSetting }) {
               />
 
               <Form.Text className="text-muted">
-                Defaults to 20000, max 146096
+                Defaults to 20000, max 147152
               </Form.Text>
             </Form.Group>
           </Col>
