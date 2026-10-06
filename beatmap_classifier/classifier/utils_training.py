@@ -162,13 +162,10 @@ def train_and_evaluate(
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
-    # --- Setup EarlyStopping & ModelCheckpoint parameters ---
+    # --- Setup EarlyStopping parameters ---
     patience_counter = 0
     best_val_loss = float("inf")
     best_model_weights = None
-    checkpoint_path = (
-        "./models/cnn_model_best.pth"  # Replaced .h5 with PyTorch extension
-    )
 
     # Setup history tracker dictionaries
     history = {
@@ -235,12 +232,11 @@ def train_and_evaluate(
             f"Epoch {epoch + 1}/{epochs} - loss: {epoch_loss:.4f} - acc: {epoch_acc:.4f} - val_loss: {epoch_val_loss:.4f} - val_acc: {epoch_val_acc:.4f}"
         )
 
-        # ModelCheckpoint (save_best_only=True) & EarlyStopping
+        # Keep the best weights in memory & EarlyStopping
         if epoch_val_loss < best_val_loss:
             best_val_loss = epoch_val_loss
             patience_counter = 0
             best_model_weights = copy.deepcopy(model.state_dict())
-            torch.save(model.state_dict(), checkpoint_path)
         else:
             patience_counter += 1
 

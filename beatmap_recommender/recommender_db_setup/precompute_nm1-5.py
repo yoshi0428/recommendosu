@@ -23,11 +23,11 @@ from beatmap_recommender.recommender_db_setup.dot_osu_indexer import (
 # Configuration
 # ============================================================
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DB_PATH = PROJECT_ROOT / "beatmap_recommender/dummy.db"
+DB_PATH = PROJECT_ROOT / "beatmap_recommender/recommender.db"
 DATA_ROOT = PROJECT_ROOT / "beatmap_recommender/data"
-MODEL_FOLDER = PROJECT_ROOT / "beatmap_classifier/models/bagged_models"
-LABEL_ENCODER_PATH = PROJECT_ROOT / "beatmap_classifier/models/label_encoder.pkl"
-META_MODEL_PATH = PROJECT_ROOT / "beatmap_classifier/models/meta_model.pkl"
+MODEL_FOLDER = PROJECT_ROOT / "beatmap_classifier/models/full/bagged_models"
+LABEL_ENCODER_PATH = PROJECT_ROOT / "beatmap_classifier/models/full/label_encoder.pkl"
+META_MODEL_PATH = PROJECT_ROOT / "beatmap_classifier/models/full/meta_model.pkl"
 
 MAX_SEQUENCE_LENGTH = 4096
 MAX_SLIDER_LENGTH = 500.0
@@ -35,9 +35,12 @@ NUM_CLASSES = 5
 
 COMMIT_INTERVAL = 500
 
-# Normally don't retry variants that already have a status.
-# Set to True to retry failed variants.
-RETRY_FAILED = False
+# Which NM variants to classify:
+#     "pending" -> only variants with no status row yet
+#     "failed"  -> pending + variants whose last attempt failed
+#     "all"     -> every NM variant, overwriting existing predictions
+#                  (use after training a new model)
+SELECTION_MODE = "all"
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -90,15 +93,7 @@ additional_feature_names = sql_feature_names + movement_feature_names
 
 
 # GROUP 1
-excluded_features = {
-    "pp_speed",
-    "distance_mean",
-    "object_count",
-    "speed_change_std",
-    "angle_90th",
-    "od",
-    "speed_change_max",
-}
+excluded_features = {}
 
 selected_features = [
     feature for feature in additional_feature_names if feature not in excluded_features
@@ -139,77 +134,49 @@ def find_beatmap_file(
 # ============================================================
 
 
-def get_nm_variants(conn):
+VARIANT_FILTERS = {
+    "pending": "s.variant_id IS NULL",
+    "failed": "(s.variant_id IS NULL OR s.status = 'failed')",
+    "all": "1 = 1",
+}
+
+
+def get_nm_variants(conn, mode):
     """
-    Get NM variants that still need classification.
-
-    RETRY_FAILED=False:
-
-        no status row -> process
-
-    RETRY_FAILED=True:
-
-        no status row -> process
-        failed status   -> process
-
-    Successful variants are skipped.
+    Get NM variants to classify, filtered by `mode`
+    (see SELECTION_MODE).
     """
 
-    if RETRY_FAILED:
-        rows = conn.execute(
-            """
-            SELECT
-                v.variant_id,
-                v.beatmap_id,
-                v.ar,
-                v.od,
-                v.circle_size,
-                v.star_rating,
-                v.bpm,
-                v.max_combo,
-                v.length_seconds,
-                v.object_count,
-                v.pp,
-                v.pp_aim,
-                v.pp_speed,
-                v.pp_acc
-            FROM beatmap_variants v
-            LEFT JOIN classifier_prediction_status s
-                ON s.variant_id = v.variant_id
-            WHERE v.mods = 'NM'
-              AND (
-                    s.variant_id IS NULL
-                    OR s.status = 'failed'
-              )
-            ORDER BY v.variant_id
-            """
-        ).fetchall()
-    else:
-        rows = conn.execute(
-            """
-            SELECT
-                v.variant_id,
-                v.beatmap_id,
-                v.ar,
-                v.od,
-                v.circle_size,
-                v.star_rating,
-                v.bpm,
-                v.max_combo,
-                v.length_seconds,
-                v.object_count,
-                v.pp,
-                v.pp_aim,
-                v.pp_speed,
-                v.pp_acc
-            FROM beatmap_variants v
-            LEFT JOIN classifier_prediction_status s
-                ON s.variant_id = v.variant_id
-            WHERE v.mods = 'NM'
-              AND s.variant_id IS NULL
-            ORDER BY v.variant_id
-            """
-        ).fetchall()
+    if mode not in VARIANT_FILTERS:
+        raise ValueError(
+            f"Unknown selection mode {mode!r}; expected one of {list(VARIANT_FILTERS)}"
+        )
+
+    rows = conn.execute(
+        f"""
+        SELECT
+            v.variant_id,
+            v.beatmap_id,
+            v.ar,
+            v.od,
+            v.circle_size,
+            v.star_rating,
+            v.bpm,
+            v.max_combo,
+            v.length_seconds,
+            v.object_count,
+            v.pp,
+            v.pp_aim,
+            v.pp_speed,
+            v.pp_acc
+        FROM beatmap_variants v
+        LEFT JOIN classifier_prediction_status s
+            ON s.variant_id = v.variant_id
+        WHERE v.mods = 'NM'
+          AND {VARIANT_FILTERS[mode]}
+        ORDER BY v.variant_id
+        """
+    ).fetchall()
 
     return rows
 
@@ -250,6 +217,25 @@ def save_prediction(
             probabilities.get("NM4", 0.0),
             probabilities.get("NM5", 0.0),
         ),
+    )
+
+
+def clear_prediction(
+    conn,
+    variant_id,
+):
+    """
+    Remove NM1-NM5 probabilities left over from a previous model,
+    so a variant that now fails doesn't keep a stale prediction.
+    """
+
+    conn.execute(
+        """
+        UPDATE variant_predictions
+        SET nm1 = NULL, nm2 = NULL, nm3 = NULL, nm4 = NULL, nm5 = NULL
+        WHERE variant_id = ?
+        """,
+        (variant_id,),
     )
 
 
@@ -542,7 +528,7 @@ def load_classifier():
 def main():
 
     print(f"Using device: {DEVICE}")
-    print(f"Retry failed: {RETRY_FAILED}")
+    print(f"Selection mode: {SELECTION_MODE}")
 
     conn = sqlite3.connect(DB_PATH)
 
@@ -550,7 +536,7 @@ def main():
         print("Building local .osu file index...")
         by_beatmap_id, by_md5 = build_osu_file_index(DATA_ROOT, conn)
 
-        variants = get_nm_variants(conn)
+        variants = get_nm_variants(conn, SELECTION_MODE)
 
         total = len(variants)
         if total == 0:
@@ -607,6 +593,7 @@ def main():
 
                 if file_path is None:
                     failed += 1
+                    clear_prediction(conn, variant_id)
                     error_message = (
                         f"Local .osu file not found for beatmap identifier {beatmap_id}"
                     )
@@ -646,12 +633,9 @@ def main():
                     f"NM5={probabilities.get('NM5', 0.0):.3f})"
                 )
 
-                if i % COMMIT_INTERVAL == 0:
-                    conn.commit()
-                    print(f"  -> Committed at {i:,}/{total:,}")
-
             except Exception as e:
                 failed += 1
+                clear_prediction(conn, variant_id)
                 error_message = f"{type(e).__name__}: {e}"
                 save_status(
                     conn,

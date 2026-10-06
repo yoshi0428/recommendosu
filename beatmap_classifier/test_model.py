@@ -27,10 +27,10 @@ from beatmap_classifier.classifier_db_setup.beatmap_mods import (
 # Configuration
 # ============================================================
 PROJECT_ROOT = Path(__file__).resolve().parents[0]
-MODEL_FOLDER = PROJECT_ROOT / "models/bagged_models"
-LABEL_ENCODER_PATH = PROJECT_ROOT / "models/label_encoder.pkl"
-META_SCALER_PATH = PROJECT_ROOT / "models/meta_scaler.pkl"
-META_MODEL_PATH = PROJECT_ROOT / "models/meta_model.pkl"
+MODEL_FOLDER = PROJECT_ROOT / "models/full/bagged_models"
+LABEL_ENCODER_PATH = PROJECT_ROOT / "models/full/label_encoder.pkl"
+META_SCALER_PATH = PROJECT_ROOT / "models/full/meta_scaler.pkl"
+META_MODEL_PATH = PROJECT_ROOT / "models/full/meta_model.pkl"
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -88,13 +88,6 @@ additional_feature_names = sql_feature_names + movement_feature_names
 
 # GROUP 1
 excluded_features = {
-    "pp_speed",
-    "distance_mean",
-    "object_count",
-    "speed_change_std",
-    "angle_90th",
-    "od",
-    "speed_change_max",
 }
 
 selected_features = [
@@ -334,7 +327,7 @@ def main():
     print(f"Classes: {list(label_encoder.classes_)}")
 
     while True:
-        beatmap_id = input("\nEnter beatmap ID (or 'exit'):\n").strip()
+        beatmap_id = input("\nEnter beatmap ID (or 'exit'): \n").strip()
 
         if beatmap_id.lower() == "exit":
             break
