@@ -1,3 +1,4 @@
+import hashlib
 import os
 import sqlite3
 from concurrent.futures import ProcessPoolExecutor
@@ -6,18 +7,18 @@ from pathlib import Path
 from osu_tools import OsuCalculator
 from tqdm import tqdm
 
-from beatmap_recommender.recommender_db_setup.db_table_creation import create_tables, create_recommender_tables
-from beatmap_recommender.recommender_db_setup.osu_api_client import OsuAPIClient
-from beatmap_recommender.recommender_db_setup.parser import parse_osu_file
 from beatmap_recommender.recommender_db_setup.beatmap_mods import calculate_difficulty
 from beatmap_recommender.recommender_db_setup.db_insertion import (
-    insert_variant,
     insert_base_beatmap,
+    insert_variant,
     insert_variant_prediction_labels,
 )
-
-import hashlib
-
+from beatmap_recommender.recommender_db_setup.db_table_creation import (
+    create_recommender_tables,
+    create_tables,
+)
+from beatmap_recommender.recommender_db_setup.osu_api_client import OsuAPIClient
+from beatmap_recommender.recommender_db_setup.parser import parse_osu_file
 
 # ============================================================
 # Configuration
@@ -33,26 +34,21 @@ BATCH_SIZE = 2500
 # ============================================================
 MOD_VARIANTS = {
     "NM": [],
-
     "HD": ["HD"],
     "HR": ["HR"],
     "DT": ["DT"],
     "EZ": ["EZ"],
     "HT": ["HT"],
     "FL": ["FL"],
-
     "HDHR": ["HD", "HR"],
     "HDDT": ["HD", "DT"],
     "HDHRDT": ["HD", "HR", "DT"],
-
     "HRDT": ["HR", "DT"],
     "EZDT": ["EZ", "DT"],
     "EZHD": ["EZ", "HD"],
-
     "EZHT": ["EZ", "HT"],
     "HDHT": ["HD", "HT"],
     "HRHT": ["HR", "HT"],
-
     "HDHRFL": ["HD", "HR", "FL"],
     "HDFL": ["HD", "FL"],
     "HRFL": ["HR", "FL"],
@@ -164,6 +160,7 @@ VARIANT_LABELS = {
 
 _worker_calculator = None
 
+
 def init_worker():
     """
     Initialize one OsuCalculator per worker process.
@@ -171,6 +168,7 @@ def init_worker():
     """
     global _worker_calculator
     _worker_calculator = OsuCalculator()
+
 
 def process_difficulty(file_path):
     """
@@ -197,6 +195,7 @@ def process_difficulty(file_path):
         "variant_results": variant_results,
     }
 
+
 def get_file_content_md5(file_path):
     hash_md5 = hashlib.md5()
     with open(file_path, "rb") as f:
@@ -204,11 +203,14 @@ def get_file_content_md5(file_path):
             hash_md5.update(chunk)
     return hash_md5.hexdigest()
 
+
 def main():
 
     conn = sqlite3.connect(DATABASE_PATH)
     conn.execute("PRAGMA journal_mode = WAL")
-    conn.execute("PRAGMA synchronous = NORMAL") # Change to NORMAL for more safety if needed
+    conn.execute(
+        "PRAGMA synchronous = NORMAL"
+    )  # Change to NORMAL for more safety if needed
     conn.execute("PRAGMA temp_store = MEMORY")
     conn.execute("PRAGMA cache_size = -200000")
 
@@ -220,7 +222,9 @@ def main():
         api_client = OsuAPIClient()
         api_client.authenticate()
     except Exception as e:
-        print(f"Warning: Failed to initialize OsuAPIClient: {e}. Will rely on fallback defaults.")
+        print(
+            f"Warning: Failed to initialize OsuAPIClient: {e}. Will rely on fallback defaults."
+        )
 
     osu_files = []
     for dirpath, _, filenames in os.walk(ROOT_DIR):
@@ -235,8 +239,9 @@ def main():
 
     print(f"Starting {NUM_WORKERS} difficulty workers...")
 
-    with ProcessPoolExecutor(max_workers=NUM_WORKERS, initializer=init_worker) as executor:
-
+    with ProcessPoolExecutor(
+        max_workers=NUM_WORKERS, initializer=init_worker
+    ) as executor:
         results = executor.map(process_difficulty, osu_files, chunksize=1)
         processed = 0
 
@@ -269,12 +274,18 @@ def main():
             file_hash = get_file_content_md5(file_path)
 
             # If beatmap_id or essential difficulty attributes are missing, try querying the API via checksum
-            if (beatmap_data["beatmap_id"] is None or beatmap_data["ar"] is None) and api_client is not None:
+            if (
+                beatmap_data["beatmap_id"] is None or beatmap_data["ar"] is None
+            ) and api_client is not None:
                 try:
-                    response_data = api_client.get("/beatmaps/lookup", params={"checksum": file_hash})
+                    response_data = api_client.get(
+                        "/beatmaps/lookup", params={"checksum": file_hash}
+                    )
                     if response_data and "id" in response_data:
                         beatmap_data["beatmap_id"] = str(response_data["id"])
-                        beatmap_data["beatmapset_id"] = str(response_data["beatmapset_id"])
+                        beatmap_data["beatmapset_id"] = str(
+                            response_data["beatmapset_id"]
+                        )
                         if beatmap_data["ar"] is None:
                             beatmap_data["ar"] = response_data.get("ar", 8.0)
                 except Exception:
@@ -318,9 +329,19 @@ def main():
                 # --------------------------------------------
                 # Mod variants
                 # --------------------------------------------
-                for (variant_name, (mods, difficulty_result)) in variant_results.items():
-                    variant_id, mods_string = insert_variant(conn, beatmap_id, beatmapset_id, year, mods, beatmap_data, difficulty_result)
-                    insert_variant_prediction_labels(conn, variant_id, mods_string, variant_label, VARIANT_LABELS)
+                for variant_name, (mods, difficulty_result) in variant_results.items():
+                    variant_id, mods_string = insert_variant(
+                        conn,
+                        beatmap_id,
+                        beatmapset_id,
+                        year,
+                        mods,
+                        beatmap_data,
+                        difficulty_result,
+                    )
+                    insert_variant_prediction_labels(
+                        conn, variant_id, mods_string, variant_label, VARIANT_LABELS
+                    )
 
                 successful += 1
 
@@ -332,7 +353,9 @@ def main():
 
             if processed % BATCH_SIZE == 0:
                 conn.commit()
-                print(f"\nProgress: {processed}/{len(osu_files)} | successful={successful} | skipped={skipped} | failed_variants={failed_variants}")
+                print(
+                    f"\nProgress: {processed}/{len(osu_files)} | successful={successful} | skipped={skipped} | failed_variants={failed_variants}"
+                )
 
     conn.commit()
     create_recommender_tables(conn)
@@ -346,6 +369,7 @@ def main():
     print(f"Successful:        {successful}")
     print(f"Skipped:            {skipped}")
     print(f"Failed variants:   {failed_variants}")
+
 
 if __name__ == "__main__":
     main()

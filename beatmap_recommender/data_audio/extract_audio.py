@@ -4,8 +4,8 @@ import re
 import sqlite3
 import zipfile
 from pathlib import Path
-from tqdm import tqdm
 
+from tqdm import tqdm
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ROOT_DIR = PROJECT_ROOT / "beatmap_recommender" / "data_audio" / "2026 (osu!)"
@@ -120,13 +120,11 @@ def extract_audio_files(root_dir, output_dir, db_path):
     for osz_path in tqdm(osz_files, desc="Extracting audio"):
         try:
             with zipfile.ZipFile(osz_path, "r") as archive:
-
                 # Track audio files already extracted from this beatmapset.
                 extracted_audio = set()
                 archive_had_match = False
 
                 for member in archive.infolist():
-
                     if not member.filename.lower().endswith(".osu"):
                         continue
 
@@ -162,7 +160,10 @@ def extract_audio_files(root_dir, output_dir, db_path):
                         # Some archives may contain paths that differ from the exact AudioFilename value. Try matching by basename.
                         audio_member = None
                         for candidate in archive.infolist():
-                            if Path(candidate.filename).name.lower() == audio_path.lower():
+                            if (
+                                Path(candidate.filename).name.lower()
+                                == audio_path.lower()
+                            ):
                                 audio_member = candidate
                                 break
 
@@ -193,7 +194,10 @@ def extract_audio_files(root_dir, output_dir, db_path):
 
                             counter += 1
 
-                    with archive.open(audio_member) as source, open(output_path, "wb") as target:
+                    with (
+                        archive.open(audio_member) as source,
+                        open(output_path, "wb") as target,
+                    ):
                         target.write(source.read())
 
                     extracted_audio.add(audio_key)

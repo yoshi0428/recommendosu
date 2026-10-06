@@ -18,6 +18,7 @@ NAME = "HR2"
 FILENAME = f"./inputs/{NAME}.osdb"
 ACTUAL_BEATMAP_COUNT = COUNT_DICT[NAME]
 
+
 class Reader:
     def __init__(self, data):
         self.data = data
@@ -25,12 +26,9 @@ class Reader:
 
     def read(self, n):
         if self.pos + n > len(self.data):
-            raise EOFError(
-                f"Unexpected EOF at offset {self.pos:#x}, "
-                f"wanted {n} bytes"
-            )
+            raise EOFError(f"Unexpected EOF at offset {self.pos:#x}, wanted {n} bytes")
 
-        result = self.data[self.pos:self.pos + n]
+        result = self.data[self.pos : self.pos + n]
         self.pos += n
         return result
 
@@ -138,9 +136,7 @@ def parse_osdb(filename, name):
     version = r.string()
 
     if version != "o!dm6":
-        raise ValueError(
-            f"Expected o!dm6, got {version!r}"
-        )
+        raise ValueError(f"Expected o!dm6, got {version!r}")
 
     creation_date = r.double()
     editor = r.string()
@@ -158,7 +154,6 @@ def parse_osdb(filename, name):
     # ---------------------------------------------------------
 
     for collection_index in range(collection_count):
-
         collection_name = r.string()
         online_id = r.int32()
         beatmap_count = r.int32()
@@ -172,7 +167,6 @@ def parse_osdb(filename, name):
         beatmapset_ids = []
 
         for beatmap_index in range(ACTUAL_BEATMAP_COUNT):
-
             record_offset = r.pos
 
             try:
@@ -198,8 +192,7 @@ def parse_osdb(filename, name):
                 print(f"Offset: {record_offset:#x}")
                 print(f"Error: {e}")
                 print(
-                    "Next bytes:",
-                    r.data[record_offset:record_offset + 64].hex(" ")
+                    "Next bytes:", r.data[record_offset : record_offset + 64].hex(" ")
                 )
                 raise
 
@@ -247,26 +240,16 @@ def parse_osdb(filename, name):
             "beatmapset_ids": beatmapset_ids,
         }
 
-
     return collections
 
 
-
 if __name__ == "__main__":
-
     collections = parse_osdb(FILENAME, NAME)
 
     for collection_name, collection_data in collections.items():
-
         beatmap_ids = collection_data["beatmap_ids"]
         beatmapset_ids = collection_data["beatmapset_ids"]
 
-        print(
-            f"\n{collection_name}: "
-            f"{len(beatmap_ids):,} beatmap IDs"
-        )
+        print(f"\n{collection_name}: {len(beatmap_ids):,} beatmap IDs")
 
-        print(
-            f"{collection_name}: "
-            f"{len(beatmapset_ids):,} beatmapset IDs"
-        )
+        print(f"{collection_name}: {len(beatmapset_ids):,} beatmapset IDs")

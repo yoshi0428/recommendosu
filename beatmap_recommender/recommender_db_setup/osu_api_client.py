@@ -1,6 +1,7 @@
 import os
-import time
 import random
+import time
+
 import requests
 from dotenv import load_dotenv
 
@@ -18,6 +19,7 @@ TOKEN_URL = "https://osu.ppy.sh/oauth/token"
 MIN_REQUEST_INTERVAL = 1.1
 MAX_RETRIES = 5
 BACKOFF_BASE = 2
+
 
 class OsuAPIClient:
     def __init__(self):
@@ -106,7 +108,7 @@ class OsuAPIClient:
                 if attempt == MAX_RETRIES - 1:
                     raise
 
-                delay = BACKOFF_BASE ** attempt + random.uniform(0, 1)
+                delay = BACKOFF_BASE**attempt + random.uniform(0, 1)
                 print(f"Request error: {e}. Retrying in {delay:.2f}s...")
                 time.sleep(delay)
                 continue
@@ -124,7 +126,7 @@ class OsuAPIClient:
                 if retry_after is not None:
                     delay = float(retry_after)
                 else:
-                    delay = BACKOFF_BASE ** attempt + random.uniform(0, 1)
+                    delay = BACKOFF_BASE**attempt + random.uniform(0, 1)
 
                 print(f"Rate limited. Waiting {delay:.2f}s...")
                 time.sleep(delay)
@@ -135,8 +137,10 @@ class OsuAPIClient:
                 if attempt == MAX_RETRIES - 1:
                     response.raise_for_status()
 
-                delay = BACKOFF_BASE ** attempt + random.uniform(0, 1)
-                print(f"Server error {response.status_code}. Retrying in {delay:.2f}s...")
+                delay = BACKOFF_BASE**attempt + random.uniform(0, 1)
+                print(
+                    f"Server error {response.status_code}. Retrying in {delay:.2f}s..."
+                )
                 time.sleep(delay)
                 continue
 

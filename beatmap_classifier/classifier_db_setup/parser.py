@@ -37,29 +37,23 @@ def parse_osu_file(
     data = {
         "beatmap_id": None,
         "mode": 0,  # Default to standard
-
         # Base difficulty
         "hp_drain": None,
         "circle_size": None,
         "od": None,
         "ar": None,
-
         # Slider settings
         "slider_multiplier": None,
         "slider_tick": None,
-
         # Base timing
         "bpm": None,
         "min_bpm": None,
         "max_bpm": None,
-
         # Map statistics
         "length_seconds": None,
         "object_count": 0,
-
         # Raw hit objects
         "hit_objects": [],
-
         # Raw base vectors
         "vectors": [],
     }
@@ -81,7 +75,6 @@ def parse_osu_file(
 
     section = None
     for line in lines:
-
         line = line.strip()
 
         if not line:
@@ -120,7 +113,6 @@ def parse_osu_file(
         # =================================================
 
         if section == "Metadata":
-
             if ":" not in line:
                 continue
 
@@ -150,7 +142,6 @@ def parse_osu_file(
         # =================================================
 
         elif section == "Difficulty":
-
             if ":" not in line:
                 continue
 
@@ -184,7 +175,6 @@ def parse_osu_file(
         # =================================================
 
         elif section == "TimingPoints":
-
             obj_data = line.split(",")
 
             if len(obj_data) < 2:
@@ -201,19 +191,15 @@ def parse_osu_file(
             # ------------------------------------------------
 
             if beat_length > 0:
-
                 bpm = 60000.0 / beat_length
 
-                timing_points.append(
-                    (time, bpm)
-                )
+                timing_points.append((time, bpm))
 
         # =================================================
         # Hit Objects
         # =================================================
 
         elif section == "HitObjects":
-
             obj_data = line.split(",")
 
             if len(obj_data) < 4:
@@ -235,7 +221,6 @@ def parse_osu_file(
             # ------------------------------------------------
 
             if hit_object_type & hit_circle_flag:
-
                 hit_object = {
                     "x": x,
                     "y": y,
@@ -250,7 +235,6 @@ def parse_osu_file(
             # ------------------------------------------------
 
             elif hit_object_type & slider_flag:
-
                 if len(obj_data) <= 7:
                     continue
 
@@ -278,11 +262,7 @@ def parse_osu_file(
     # ========================================================
 
     if timing_points:
-
-        bpms = [
-            bpm
-            for _, bpm in timing_points
-        ]
+        bpms = [bpm for _, bpm in timing_points]
 
         data["bpm"] = bpms[0]
         data["min_bpm"] = min(bpms)
@@ -292,30 +272,20 @@ def parse_osu_file(
     # Object Count
     # ========================================================
 
-    data["object_count"] = len(
-        data["hit_objects"]
-    )
+    data["object_count"] = len(data["hit_objects"])
 
     # ========================================================
     # Base Map Length
     # ========================================================
 
     if len(data["hit_objects"]) >= 2:
+        first_object_time = data["hit_objects"][0]["time"]
 
-        first_object_time = (
-            data["hit_objects"][0]["time"]
-        )
+        last_object_time = data["hit_objects"][-1]["time"]
 
-        last_object_time = (
-            data["hit_objects"][-1]["time"]
-        )
-
-        data["length_seconds"] = (
-            last_object_time - first_object_time
-        ) / 1000.0
+        data["length_seconds"] = (last_object_time - first_object_time) / 1000.0
 
     else:
-
         data["length_seconds"] = 0.0
 
     # ========================================================
@@ -336,9 +306,7 @@ def parse_osu_file(
     hit_objects = data["hit_objects"]
 
     if len(hit_objects) >= 2:
-
         for obj in hit_objects:
-
             obj["x_norm"] = obj["x"] / max_x
             obj["y_norm"] = obj["y"] / max_y
 
@@ -347,7 +315,6 @@ def parse_osu_file(
         previous_time_diff = None
 
         for i in range(1, len(hit_objects)):
-
             obj = hit_objects[i]
             prev_obj = hit_objects[i - 1]
 
@@ -357,7 +324,7 @@ def parse_osu_file(
             time_diff = obj["time"] - prev_obj["time"]
             length = obj["length"]
 
-            distance = math.sqrt(x_diff ** 2 + y_diff ** 2)
+            distance = math.sqrt(x_diff**2 + y_diff**2)
 
             if time_diff > 0:
                 speed = distance / time_diff
@@ -371,16 +338,18 @@ def parse_osu_file(
                 speed_change = speed - previous_speed
                 time_diff_change = time_diff - previous_time_diff
 
-            vectors.append((
-                x_diff,
-                y_diff,
-                time_diff,
-                length,
-                distance,
-                speed,
-                speed_change,
-                time_diff_change,
-            ))
+            vectors.append(
+                (
+                    x_diff,
+                    y_diff,
+                    time_diff,
+                    length,
+                    distance,
+                    speed,
+                    speed_change,
+                    time_diff_change,
+                )
+            )
 
         data["vectors"] = vectors
 

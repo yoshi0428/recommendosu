@@ -1,11 +1,11 @@
+import mimetypes
 import os
 import sqlite3
 import uuid
+from contextlib import asynccontextmanager
 from pathlib import Path
-import mimetypes
 
 import httpx
-from pydantic import BaseModel, Field
 from fastapi import (
     Cookie,
     FastAPI,
@@ -15,42 +15,35 @@ from fastapi import (
     Response,
 )
 from fastapi.responses import FileResponse, RedirectResponse
+from pydantic import BaseModel, Field
+
 from beatmap_recommender.api.model import RecommendationSettings
 from beatmap_recommender.api.osu_api import get_authenticated_user
-from beatmap_recommender.recommender import recommend_player
-from beatmap_recommender.cancellation import (
-    RecommendationCancelled,
-    cancel_recommendation,
-    create_cancellation_event,
-    remove_cancellation_event,
-)
-
-from beatmap_recommender.auth.osu_oauth import (
-    build_authorization_url,
-    exchange_code_for_token,
-    generate_state,
-)
-
 from beatmap_recommender.auth.oauth_state import (
     consume_state,
     initialize_state_store,
     store_state,
 )
-
+from beatmap_recommender.auth.osu_oauth import (
+    build_authorization_url,
+    exchange_code_for_token,
+    generate_state,
+)
 from beatmap_recommender.auth.session import (
     create_session,
     delete_session,
     get_current_player,
     initialize_session_store,
 )
-
-from beatmap_recommender.auth.token_store import (
-    initialize_token_store, store_tokens
+from beatmap_recommender.auth.token_store import initialize_token_store, store_tokens
+from beatmap_recommender.cancellation import (
+    RecommendationCancelled,
+    cancel_recommendation,
+    create_cancellation_event,
+    remove_cancellation_event,
 )
-
 from beatmap_recommender.data_audio.extract_audio import sanitize_filename
-
-from contextlib import asynccontextmanager
+from beatmap_recommender.recommender import recommend_player
 
 API_PREFIX = "/api/v1"
 SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "false").lower() == "true"
@@ -306,6 +299,7 @@ def health():
         "status": "ok",
     }
 
+
 ########################################################################################################################
 ########################################################################################################################
 ########################################################################################################################
@@ -473,6 +467,7 @@ async def recommend_post(
         "recommendations": recommendations,
     }
 
+
 @app.post(
     f"{API_PREFIX}/recommend/{{recommendation_id}}/cancel",
     summary="Cancel an active recommendation request",
@@ -489,6 +484,7 @@ async def recommend_cancel(
         "cancelled": cancelled,
     }
 
+
 ########################################################################################################################
 ########################################################################################################################
 ########################################################################################################################
@@ -498,6 +494,7 @@ async def recommend_cancel(
 ########################################################################################################################
 ########################################################################################################################
 ########################################################################################################################
+
 
 @app.get(
     f"{API_PREFIX}/music/preview",
@@ -660,7 +657,7 @@ async def osu_callback(
         value=session_id,
         httponly=True,
         samesite="lax",
-        secure=SESSION_COOKIE_SECURE, # SET TO FALSE IF CAUSING ISSUE IN DEV
+        secure=SESSION_COOKIE_SECURE,  # SET TO FALSE IF CAUSING ISSUE IN DEV
         max_age=86400,
     )
 
@@ -686,6 +683,7 @@ async def auth_me(
     return {
         "player_id": player_id,
     }
+
 
 @app.post(
     f"{API_PREFIX}/auth/logout",

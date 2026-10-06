@@ -1,9 +1,9 @@
 import os
 import sqlite3
 from pathlib import Path
-from beatmap_recommender.recommender_db_setup.osu_api_client import OsuAPIClient
-from beatmap_recommender.content_similarity.core_modules.score_collector import (
-    update_player_scores,
+
+from beatmap_recommender.content_similarity.core_modules.cnn_xgboost_influence import (
+    get_player_category_preferences,
 )
 from beatmap_recommender.content_similarity.core_modules.content_similarity import (
     build_seed_similarity_index,
@@ -11,14 +11,14 @@ from beatmap_recommender.content_similarity.core_modules.content_similarity impo
 from beatmap_recommender.content_similarity.core_modules.mod_preferences import (
     get_preferred_mods,
 )
+from beatmap_recommender.content_similarity.core_modules.score_collector import (
+    update_player_scores,
+)
 from beatmap_recommender.content_similarity.core_modules.variant_ranking import (
     get_player_difficulty_profiles,
     rank_variants,
 )
-from beatmap_recommender.content_similarity.core_modules.cnn_xgboost_influence import (
-    get_player_category_preferences,
-)
-
+from beatmap_recommender.recommender_db_setup.osu_api_client import OsuAPIClient
 
 # ── Configuration ──────────────────────────────────────────────
 
@@ -102,7 +102,6 @@ RECOMMENDATION_CONFIG = {
             "classifier_score",
         ),
     },
-
     "pp_potential": {
         "weights": {
             "content": 0.50,
@@ -187,9 +186,7 @@ EXCLUDE_ALREADY_PLAYED = True
 
 def main():
     if RECOMMENDATION_GOAL not in RECOMMENDATION_CONFIG:
-        raise ValueError(
-            f"Unknown recommendation goal: {RECOMMENDATION_GOAL}"
-        )
+        raise ValueError(f"Unknown recommendation goal: {RECOMMENDATION_GOAL}")
 
     config = RECOMMENDATION_CONFIG[RECOMMENDATION_GOAL]
     classifier_weight = config["weights"]["classifier"]
@@ -224,7 +221,9 @@ def main():
             exclude_already_played=EXCLUDE_ALREADY_PLAYED,
         )
 
-        print(f"Player {PLAYER_ID}: {len(similarity_index)} seed maps with similarity results.")
+        print(
+            f"Player {PLAYER_ID}: {len(similarity_index)} seed maps with similarity results."
+        )
 
         if not similarity_index:
             print("No similarity results found.")
@@ -341,10 +340,7 @@ def main():
                 if REQUESTED_MODS
                 else None
             ),
-            excluded_mods={
-                mod.strip().upper()
-                for mod in EXCLUDED_MODS
-            },
+            excluded_mods={mod.strip().upper() for mod in EXCLUDED_MODS},
             min_stars=MIN_STARS,
             max_stars=MAX_STARS,
             min_bpm=MIN_BPM,

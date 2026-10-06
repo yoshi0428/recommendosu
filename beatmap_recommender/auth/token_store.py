@@ -3,7 +3,6 @@ import sqlite3
 import time
 from pathlib import Path
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 AUTH_DB_PATH = Path(
     os.getenv(
@@ -42,6 +41,7 @@ def initialize_token_store():
         )
 
         conn.commit()
+
 
 def store_tokens(
     session_id: str,
@@ -85,6 +85,7 @@ def store_tokens(
 
         conn.commit()
 
+
 def get_tokens(session_id: str) -> dict | None:
     with get_connection() as conn:
         row = conn.execute(
@@ -106,6 +107,7 @@ def get_tokens(session_id: str) -> dict | None:
 
     return dict(row)
 
+
 def delete_tokens(session_id: str):
     with get_connection() as conn:
         conn.execute(
@@ -117,6 +119,7 @@ def delete_tokens(session_id: str):
         )
 
         conn.commit()
+
 
 def update_tokens(
     session_id: str,

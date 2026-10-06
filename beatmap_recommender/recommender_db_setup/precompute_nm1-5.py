@@ -3,14 +3,21 @@ import sqlite3
 from pathlib import Path
 
 import numpy as np
-import torch
 import osu_tools
+import torch
 
-from beatmap_classifier.classifier.augment_faster import extract_movement_features_from_X
-from beatmap_classifier.classifier_db_setup.parser import parse_osu_file
-from beatmap_classifier.classifier.utils_training import pad_sequences_pt, load_pytorch_models
+from beatmap_classifier.classifier.augment_faster import (
+    extract_movement_features_from_X,
+)
 from beatmap_classifier.classifier.cnn_model import CNNModel
-from beatmap_recommender.recommender_db_setup.dot_osu_indexer import build_osu_file_index
+from beatmap_classifier.classifier.utils_training import (
+    load_pytorch_models,
+    pad_sequences_pt,
+)
+from beatmap_classifier.classifier_db_setup.parser import parse_osu_file
+from beatmap_recommender.recommender_db_setup.dot_osu_indexer import (
+    build_osu_file_index,
+)
 
 # ============================================================
 # Configuration
@@ -79,10 +86,7 @@ cnn_feature_names = [
 ]
 
 
-additional_feature_names = (
-    sql_feature_names
-    + movement_feature_names
-)
+additional_feature_names = sql_feature_names + movement_feature_names
 
 
 # GROUP 1
@@ -93,20 +97,16 @@ excluded_features = {
     "speed_change_std",
     "angle_90th",
     "od",
-    "speed_change_max"
+    "speed_change_max",
 }
 
 selected_features = [
-    feature
-    for feature in additional_feature_names
-    if feature not in excluded_features
+    feature for feature in additional_feature_names if feature not in excluded_features
 ]
 
 
-indices = [
-    additional_feature_names.index(name)
-    for name in selected_features
-]
+indices = [additional_feature_names.index(name) for name in selected_features]
+
 
 def find_beatmap_file(
     beatmap_id,
@@ -137,6 +137,7 @@ def find_beatmap_file(
 # ============================================================
 # Database
 # ============================================================
+
 
 def get_nm_variants(conn):
     """
@@ -299,6 +300,7 @@ def save_status(
 #
 # The .osu file is still used for vectors/movement features.
 
+
 def get_metadata(
     variant,
 ):
@@ -346,6 +348,7 @@ def get_metadata(
 # CNN prediction
 # ============================================================
 
+
 def predict_cnn(
     beatmap_vectors,
     bagged_models,
@@ -362,7 +365,11 @@ def predict_cnn(
     )
 
     # [batch, sequence, channels] -> [batch, channels, sequence]
-    padded = padded.permute(0, 2, 1,)
+    padded = padded.permute(
+        0,
+        2,
+        1,
+    )
     padded = padded.to(DEVICE)
 
     model_predictions = []
@@ -370,7 +377,10 @@ def predict_cnn(
         for model in bagged_models:
             model.eval()
             outputs = model(padded)
-            probabilities = torch.softmax(outputs, dim=1,)
+            probabilities = torch.softmax(
+                outputs,
+                dim=1,
+            )
             model_predictions.append(probabilities.cpu())
 
     mean_prediction = torch.stack(model_predictions).mean(dim=0)
@@ -384,6 +394,7 @@ def predict_cnn(
 # CHANGED:
 # Added `variant` so the classifier can use the database
 # metadata associated with this exact NM variant.
+
 
 def predict_beatmap(
     file_path,
@@ -413,7 +424,9 @@ def predict_beatmap(
     # --------------------------------------------------------
     # Parse beatmap
     # --------------------------------------------------------
-    beatmap_data = parse_osu_file(file_path, max_slider_length=MAX_SLIDER_LENGTH, print_info=False)
+    beatmap_data = parse_osu_file(
+        file_path, max_slider_length=MAX_SLIDER_LENGTH, print_info=False
+    )
     if beatmap_data is None:
         raise ValueError("parse_osu_file returned None")
 
@@ -435,7 +448,7 @@ def predict_beatmap(
             "od": beatmap_data.get("od"),
             "circle_size": beatmap_data.get("circle_size"),
             "bpm": beatmap_data.get("bpm"),
-        }
+        },
     )
 
     # --------------------------------------------------------
@@ -448,21 +461,30 @@ def predict_beatmap(
     # --------------------------------------------------------
     # CNN prediction
     # --------------------------------------------------------
-    cnn_probs = predict_cnn(beatmap_vectors, bagged_models,)
+    cnn_probs = predict_cnn(
+        beatmap_vectors,
+        bagged_models,
+    )
     if cnn_probs is None:
         raise ValueError("CNN prediction returned None")
 
-    movement_features = extract_movement_features_from_X(np.asarray(beatmap_vectors, dtype=np.float32))
+    movement_features = extract_movement_features_from_X(
+        np.asarray(beatmap_vectors, dtype=np.float32)
+    )
     movement_features = np.asarray(movement_features, dtype=np.float32)
 
     # CHANGED:
     # Metadata comes directly from the database variant.
     metadata_features = get_metadata(variant)
 
-    additional_features = np.hstack([metadata_features, movement_features]).reshape(1, -1)
-    meta_features = np.hstack([cnn_probs.reshape(1, -1), additional_features[:, indices]])
+    additional_features = np.hstack([metadata_features, movement_features]).reshape(
+        1, -1
+    )
+    meta_features = np.hstack(
+        [cnn_probs.reshape(1, -1), additional_features[:, indices]]
+    )
 
-    final_probabilities = (meta_model.predict_proba(meta_features)[0])
+    final_probabilities = meta_model.predict_proba(meta_features)[0]
     final_class_index = int(np.argmax(final_probabilities))
     final_label = label_encoder.inverse_transform([final_class_index])[0]
 
@@ -476,9 +498,11 @@ def predict_beatmap(
         "probabilities": probabilities,
     }
 
+
 # ============================================================
 # Model loading
 # ============================================================
+
 
 def load_classifier():
 
@@ -513,6 +537,7 @@ def load_classifier():
 # ============================================================
 # Main precomputation
 # ============================================================
+
 
 def main():
 
@@ -555,7 +580,6 @@ def main():
             pp_speed,
             pp_acc,
         ) in enumerate(variants, start=1):
-
             print(f"[{i:,}/{total:,}] variant={variant_id} beatmap={beatmap_id}")
 
             # CHANGED:
@@ -583,8 +607,15 @@ def main():
 
                 if file_path is None:
                     failed += 1
-                    error_message = f"Local .osu file not found for beatmap identifier {beatmap_id}"
-                    save_status(conn, variant_id, "failed", error_message,)
+                    error_message = (
+                        f"Local .osu file not found for beatmap identifier {beatmap_id}"
+                    )
+                    save_status(
+                        conn,
+                        variant_id,
+                        "failed",
+                        error_message,
+                    )
                     print("  -> LOCAL FILE NOT FOUND")
                     continue
 
@@ -622,7 +653,12 @@ def main():
             except Exception as e:
                 failed += 1
                 error_message = f"{type(e).__name__}: {e}"
-                save_status(conn, variant_id, "failed", error_message,)
+                save_status(
+                    conn,
+                    variant_id,
+                    "failed",
+                    error_message,
+                )
                 print(f"  -> ERROR: {error_message}")
 
             if i % COMMIT_INTERVAL == 0:
@@ -640,6 +676,7 @@ def main():
 
     finally:
         conn.close()
+
 
 if __name__ == "__main__":
     main()

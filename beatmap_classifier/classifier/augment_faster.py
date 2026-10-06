@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 
+
 def augment_dataset(
     X,
     y,
@@ -16,7 +17,11 @@ def augment_dataset(
         augmentation_types = set(augmentation_types)
 
     if not augmentation_types:
-        return torch.as_tensor(X, dtype=torch.float32), torch.as_tensor(y, dtype=torch.long), list(beatmap_ids)
+        return (
+            torch.as_tensor(X, dtype=torch.float32),
+            torch.as_tensor(y, dtype=torch.long),
+            list(beatmap_ids),
+        )
 
     # Convert to numpy array for ultrafast matrix operations
     # Expected shape: (N, 4096, 8)
@@ -72,8 +77,9 @@ def augment_dataset(
     return (
         torch.from_numpy(X_final),
         torch.from_numpy(y_final).long(),
-        ids_final.tolist()
+        ids_final.tolist(),
     )
+
 
 def extract_movement_features_from_X(X_beatmap):
     if hasattr(X_beatmap, "detach"):
@@ -108,53 +114,53 @@ def extract_movement_features_from_X(X_beatmap):
     # 1. Base Geometry Features
     slider_lengths = lengths[lengths > 0]
     slider_ratio = float(len(slider_lengths)) / float(len(valid_vectors))
-    slider_length_std = float(np.std(slider_lengths)) if len(slider_lengths) > 1 else 0.0
+    slider_length_std = (
+        float(np.std(slider_lengths)) if len(slider_lengths) > 1 else 0.0
+    )
 
     # 2. Localized Tech Indicators (90th/95th Percentiles & Ratios)
     # Tech maps exhibit localized bursts of acceleration and acute turn spikes
-    speed_change_95th = float(np.percentile(np.abs(speed_changes), 95)) if len(speed_changes) > 0 else 0.0
+    speed_change_95th = (
+        float(np.percentile(np.abs(speed_changes), 95))
+        if len(speed_changes) > 0
+        else 0.0
+    )
     angle_90th = float(np.percentile(angles, 90)) if len(angles) > 0 else 0.0
 
     # Sharp Turn Ratio: Turns sharper than 75 degrees (1.309 rad)
-    sharp_turn_ratio = float(np.sum(angles > 1.309)) / float(len(angles)) if len(angles) > 0 else 0.0
+    sharp_turn_ratio = (
+        float(np.sum(angles > 1.309)) / float(len(angles)) if len(angles) > 0 else 0.0
+    )
 
     # Rhythm Complexity: Ratio of non-standard rhythm gaps (< 100ms or > 250ms)
     rhythm_variance = float(np.std(time_diffs)) if len(time_diffs) > 0 else 0.0
 
-    return np.array([
-        # 1. slider_ratio: Base indicator for Alt/Tech. High ratio = lots of sliders (Alt/Tech). Low = mostly circles (Aim/Stream).
-        slider_ratio,
-
-        # 2. slider_length_std: Measures slider length variance. Tech maps use drastically different slider shapes/lengths; Alt maps are more uniform.
-        np.clip(slider_length_std / 200.0, 0.0, 1.0),
-
-        # 3. std(speeds): Overall cursor speed variance. High in maps with variable spacing and SV gimmicks (Tech).
-        np.clip(float(np.std(speeds)) * 100.0, 0.0, 1.0),
-
-        # 4. std(speed_changes): Volatility of acceleration. High when maps constantly switch between slow and fast movements (Tech/Alt).
-        np.clip(float(np.std(speed_changes)) * 100.0, 0.0, 1.0),
-
-        # 5. max(speed_changes): Captures the single most extreme "stop-and-go" cursor snap. A strong indicator for Tech gimmicks.
-        np.clip(float(np.max(np.abs(speed_changes))) * 50.0, 0.0, 1.0),
-
-        # 6. std(angles): Differentiates flow aim from snap aim. Streams have low variance (consistent flow); Aim/Tech have high variance (snaps/jumps).
-        np.clip(float(np.std(angles)) / np.pi, 0.0, 1.0),
-
-        # 7. mean(angles): Average angle size. Wide angles = jump patterns (Aim). Tight angles = continuous flow (Streams).
-        np.clip(float(np.mean(angles)) / np.pi, 0.0, 1.0),
-
-        # 8. rhythm_variance: How often the time gap between objects changes. Streams are near zero; Tech is high (mixed 1/4, 1/3, 1/6 rhythms).
-        np.clip(rhythm_variance / 150.0, 0.0, 1.0),
-
-        # 9. mean(distances): Average spacing between objects. The primary indicator for Aim consistency maps (large jumps).
-        np.clip(float(np.mean(distances)) * 2.0, 0.0, 1.0),
-
-        # 10. speed_change_95th: Captures localized peak acceleration bursts, ignoring one-off anomalies. Isolates intense Tech snaps.
-        np.clip(speed_change_95th * 40.0, 0.0, 1.0),
-
-        # 11. angle_90th: Captures the upper extreme of direction changes. Identifies maps with heavy "back-and-forth" linear jumps or cut-streams.
-        np.clip(angle_90th / np.pi, 0.0, 1.0),
-
-        # 12. sharp_turn_ratio: Density of acute angles (< 75 degrees). High in Tech/Alt maps which require continuous direction processing.
-        sharp_turn_ratio
-    ], dtype=np.float32)
+    return np.array(
+        [
+            # 1. slider_ratio: Base indicator for Alt/Tech. High ratio = lots of sliders (Alt/Tech). Low = mostly circles (Aim/Stream).
+            slider_ratio,
+            # 2. slider_length_std: Measures slider length variance. Tech maps use drastically different slider shapes/lengths; Alt maps are more uniform.
+            np.clip(slider_length_std / 200.0, 0.0, 1.0),
+            # 3. std(speeds): Overall cursor speed variance. High in maps with variable spacing and SV gimmicks (Tech).
+            np.clip(float(np.std(speeds)) * 100.0, 0.0, 1.0),
+            # 4. std(speed_changes): Volatility of acceleration. High when maps constantly switch between slow and fast movements (Tech/Alt).
+            np.clip(float(np.std(speed_changes)) * 100.0, 0.0, 1.0),
+            # 5. max(speed_changes): Captures the single most extreme "stop-and-go" cursor snap. A strong indicator for Tech gimmicks.
+            np.clip(float(np.max(np.abs(speed_changes))) * 50.0, 0.0, 1.0),
+            # 6. std(angles): Differentiates flow aim from snap aim. Streams have low variance (consistent flow); Aim/Tech have high variance (snaps/jumps).
+            np.clip(float(np.std(angles)) / np.pi, 0.0, 1.0),
+            # 7. mean(angles): Average angle size. Wide angles = jump patterns (Aim). Tight angles = continuous flow (Streams).
+            np.clip(float(np.mean(angles)) / np.pi, 0.0, 1.0),
+            # 8. rhythm_variance: How often the time gap between objects changes. Streams are near zero; Tech is high (mixed 1/4, 1/3, 1/6 rhythms).
+            np.clip(rhythm_variance / 150.0, 0.0, 1.0),
+            # 9. mean(distances): Average spacing between objects. The primary indicator for Aim consistency maps (large jumps).
+            np.clip(float(np.mean(distances)) * 2.0, 0.0, 1.0),
+            # 10. speed_change_95th: Captures localized peak acceleration bursts, ignoring one-off anomalies. Isolates intense Tech snaps.
+            np.clip(speed_change_95th * 40.0, 0.0, 1.0),
+            # 11. angle_90th: Captures the upper extreme of direction changes. Identifies maps with heavy "back-and-forth" linear jumps or cut-streams.
+            np.clip(angle_90th / np.pi, 0.0, 1.0),
+            # 12. sharp_turn_ratio: Density of acute angles (< 75 degrees). High in Tech/Alt maps which require continuous direction processing.
+            sharp_turn_ratio,
+        ],
+        dtype=np.float32,
+    )

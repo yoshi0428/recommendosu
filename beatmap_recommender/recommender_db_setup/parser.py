@@ -33,37 +33,29 @@ def parse_osu_file(
     data = {
         "beatmap_id": None,
         "beatmapset_id": None,
-
-        "preview_time": 0, # default to start of song
+        "preview_time": 0,  # default to start of song
         "mode": 0,  # Default to standard
-
         "title": "",
         "artist": "",
         "creator": "",
         "version": "",
-
         # Base difficulty
         "hp_drain": None,
         "circle_size": None,
         "od": None,
         "ar": None,
-
         # Slider settings
         "slider_multiplier": None,
         "slider_tick": None,
-
         # Base timing
         "bpm": None,
         "min_bpm": None,
         "max_bpm": None,
-
         # Map statistics
         "length_seconds": None,
         "object_count": 0,
-
         # Raw hit objects
         "hit_objects": [],
-
         # Raw base vectors
         "vectors": [],
     }
@@ -82,7 +74,6 @@ def parse_osu_file(
 
     section = None
     for line in lines:
-
         line = line.strip()
 
         if not line:
@@ -127,7 +118,6 @@ def parse_osu_file(
         # =================================================
 
         if section == "Metadata":
-
             if ":" not in line:
                 continue
 
@@ -163,7 +153,6 @@ def parse_osu_file(
         # =================================================
 
         elif section == "Difficulty":
-
             if ":" not in line:
                 continue
 
@@ -219,7 +208,6 @@ def parse_osu_file(
         # =================================================
 
         elif section == "HitObjects":
-
             obj_data = line.split(",")
 
             if len(obj_data) < 4:
@@ -241,7 +229,6 @@ def parse_osu_file(
             # ------------------------------------------------
 
             if hit_object_type & hit_circle_flag:
-
                 hit_object = {
                     "x": x,
                     "y": y,
@@ -256,7 +243,6 @@ def parse_osu_file(
             # ------------------------------------------------
 
             elif hit_object_type & slider_flag:
-
                 if len(obj_data) <= 7:
                     continue
 
@@ -284,11 +270,7 @@ def parse_osu_file(
     # ========================================================
 
     if timing_points:
-
-        bpms = [
-            bpm
-            for _, bpm in timing_points
-        ]
+        bpms = [bpm for _, bpm in timing_points]
 
         data["bpm"] = bpms[0]
         data["min_bpm"] = min(bpms)

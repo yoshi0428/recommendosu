@@ -71,17 +71,13 @@ def apply_mod_to_stat(value, mods, stat):
     if value is None:
         return None
 
-    mods = {
-        mod.upper()
-        for mod in mods
-    }
+    mods = {mod.upper() for mod in mods}
 
     # --------------------------------------------------------
     # Circle Size
     # --------------------------------------------------------
 
     if stat == "cs":
-
         if "HR" in mods:
             return min(10.0, value * 1.4)
 
@@ -95,7 +91,6 @@ def apply_mod_to_stat(value, mods, stat):
     # --------------------------------------------------------
 
     if stat == "hp":
-
         if "HR" in mods:
             return min(10.0, value * 1.4)
 
@@ -109,7 +104,6 @@ def apply_mod_to_stat(value, mods, stat):
     # --------------------------------------------------------
 
     if stat in ("ar", "od"):
-
         result = value
 
         # HR / EZ first
@@ -181,10 +175,7 @@ def apply_bpm_mod(
         0.75x
     """
 
-    mods = {
-        mod.upper()
-        for mod in mods
-    }
+    mods = {mod.upper() for mod in mods}
 
     multiplier = 1.0
 
@@ -195,17 +186,9 @@ def apply_bpm_mod(
         multiplier = 0.75
 
     return (
-        bpm * multiplier
-        if bpm is not None
-        else None,
-
-        min_bpm * multiplier
-        if min_bpm is not None
-        else None,
-
-        max_bpm * multiplier
-        if max_bpm is not None
-        else None,
+        bpm * multiplier if bpm is not None else None,
+        min_bpm * multiplier if min_bpm is not None else None,
+        max_bpm * multiplier if max_bpm is not None else None,
     )
 
 
@@ -229,10 +212,7 @@ def apply_length_mod(
     if length_seconds is None:
         return None
 
-    mods = {
-        mod.upper()
-        for mod in mods
-    }
+    mods = {mod.upper() for mod in mods}
 
     if "DT" in mods:
         return length_seconds / 1.5

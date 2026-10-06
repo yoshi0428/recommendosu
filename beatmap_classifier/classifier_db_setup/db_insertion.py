@@ -1,13 +1,13 @@
 from beatmap_mods import (
-    get_modded_stats,
     apply_bpm_mod,
     apply_length_mod,
+    get_modded_stats,
 )
-
 
 # ============================================================
 # Base Beatmap
 # ============================================================
+
 
 def insert_base_beatmap(
     conn,
@@ -66,6 +66,7 @@ def insert_base_beatmap(
 # Base Vectors
 # ============================================================
 
+
 def insert_vectors(conn, beatmap_id, vectors):
     """
     Insert raw beatmap vectors while preserving their order.
@@ -109,9 +110,11 @@ def insert_vectors(conn, beatmap_id, vectors):
         ],
     )
 
+
 # ============================================================
 # Beatmap Variants
 # ============================================================
+
 
 def insert_variant(
     conn,
@@ -147,12 +150,7 @@ def insert_variant(
     if not mods:
         mods_string = "NM"
     else:
-        mods_string = "".join(
-            sorted(
-                mod.upper()
-                for mod in mods
-            )
-        )
+        mods_string = "".join(sorted(mod.upper() for mod in mods))
 
     # --------------------------------------------------------
     # Calculate modded difficulty statistics
@@ -243,23 +241,17 @@ def insert_variant(
         (
             beatmap_id,
             mods_string,
-
             stats["hp_drain"],
             stats["circle_size"],
             stats["od"],
             stats["ar"],
-
             stats["star_rating"],
             stats["max_combo"],
-
             effective_bpm,
             effective_min_bpm,
             effective_max_bpm,
-
             effective_length,
-
             base_data["object_count"],
-
             stats["pp"],
             stats["pp_aim"],
             stats["pp_speed"],
@@ -272,8 +264,7 @@ def insert_variant(
 
     if row is None:
         raise RuntimeError(
-            f"Failed to retrieve variant ID "
-            f"for {beatmap_id} + {mods_string}"
+            f"Failed to retrieve variant ID for {beatmap_id} + {mods_string}"
         )
 
     return row[0], mods_string
@@ -282,6 +273,7 @@ def insert_variant(
 # ============================================================
 # Tournament Prediction
 # ============================================================
+
 
 def insert_tournament_prediction(
     conn,
@@ -334,12 +326,7 @@ def insert_tournament_prediction(
     if not required_mods:
         required_mod_string = "NM"
     else:
-        required_mod_string = "".join(
-            sorted(
-                mod.upper()
-                for mod in required_mods
-            )
-        )
+        required_mod_string = "".join(sorted(mod.upper() for mod in required_mods))
 
     # --------------------------------------------------------
     # Make sure this prediction belongs to this variant.

@@ -5,19 +5,23 @@ import time
 from pathlib import Path
 
 import numpy as np
+import osu_tools
 import requests
 import torch
-import osu_tools
-
-from beatmap_classifier.classifier.augment_faster import extract_movement_features_from_X
-from beatmap_classifier.classifier_db_setup.beatmap_mods import get_modded_stats, calculate_difficulty
 from classifier_db_setup.parser import parse_osu_file
-from beatmap_classifier.classifier.utils_training import (
-    pad_sequences_pt,
-    load_pytorch_models,
+
+from beatmap_classifier.classifier.augment_faster import (
+    extract_movement_features_from_X,
 )
 from beatmap_classifier.classifier.cnn_model import CNNModel
-
+from beatmap_classifier.classifier.utils_training import (
+    load_pytorch_models,
+    pad_sequences_pt,
+)
+from beatmap_classifier.classifier_db_setup.beatmap_mods import (
+    calculate_difficulty,
+    get_modded_stats,
+)
 
 # ============================================================
 # Configuration
@@ -54,7 +58,7 @@ sql_feature_names = [
     "pp",
     "pp_aim",
     "pp_speed",
-    "pp_acc"
+    "pp_acc",
 ]
 
 movement_feature_names = [
@@ -80,10 +84,7 @@ cnn_feature_names = [
     "CNN_NM5",
 ]
 
-additional_feature_names = (
-    sql_feature_names +
-    movement_feature_names
-)
+additional_feature_names = sql_feature_names + movement_feature_names
 
 # GROUP 1
 excluded_features = {
@@ -93,19 +94,15 @@ excluded_features = {
     "speed_change_std",
     "angle_90th",
     "od",
-    "speed_change_max"
+    "speed_change_max",
 }
 
 selected_features = [
-    feature
-    for feature in additional_feature_names
-    if feature not in excluded_features
+    feature for feature in additional_feature_names if feature not in excluded_features
 ]
 
-indices = [
-    additional_feature_names.index(name)
-    for name in selected_features
-]
+indices = [additional_feature_names.index(name) for name in selected_features]
+
 
 def download_beatmap(beatmap_id):
     url = f"https://osu.direct/api/osu/{beatmap_id}"
@@ -121,6 +118,7 @@ def download_beatmap(beatmap_id):
         return None
 
     return response.content
+
 
 def get_metadata(
     beatmap_data,
@@ -140,7 +138,11 @@ def get_metadata(
         length_seconds
         object_count
     """
-    stats = get_modded_stats(beatmap_data, difficulty_result, [],)
+    stats = get_modded_stats(
+        beatmap_data,
+        difficulty_result,
+        [],
+    )
 
     features = np.array(
         [
@@ -161,6 +163,7 @@ def get_metadata(
     )
 
     return features
+
 
 def predict_cnn(
     beatmap_vectors,
@@ -194,6 +197,7 @@ def predict_cnn(
 
     mean_prediction = torch.stack(model_predictions).mean(dim=0)
     return mean_prediction[0].numpy()
+
 
 def test_model_on_beatmap_id(
     beatmap_id,
@@ -246,16 +250,22 @@ def test_model_on_beatmap_id(
         cnn_probs = predict_cnn(beatmap_vectors, bagged_models)
 
         # Combine metadata + movement features
-        movement_features = extract_movement_features_from_X(np.asarray(beatmap_vectors, dtype=np.float32))
+        movement_features = extract_movement_features_from_X(
+            np.asarray(beatmap_vectors, dtype=np.float32)
+        )
         movement_features = np.asarray(movement_features, dtype=np.float32)
         metadata_features = get_metadata(beatmap_data, difficulty_result)
 
         # MUST have the exact same ordering as training:
         # X_additional = [sql_features, movement_features]
-        additional_features = np.hstack([metadata_features, movement_features]).reshape(1, -1)
+        additional_features = np.hstack([metadata_features, movement_features]).reshape(
+            1, -1
+        )
 
         # CNN probabilities + SELECTED additional features
-        meta_features = np.hstack([cnn_probs.reshape(1, -1), additional_features[:, indices]])
+        meta_features = np.hstack(
+            [cnn_probs.reshape(1, -1), additional_features[:, indices]]
+        )
 
         # XGBoost prediction
         final_probabilities = meta_model.predict_proba(meta_features)[0]
@@ -266,14 +276,20 @@ def test_model_on_beatmap_id(
         print("\nCNN predictions:")
 
         cnn_labels = label_encoder.inverse_transform(np.arange(len(cnn_probs)))
-        cnn_predictions = sorted(zip(cnn_labels, cnn_probs), key=lambda x: x[1], reverse=True)
+        cnn_predictions = sorted(
+            zip(cnn_labels, cnn_probs), key=lambda x: x[1], reverse=True
+        )
 
         for label, probability in cnn_predictions:
             print(f"  {label:<8} {probability:.4f}")
 
         print("\nFinal XGBoost predictions:")
 
-        final_predictions = sorted(zip(label_encoder.classes_, final_probabilities), key=lambda x: x[1], reverse=True)
+        final_predictions = sorted(
+            zip(label_encoder.classes_, final_probabilities),
+            key=lambda x: x[1],
+            reverse=True,
+        )
 
         for label, probability in final_predictions:
             print(f"  {label:<8} {probability:.4f}")
@@ -283,6 +299,7 @@ def test_model_on_beatmap_id(
     finally:
         if temp_file_path is not None and os.path.exists(temp_file_path):
             os.unlink(temp_file_path)
+
 
 def main():
 

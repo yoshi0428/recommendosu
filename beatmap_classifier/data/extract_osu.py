@@ -1,7 +1,8 @@
 import os
 import zipfile
-from tqdm import tqdm
 from pathlib import Path
+
+from tqdm import tqdm
 
 PROJECT_ROOT = Path(__file__).resolve().parents[0]
 ROOT_DIR = PROJECT_ROOT / "NM1_DUMMY"
@@ -10,6 +11,7 @@ OUTPUT_DIR = PROJECT_ROOT / "NM1"
 # ============================================================
 # Extract .osu files
 # ============================================================
+
 
 def extract_osu_files(root_dir, output_dir):
     """
@@ -29,9 +31,7 @@ def extract_osu_files(root_dir, output_dir):
     for dirpath, _, filenames in os.walk(root_dir):
         for filename in filenames:
             if filename.lower().endswith(".osz"):
-                osz_files.append(
-                    os.path.join(dirpath, filename)
-                )
+                osz_files.append(os.path.join(dirpath, filename))
 
     print(f"Found {len(osz_files)} .osz archives.")
 
@@ -41,55 +41,36 @@ def extract_osu_files(root_dir, output_dir):
 
     extracted_count = 0
 
-    for osz_path in tqdm(
-        osz_files,
-        desc="Extracting .osu files"
-    ):
-
+    for osz_path in tqdm(osz_files, desc="Extracting .osu files"):
         try:
             with zipfile.ZipFile(osz_path, "r") as archive:
-
                 for member in archive.infolist():
-
                     # Only extract .osu files.
                     if not member.filename.lower().endswith(".osu"):
                         continue
 
                     # Get only the filename, ignoring any
                     # directories inside the archive.
-                    filename = os.path.basename(
-                        member.filename
-                    )
+                    filename = os.path.basename(member.filename)
 
                     if not filename:
                         continue
 
-                    output_path = os.path.join(
-                        output_dir,
-                        filename
-                    )
+                    output_path = os.path.join(output_dir, filename)
 
                     # ------------------------------------------------
                     # Prevent overwriting duplicate filenames
                     # ------------------------------------------------
 
                     if os.path.exists(output_path):
-
-                        base, extension = os.path.splitext(
-                            filename
-                        )
+                        base, extension = os.path.splitext(filename)
 
                         counter = 1
 
                         while True:
-                            new_filename = (
-                                f"{base}_{counter}{extension}"
-                            )
+                            new_filename = f"{base}_{counter}{extension}"
 
-                            output_path = os.path.join(
-                                output_dir,
-                                new_filename
-                            )
+                            output_path = os.path.join(output_dir, new_filename)
 
                             if not os.path.exists(output_path):
                                 break
@@ -102,25 +83,19 @@ def extract_osu_files(root_dir, output_dir):
 
                     with (
                         archive.open(member) as source,
-                        open(output_path, "wb") as target
+                        open(output_path, "wb") as target,
                     ):
                         target.write(source.read())
 
                     extracted_count += 1
 
         except zipfile.BadZipFile:
-            print(
-                f"\nInvalid .osz archive: {osz_path}"
-            )
+            print(f"\nInvalid .osz archive: {osz_path}")
 
         except Exception as e:
-            print(
-                f"\nFailed to extract {osz_path}: {e}"
-            )
+            print(f"\nFailed to extract {osz_path}: {e}")
 
-    print(
-        f"\nExtracted {extracted_count} .osu files."
-    )
+    print(f"\nExtracted {extracted_count} .osu files.")
 
 
 # ============================================================
@@ -128,7 +103,4 @@ def extract_osu_files(root_dir, output_dir):
 # ============================================================
 
 if __name__ == "__main__":
-    extract_osu_files(
-        ROOT_DIR,
-        OUTPUT_DIR
-    )
+    extract_osu_files(ROOT_DIR, OUTPUT_DIR)

@@ -1,6 +1,9 @@
-from beatmap_recommender.content_similarity.core_modules.ability import get_ability_score_weight
+from beatmap_recommender.content_similarity.core_modules.ability import (
+    get_ability_score_weight,
+)
 
 NM_LABELS = ("NM1", "NM2", "NM3", "NM4", "NM5")
+
 
 def get_player_category_preferences(
     conn,
@@ -56,10 +59,7 @@ def get_player_category_preferences(
         (player_id,),
     ).fetchall()
 
-    totals = {
-        label: 0.0
-        for label in NM_LABELS
-    }
+    totals = {label: 0.0 for label in NM_LABELS}
 
     for (
         source,
@@ -71,7 +71,6 @@ def get_player_category_preferences(
         nm4,
         nm5,
     ) in rows:
-
         weight = get_ability_score_weight(
             source,
             pp,
@@ -98,10 +97,7 @@ def get_player_category_preferences(
     if total <= 0:
         return {}
 
-    return {
-        label: value / total
-        for label, value in totals.items()
-    }
+    return {label: value / total for label, value in totals.items()}
 
 
 def get_candidate_classifier_predictions(conn, beatmap_ids):
@@ -126,7 +122,7 @@ def get_candidate_classifier_predictions(conn, beatmap_ids):
     all_rows = []
 
     for i in range(0, len(beatmap_ids_list), chunk_size):
-        chunk = beatmap_ids_list[i:i + chunk_size]
+        chunk = beatmap_ids_list[i : i + chunk_size]
         placeholders = ",".join("?" for _ in chunk)
 
         rows = conn.execute(
@@ -191,10 +187,7 @@ def calculate_classifier_score(
         for label in NM_LABELS
     )
 
-    max_preference = max(
-        (preferences.get(label) or 0.0)
-        for label in NM_LABELS
-    )
+    max_preference = max((preferences.get(label) or 0.0) for label in NM_LABELS)
 
     if max_preference <= 0:
         return 0.0

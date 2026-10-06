@@ -1,7 +1,7 @@
-import time
 import random
-import requests
+import time
 
+import requests
 
 API_BASE = "https://osu.ppy.sh/api/v2"
 
@@ -71,7 +71,7 @@ class OsuAPIClient:
                 if attempt == MAX_RETRIES - 1:
                     raise
 
-                delay = BACKOFF_BASE ** attempt + random.uniform(0, 1)
+                delay = BACKOFF_BASE**attempt + random.uniform(0, 1)
                 print(f"Request error: {exc}. Retrying in {delay:.2f}s...")
                 time.sleep(delay)
                 continue
@@ -86,7 +86,7 @@ class OsuAPIClient:
                 if retry_after is not None:
                     delay = float(retry_after)
                 else:
-                    delay = BACKOFF_BASE ** attempt + random.uniform(0, 1)
+                    delay = BACKOFF_BASE**attempt + random.uniform(0, 1)
 
                 print(f"Rate limited. Waiting {delay:.2f}s...")
                 time.sleep(delay)
@@ -97,8 +97,10 @@ class OsuAPIClient:
                 if attempt == MAX_RETRIES - 1:
                     response.raise_for_status()
 
-                delay = BACKOFF_BASE ** attempt + random.uniform(0, 1)
-                print(f"Server error {response.status_code}. Retrying in {delay:.2f}s...")
+                delay = BACKOFF_BASE**attempt + random.uniform(0, 1)
+                print(
+                    f"Server error {response.status_code}. Retrying in {delay:.2f}s..."
+                )
                 time.sleep(delay)
                 continue
 

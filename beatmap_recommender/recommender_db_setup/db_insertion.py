@@ -1,15 +1,16 @@
-from beatmap_recommender.recommender_db_setup.beatmap_mods import (
-    get_modded_stats,
-    apply_bpm_mod,
-    apply_length_mod,
-)
 from beatmap_recommender.content_similarity.core_modules.mod_preferences import (
     canonicalize_mods,
+)
+from beatmap_recommender.recommender_db_setup.beatmap_mods import (
+    apply_bpm_mod,
+    apply_length_mod,
+    get_modded_stats,
 )
 
 # ============================================================
 # Base Beatmap
 # ============================================================
+
 
 def insert_base_beatmap(conn, beatmap_data, md5, year):
     """
@@ -20,7 +21,8 @@ def insert_base_beatmap(conn, beatmap_data, md5, year):
 
     The values stored here are BASE beatmap statistics.
     """
-    conn.execute("""
+    conn.execute(
+        """
         INSERT INTO beatmaps (
             beatmap_id,
             beatmapset_id,
@@ -64,33 +66,36 @@ def insert_base_beatmap(conn, beatmap_data, md5, year):
             max_bpm = excluded.max_bpm,
             length_seconds = excluded.length_seconds,
             object_count = excluded.object_count
-    """, (
-        str(beatmap_data["beatmap_id"]),
-        beatmap_data["beatmapset_id"],
-        md5,
-        beatmap_data["title"],
-        beatmap_data["artist"],
-        beatmap_data["creator"],
-        beatmap_data["version"],
-        beatmap_data["preview_time"],
-        year,
-        beatmap_data["hp_drain"],
-        beatmap_data["circle_size"],
-        beatmap_data["od"],
-        beatmap_data["ar"],
-        beatmap_data["slider_multiplier"],
-        beatmap_data["slider_tick"],
-        beatmap_data["bpm"],
-        beatmap_data["min_bpm"],
-        beatmap_data["max_bpm"],
-        beatmap_data["length_seconds"],
-        beatmap_data["object_count"],
-    ))
+    """,
+        (
+            str(beatmap_data["beatmap_id"]),
+            beatmap_data["beatmapset_id"],
+            md5,
+            beatmap_data["title"],
+            beatmap_data["artist"],
+            beatmap_data["creator"],
+            beatmap_data["version"],
+            beatmap_data["preview_time"],
+            year,
+            beatmap_data["hp_drain"],
+            beatmap_data["circle_size"],
+            beatmap_data["od"],
+            beatmap_data["ar"],
+            beatmap_data["slider_multiplier"],
+            beatmap_data["slider_tick"],
+            beatmap_data["bpm"],
+            beatmap_data["min_bpm"],
+            beatmap_data["max_bpm"],
+            beatmap_data["length_seconds"],
+            beatmap_data["object_count"],
+        ),
+    )
 
 
 # ============================================================
 # Base Vectors
 # ============================================================
+
 
 def insert_vectors(conn, beatmap_id, vectors):
     """
@@ -135,9 +140,11 @@ def insert_vectors(conn, beatmap_id, vectors):
         ],
     )
 
+
 # ============================================================
 # Beatmap Variants
 # ============================================================
+
 
 def insert_variant(
     conn,
@@ -267,25 +274,18 @@ def insert_variant(
             beatmap_id,
             beatmapset_id,
             mods_string,
-
             year,
-
             stats["hp_drain"],
             stats["circle_size"],
             stats["od"],
             stats["ar"],
-
             stats["star_rating"],
             stats["max_combo"],
-
             effective_bpm,
             effective_min_bpm,
             effective_max_bpm,
-
             effective_length,
-
             base_data["object_count"],
-
             stats["pp"],
             stats["pp_aim"],
             stats["pp_speed"],
@@ -298,8 +298,7 @@ def insert_variant(
 
     if row is None:
         raise RuntimeError(
-            f"Failed to retrieve variant ID "
-            f"for {beatmap_id} + {mods_string}"
+            f"Failed to retrieve variant ID for {beatmap_id} + {mods_string}"
         )
 
     return row[0], mods_string
@@ -336,12 +335,7 @@ def insert_variant_prediction_labels(
     if not required_mods:
         required_mod_string = "NM"
     else:
-        required_mod_string = "".join(
-            sorted(
-                mod.upper()
-                for mod in required_mods
-            )
-        )
+        required_mod_string = "".join(sorted(mod.upper() for mod in required_mods))
 
     # --------------------------------------------------------
     # Make sure this prediction belongs to this variant.
@@ -381,8 +375,10 @@ def insert_variant_prediction_labels(
 
     return True
 
+
 def insert_score(conn, score):
-    conn.execute("""
+    conn.execute(
+        """
         INSERT INTO scores (
             score_id,
             player_id,
@@ -427,4 +423,6 @@ def insert_score(conn, score):
                     THEN scores.source
                 ELSE 'top,recent'
             END
-    """, score)
+    """,
+        score,
+    )

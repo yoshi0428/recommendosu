@@ -8,19 +8,13 @@ class Reader:
 
     def read(self, n):
         if self.pos + n > len(self.data):
-            raise EOFError(
-                f"Unexpected EOF at offset {self.pos}"
-            )
+            raise EOFError(f"Unexpected EOF at offset {self.pos}")
 
         start = self.pos
-        result = self.data[self.pos:self.pos + n]
+        result = self.data[self.pos : self.pos + n]
         self.pos += n
 
-        print(
-            f"READ {n:3} bytes "
-            f"@ 0x{start:08x}: "
-            f"{result.hex(' ')}"
-        )
+        print(f"READ {n:3} bytes @ 0x{start:08x}: {result.hex(' ')}")
 
         return result
 
@@ -38,31 +32,22 @@ class Reader:
 
         length = self.byte()
 
-        print(
-            f"STRING @ 0x{start:08x}: "
-            f"length={length}"
-        )
+        print(f"STRING @ 0x{start:08x}: length={length}")
 
         if length == 0:
             return ""
 
         raw = self.read(length)
 
-        print(
-            f"  data: {raw.hex(' ')}"
-        )
+        print(f"  data: {raw.hex(' ')}")
 
         try:
             value = raw.decode("utf-8")
             print(f"  text: {value!r}")
             return value
         except UnicodeDecodeError as e:
-            print(
-                f"  !!! UTF-8 DECODE FAILED !!!"
-            )
-            print(
-                f"  raw: {raw.hex(' ')}"
-            )
+            print(f"  !!! UTF-8 DECODE FAILED !!!")
+            print(f"  raw: {raw.hex(' ')}")
             raise
 
 
@@ -86,9 +71,7 @@ def parse_osdb(filename):
     print(f"Version: {version}")
 
     if version != "o!dm6":
-        raise ValueError(
-            f"Expected o!dm6, got {version!r}"
-        )
+        raise ValueError(f"Expected o!dm6, got {version!r}")
 
     creation_date = r.double()
     editor = r.string()
@@ -103,11 +86,7 @@ def parse_osdb(filename):
     # =========================
 
     for collection_index in range(collection_count):
-
-        print(
-            f"\n========== COLLECTION "
-            f"{collection_index} =========="
-        )
+        print(f"\n========== COLLECTION {collection_index} ==========")
 
         collection_name = r.string()
         online_id = r.int32()
@@ -116,7 +95,6 @@ def parse_osdb(filename):
         print(f"Collection: {collection_name}")
         print(f"Online ID: {online_id}")
         print(f"Beatmaps: {beatmap_count}")
-
 
         # =========================
         # FIRST BEATMAP
@@ -140,21 +118,14 @@ def parse_osdb(filename):
 
         print("\n--- Next bytes after MD5 ---")
 
-        print(
-            f"Current offset: {r.pos:#x}"
-        )
+        print(f"Current offset: {r.pos:#x}")
 
-        print(
-            "Next 20 bytes:",
-            r.data[r.pos:r.pos + 20].hex(" ")
-        )
+        print("Next 20 bytes:", r.data[r.pos : r.pos + 20].hex(" "))
 
         # Read 3 bytes temporarily
         unknown = r.read(3)
 
-        print(
-            f"Unknown 3 bytes: {unknown.hex(' ')}"
-        )
+        print(f"Unknown 3 bytes: {unknown.hex(' ')}")
 
         stars = r.double()
 

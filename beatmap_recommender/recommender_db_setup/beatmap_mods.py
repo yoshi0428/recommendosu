@@ -90,7 +90,6 @@ def apply_mod_to_stat(value, mods, stat):
     # --------------------------------------------------------
 
     if stat in ("ar", "od"):
-
         result = value
 
         # HR / EZ
@@ -113,7 +112,6 @@ def apply_mod_to_stat(value, mods, stat):
 
         # AR
         if stat == "ar":
-
             if result <= 5.0:
                 milliseconds = 1800.0 - 120.0 * result
             else:
@@ -128,7 +126,6 @@ def apply_mod_to_stat(value, mods, stat):
 
         # OD
         elif stat == "od":
-
             milliseconds = 79.5 - 6.0 * result
             milliseconds /= clock_rate
             result = (79.5 - milliseconds) / 6.0
@@ -158,10 +155,7 @@ def apply_bpm_mod(
         0.75x
     """
 
-    mods = {
-        mod.upper()
-        for mod in mods
-    }
+    mods = {mod.upper() for mod in mods}
 
     multiplier = 1.0
 
@@ -172,17 +166,9 @@ def apply_bpm_mod(
         multiplier = 0.75
 
     return (
-        bpm * multiplier
-        if bpm is not None
-        else None,
-
-        min_bpm * multiplier
-        if min_bpm is not None
-        else None,
-
-        max_bpm * multiplier
-        if max_bpm is not None
-        else None,
+        bpm * multiplier if bpm is not None else None,
+        min_bpm * multiplier if min_bpm is not None else None,
+        max_bpm * multiplier if max_bpm is not None else None,
     )
 
 
@@ -206,10 +192,7 @@ def apply_length_mod(
     if length_seconds is None:
         return None
 
-    mods = {
-        mod.upper()
-        for mod in mods
-    }
+    mods = {mod.upper() for mod in mods}
 
     if "DT" in mods:
         return length_seconds / 1.5
@@ -343,10 +326,8 @@ def get_modded_stats(base_data, result, mods):
         "circle_size": cs,
         "od": od,
         "ar": ar,
-
         "star_rating": stars,
         "max_combo": max_combo,
-
         "pp": pp,
         "pp_aim": pp_aim,
         "pp_speed": pp_speed,

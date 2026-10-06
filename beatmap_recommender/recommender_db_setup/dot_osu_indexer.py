@@ -4,6 +4,7 @@ import re
 
 MAX_SLIDER_LENGTH = 500.0
 
+
 def get_file_content_md5(file_path):
     """
     Calculate the MD5 checksum of the actual .osu file contents.
@@ -14,6 +15,7 @@ def get_file_content_md5(file_path):
             md5.update(chunk)
 
     return md5.hexdigest()
+
 
 def build_osu_file_index(root_dir, conn):
     """
@@ -39,7 +41,7 @@ def build_osu_file_index(root_dir, conn):
     by_md5 = {}
 
     # Regex to match duplicate suffixes like _1.osu, _2.osu, etc. before the extension
-    duplicate_pattern = re.compile(r'_\d+\.osu$', re.IGNORECASE)
+    duplicate_pattern = re.compile(r"_\d+\.osu$", re.IGNORECASE)
 
     osu_files = []
     for dirpath, _, filenames in os.walk(root_dir):

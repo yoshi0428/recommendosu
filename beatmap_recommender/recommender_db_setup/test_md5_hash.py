@@ -1,5 +1,6 @@
-import os
 import hashlib
+import os
+
 import requests
 from dotenv import load_dotenv
 
@@ -7,6 +8,7 @@ load_dotenv()
 
 CLIENT_ID = os.getenv("OSU_CLIENT_ID")
 CLIENT_SECRET = os.getenv("OSU_CLIENT_SECRET")
+
 
 def get_file_content_md5(file_path):
     hash_md5 = hashlib.md5()
@@ -22,12 +24,15 @@ def fetch_beatmap_id_from_api(file_path, file_hash):
         file_hash = get_file_content_md5(file_path)
 
     # 1. Authenticate with osu! API v2 using client credentials
-    auth_response = requests.post("https://osu.ppy.sh/oauth/token", data={
-        "client_id": CLIENT_ID,
-        "client_secret": CLIENT_SECRET,
-        "grant_type": "client_credentials",
-        "scope": "public"
-    })
+    auth_response = requests.post(
+        "https://osu.ppy.sh/oauth/token",
+        data={
+            "client_id": CLIENT_ID,
+            "client_secret": CLIENT_SECRET,
+            "grant_type": "client_credentials",
+            "scope": "public",
+        },
+    )
 
     if auth_response.status_code != 200:
         raise Exception(f"Failed to authenticate with osu! API: {auth_response.text}")
@@ -40,11 +45,11 @@ def fetch_beatmap_id_from_api(file_path, file_hash):
         "Accept": "application/json",
         "Content-Type": "application/json",
     }
-    params = {
-        "checksum": file_hash
-    }
+    params = {"checksum": file_hash}
 
-    response = requests.get("https://osu.ppy.sh/api/v2/beatmaps/lookup", headers=headers, params=params)
+    response = requests.get(
+        "https://osu.ppy.sh/api/v2/beatmaps/lookup", headers=headers, params=params
+    )
 
     if response.status_code == 200:
         beatmap_data = response.json()

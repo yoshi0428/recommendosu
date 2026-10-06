@@ -1,7 +1,7 @@
-import time
-from pathlib import Path
 import os
 import secrets
+import time
+from pathlib import Path
 from urllib.parse import urlencode
 
 import httpx
@@ -37,6 +37,7 @@ print("CLIENT ID:", repr(OSU_CLIENT_ID))
 print("CLIENT SECRET SET:", bool(OSU_CLIENT_SECRET))
 print("CLIENT SECRET LENGTH:", len(OSU_CLIENT_SECRET or ""))
 print("REDIRECT URI:", repr(OSU_REDIRECT_URI))
+
 
 def generate_state() -> str:
     """
@@ -91,6 +92,7 @@ async def exchange_code_for_token(code: str) -> dict:
         response.raise_for_status()
         return response.json()
 
+
 async def refresh_access_token(refresh_token: str) -> dict:
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(
@@ -109,6 +111,7 @@ async def refresh_access_token(refresh_token: str) -> dict:
 
         response.raise_for_status()
         return response.json()
+
 
 async def get_access_token(session_id: str) -> str:
     tokens = get_tokens(session_id)

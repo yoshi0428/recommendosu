@@ -1,8 +1,9 @@
 """
 
-    PASS 2
+PASS 2
 
 """
+
 import csv
 import hashlib
 import os
@@ -12,17 +13,16 @@ from pathlib import Path
 from osu_tools import OsuCalculator
 from tqdm import tqdm
 
-from beatmap_recommender.recommender_db_setup.parser import parse_osu_file
-from beatmap_recommender.recommender_db_setup.beatmap_mods import (
-    calculate_difficulty,
-    get_modded_stats,
-    apply_bpm_mod,
-    apply_length_mod,
-)
 from beatmap_recommender.content_similarity.core_modules.mod_preferences import (
     canonicalize_mods,
 )
-
+from beatmap_recommender.recommender_db_setup.beatmap_mods import (
+    apply_bpm_mod,
+    apply_length_mod,
+    calculate_difficulty,
+    get_modded_stats,
+)
+from beatmap_recommender.recommender_db_setup.parser import parse_osu_file
 
 # ============================================================
 # Configuration
@@ -31,7 +31,10 @@ from beatmap_recommender.content_similarity.core_modules.mod_preferences import 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DATABASE_PATH = PROJECT_ROOT / "beatmap_recommender/dummy.db"
 ROOT_DIR = PROJECT_ROOT / "beatmap_recommender/data"
-CSV_PATH = PROJECT_ROOT / "beatmap_recommender/recommender_db_setup/repair_missing_rows/unfetchable_beatmaps_rows.csv"
+CSV_PATH = (
+    PROJECT_ROOT
+    / "beatmap_recommender/recommender_db_setup/repair_missing_rows/unfetchable_beatmaps_rows.csv"
+)
 
 
 # Copy/import the same MOD_VARIANTS dictionary used by your original population script.
@@ -80,10 +83,7 @@ def load_corrections():
     ) as f:
         reader = csv.DictReader(f)
 
-        reader.fieldnames = [
-            field.strip()
-            for field in reader.fieldnames
-        ]
+        reader.fieldnames = [field.strip() for field in reader.fieldnames]
 
         rows = list(reader)
 
@@ -104,9 +104,7 @@ def build_variant_lookup():
         mods_string = canonicalize_mods(mods)
 
         if mods_string in lookup:
-            raise RuntimeError(
-                f"Duplicate canonical mod combination: {mods_string}"
-            )
+            raise RuntimeError(f"Duplicate canonical mod combination: {mods_string}")
 
         lookup[mods_string] = mods
 
@@ -177,8 +175,7 @@ def recalculate_variant(
 
     if result is None:
         raise RuntimeError(
-            f"Difficulty calculation failed for "
-            f"{file_path}, mods={mods}"
+            f"Difficulty calculation failed for {file_path}, mods={mods}"
         )
 
     stats = get_modded_stats(
@@ -203,7 +200,8 @@ def recalculate_variant(
         mods,
     )
 
-    cursor = conn.execute("""
+    cursor = conn.execute(
+        """
         UPDATE beatmap_variants
         SET
             hp_drain = ?,
@@ -228,30 +226,27 @@ def recalculate_variant(
             pp_flashlight = ?
 
         WHERE variant_id = ?
-    """, (
-        stats["hp_drain"],
-        stats["circle_size"],
-        stats["od"],
-        stats["ar"],
-
-        stats["star_rating"],
-        stats["max_combo"],
-
-        effective_bpm,
-        effective_min_bpm,
-        effective_max_bpm,
-
-        effective_length,
-        base_data["object_count"],
-
-        stats["pp"],
-        stats["pp_aim"],
-        stats["pp_speed"],
-        stats["pp_acc"],
-        stats["pp_flashlight"],
-
-        variant["variant_id"],
-    ))
+    """,
+        (
+            stats["hp_drain"],
+            stats["circle_size"],
+            stats["od"],
+            stats["ar"],
+            stats["star_rating"],
+            stats["max_combo"],
+            effective_bpm,
+            effective_min_bpm,
+            effective_max_bpm,
+            effective_length,
+            base_data["object_count"],
+            stats["pp"],
+            stats["pp_aim"],
+            stats["pp_speed"],
+            stats["pp_acc"],
+            stats["pp_flashlight"],
+            variant["variant_id"],
+        ),
+    )
 
     if cursor.rowcount != 1:
         raise RuntimeError(
@@ -273,19 +268,15 @@ def main():
         # ----------------------------------------------------
         # Build target IDs and verify Pass 1 has completed.
         # ----------------------------------------------------
-        corrected_ids = {
-            str(row["beatmap_id"]).strip()
-            for row in corrections
-        }
+        corrected_ids = {str(row["beatmap_id"]).strip() for row in corrections}
 
         if len(corrected_ids) != len(corrections):
-            raise RuntimeError(
-                "CSV contains duplicate corrected beatmap IDs"
-            )
+            raise RuntimeError("CSV contains duplicate corrected beatmap IDs")
 
         placeholders = ",".join("?" for _ in corrected_ids)
 
-        beatmaps = conn.execute(f"""
+        beatmaps = conn.execute(
+            f"""
             SELECT
                 beatmap_id,
                 beatmapset_id,
@@ -301,7 +292,9 @@ def main():
                 object_count
             FROM beatmaps
             WHERE beatmap_id IN ({placeholders})
-        """, tuple(sorted(corrected_ids))).fetchall()
+        """,
+            tuple(sorted(corrected_ids)),
+        ).fetchall()
 
         beatmaps_by_id = {
             row[0]: {
@@ -326,8 +319,7 @@ def main():
         if missing_ids:
             raise RuntimeError(
                 "These corrected IDs are missing from beatmaps. "
-                "Run Pass 1 first:\n"
-                + "\n".join(sorted(missing_ids))
+                "Run Pass 1 first:\n" + "\n".join(sorted(missing_ids))
             )
 
         # ----------------------------------------------------
@@ -347,15 +339,10 @@ def main():
         # ----------------------------------------------------
         # Locate source files by the preserved MD5.
         # ----------------------------------------------------
-        target_md5s = {
-            beatmap["md5"]
-            for beatmap in beatmaps_by_id.values()
-        }
+        target_md5s = {beatmap["md5"] for beatmap in beatmaps_by_id.values()}
 
         if None in target_md5s:
-            raise RuntimeError(
-                "At least one affected beatmap has no stored MD5"
-            )
+            raise RuntimeError("At least one affected beatmap has no stored MD5")
 
         files_by_md5 = find_osu_files(target_md5s)
 
@@ -365,7 +352,8 @@ def main():
         variants_by_id = {}
 
         for beatmap_id in corrected_ids:
-            variants = conn.execute("""
+            variants = conn.execute(
+                """
                 SELECT
                     variant_id,
                     beatmap_id,
@@ -373,7 +361,9 @@ def main():
                 FROM beatmap_variants
                 WHERE beatmap_id = ?
                 ORDER BY variant_id
-            """, (beatmap_id,)).fetchall()
+            """,
+                (beatmap_id,),
+            ).fetchall()
 
             variants_by_id[beatmap_id] = [
                 {
@@ -401,10 +391,7 @@ def main():
         # ----------------------------------------------------
         # Recalculate everything in one transaction.
         # ----------------------------------------------------
-        total_variants = sum(
-            len(variants)
-            for variants in variants_by_id.values()
-        )
+        total_variants = sum(len(variants) for variants in variants_by_id.values())
 
         updated = 0
 
@@ -425,15 +412,11 @@ def main():
             parsed_data = parse_osu_file(file_path)
 
             if parsed_data is None:
-                raise RuntimeError(
-                    f"Failed to parse {file_path}"
-                )
+                raise RuntimeError(f"Failed to parse {file_path}")
 
             # Verify the file content still matches the checksum stored in the database.
             if get_file_content_md5(file_path) != base_data["md5"]:
-                raise RuntimeError(
-                    f"MD5 mismatch for {file_path}"
-                )
+                raise RuntimeError(f"MD5 mismatch for {file_path}")
 
             for variant in variants_by_id[beatmap_id]:
                 mods = variant_lookup[variant["mods"]]

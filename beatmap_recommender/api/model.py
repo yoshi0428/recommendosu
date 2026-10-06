@@ -1,4 +1,5 @@
 from copy import deepcopy
+
 from pydantic import BaseModel, Field
 
 DIFFICULTY_STD_FLOORS = {
@@ -60,7 +61,6 @@ RECOMMENDATION_CONFIG = {
             "classifier_score",
         ),
     },
-
     "pp_potential": {
         "weights": {
             "content": 0.50,
@@ -92,11 +92,7 @@ class RecommendationSettings(BaseModel):
 
     goal: str = "balanced"
 
-    neighbors_k: int = Field(
-        default=20000,
-        ge=1,
-        le=146096
-    )
+    neighbors_k: int = Field(default=20000, ge=1, le=146096)
 
     min_year: int | None = None
     max_year: int | None = None

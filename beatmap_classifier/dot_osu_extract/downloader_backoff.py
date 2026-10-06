@@ -1,9 +1,10 @@
-import sys
-import os
-import time
-import random
-import requests
 import glob
+import os
+import random
+import sys
+import time
+
+import requests
 
 BASE_URL = "https://osu.direct/api/osu"
 REQUEST_DELAY = 0.75
@@ -19,6 +20,7 @@ HEADERS = {
         "Chrome/151.0.0.0 Safari/537.36"
     )
 }
+
 
 def get_retry_delay(response, retry_number):
     """
@@ -40,8 +42,8 @@ def get_retry_delay(response, retry_number):
             pass
 
     # Exponential backoff
-    delay = min(INITIAL_BACKOFF * (2 ** retry_number), MAX_BACKOFF)
-    delay *= random.uniform(1.0, 1.25) # add 0-25% jitter
+    delay = min(INITIAL_BACKOFF * (2**retry_number), MAX_BACKOFF)
+    delay *= random.uniform(1.0, 1.25)  # add 0-25% jitter
 
     return min(delay, MAX_BACKOFF)
 
@@ -65,7 +67,7 @@ def download_file(session, beatmap_id, file_path):
                 print(f"{beatmap_id}: request failed after {MAX_RETRIES} retries: {e}")
                 return False
 
-            delay = min(INITIAL_BACKOFF * (2 ** retry_number), MAX_BACKOFF)
+            delay = min(INITIAL_BACKOFF * (2**retry_number), MAX_BACKOFF)
             delay *= random.uniform(1.0, 1.25)
 
             print(f"{beatmap_id}: network error: {e}")
@@ -94,10 +96,12 @@ def download_file(session, beatmap_id, file_path):
         # Server errors
         if response.status_code in (500, 502, 503, 504):
             if retry_number >= MAX_RETRIES:
-                print(f"{beatmap_id}: server error {response.status_code} after retries.")
+                print(
+                    f"{beatmap_id}: server error {response.status_code} after retries."
+                )
                 return False
 
-            delay = min(INITIAL_BACKOFF * (2 ** retry_number), MAX_BACKOFF)
+            delay = min(INITIAL_BACKOFF * (2**retry_number), MAX_BACKOFF)
             delay *= random.uniform(1.0, 1.25)
 
             print(f"{beatmap_id}: HTTP {response.status_code}.")
@@ -110,6 +114,7 @@ def download_file(session, beatmap_id, file_path):
         return False
 
     return False
+
 
 def download_beatmaps(input_file, output_folder):
 
@@ -125,7 +130,9 @@ def download_beatmaps(input_file, output_folder):
             file_path = os.path.join(output_folder, f"{beatmap_id}.osu")
 
             if os.path.exists(file_path):
-                print(f"[{index}/{total}] {beatmap_id}.osu already exists, skipping download")
+                print(
+                    f"[{index}/{total}] {beatmap_id}.osu already exists, skipping download"
+                )
                 continue
 
             print(f"[{index}/{total}] Downloading {beatmap_id}.osu...")

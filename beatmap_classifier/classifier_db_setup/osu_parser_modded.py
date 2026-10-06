@@ -3,20 +3,19 @@ import os
 import sqlite3
 from concurrent.futures import ProcessPoolExecutor
 
-from osu_tools import OsuCalculator
-from tqdm import tqdm
-
-from db_table_creation import create_tables
-from beatmap_recommender.recommender_db_setup.osu_api_client import OsuAPIClient
-from parser import parse_osu_file
 from beatmap_mods import calculate_difficulty
 from db_insertion import (
-    insert_variant,
-    insert_vectors,
     insert_base_beatmap,
     insert_tournament_prediction,
+    insert_variant,
+    insert_vectors,
 )
+from db_table_creation import create_tables
+from osu_tools import OsuCalculator
+from parser import parse_osu_file
+from tqdm import tqdm
 
+from beatmap_recommender.recommender_db_setup.osu_api_client import OsuAPIClient
 
 # ============================================================
 # Configuration
@@ -47,86 +46,71 @@ TOURNAMENT_LABELS = {
         "column": "nm1",
         "mods": [],
     },
-
     "nm2": {
         "column": "nm2",
         "mods": [],
     },
-
     "nm3": {
         "column": "nm3",
         "mods": [],
     },
-
     "nm4": {
         "column": "nm4",
         "mods": [],
     },
-
     "nm5": {
         "column": "nm5",
         "mods": [],
     },
-
     "nm6": {
         "column": "nm6",
         "mods": [],
     },
-
     "dt1": {
         "column": "dt1",
         "mods": ["DT"],
     },
-
     "dt2_and_dt3": {
         "column": "dt2_and_dt3",
         "mods": ["DT"],
     },
-
     "dt4": {
         "column": "dt4",
         "mods": ["DT"],
     },
-
     "hr1": {
         "column": "hr1",
         "mods": ["HR"],
     },
-
     "hr2": {
         "column": "hr2",
         "mods": ["HR"],
     },
-
     "hr3": {
         "column": "hr3",
         "mods": ["HR"],
     },
-
     "hd1": {
         "column": "hd1",
         "mods": ["HD"],
     },
-
     "hd2": {
         "column": "hd2",
         "mods": ["HD"],
     },
-
     "hd3": {
         "column": "hd3",
         "mods": ["HD"],
     },
-
     "tiebreaker": {
         "column": "tiebreaker",
         "mods": [],
     },
-
     # Freemod intentionally omitted for now.
 }
 
 _worker_calculator = None
+
 
 def init_worker():
     """
@@ -135,6 +119,7 @@ def init_worker():
     """
     global _worker_calculator
     _worker_calculator = OsuCalculator()
+
 
 def process_difficulty(file_path):
     """
@@ -161,6 +146,7 @@ def process_difficulty(file_path):
         "variant_results": variant_results,
     }
 
+
 def get_file_content_md5(file_path):
     hash_md5 = hashlib.md5()
     with open(file_path, "rb") as f:
@@ -168,11 +154,14 @@ def get_file_content_md5(file_path):
             hash_md5.update(chunk)
     return hash_md5.hexdigest()
 
+
 def main():
 
     conn = sqlite3.connect(DATABASE_PATH)
     conn.execute("PRAGMA journal_mode = WAL")
-    conn.execute("PRAGMA synchronous = NORMAL") # Change to NORMAL for more safety if needed
+    conn.execute(
+        "PRAGMA synchronous = NORMAL"
+    )  # Change to NORMAL for more safety if needed
     conn.execute("PRAGMA temp_store = MEMORY")
     conn.execute("PRAGMA cache_size = -200000")
 
@@ -184,7 +173,9 @@ def main():
         api_client = OsuAPIClient()
         api_client.authenticate()
     except Exception as e:
-        print(f"Warning: Failed to initialize OsuAPIClient: {e}. Will rely on fallback defaults.")
+        print(
+            f"Warning: Failed to initialize OsuAPIClient: {e}. Will rely on fallback defaults."
+        )
 
     osu_files = []
     for dirpath, _, filenames in os.walk(ROOT_DIR):
@@ -199,8 +190,9 @@ def main():
 
     print(f"Starting {NUM_WORKERS} difficulty workers...")
 
-    with ProcessPoolExecutor(max_workers=NUM_WORKERS, initializer=init_worker) as executor:
-
+    with ProcessPoolExecutor(
+        max_workers=NUM_WORKERS, initializer=init_worker
+    ) as executor:
         results = executor.map(process_difficulty, osu_files, chunksize=1)
         processed = 0
 
@@ -230,9 +222,13 @@ def main():
             file_hash = get_file_content_md5(file_path)
 
             # If beatmap_id or essential difficulty attributes are missing, try querying the API via checksum
-            if (beatmap_data["beatmap_id"] is None or beatmap_data["ar"] is None) and api_client is not None:
+            if (
+                beatmap_data["beatmap_id"] is None or beatmap_data["ar"] is None
+            ) and api_client is not None:
                 try:
-                    response_data = api_client.get("/beatmaps/lookup", params={"checksum": file_hash})
+                    response_data = api_client.get(
+                        "/beatmaps/lookup", params={"checksum": file_hash}
+                    )
                     if response_data and "id" in response_data:
                         beatmap_data["beatmap_id"] = str(response_data["id"])
                         if beatmap_data["ar"] is None:
@@ -285,9 +281,17 @@ def main():
                 # --------------------------------------------
                 # Mod variants
                 # --------------------------------------------
-                for (variant_name, (mods, difficulty_result)) in variant_results.items():
-                    variant_id, mods_string = insert_variant(conn, beatmap_id, mods, beatmap_data, difficulty_result)
-                    insert_tournament_prediction(conn, variant_id, mods_string, tournament_label, TOURNAMENT_LABELS)
+                for variant_name, (mods, difficulty_result) in variant_results.items():
+                    variant_id, mods_string = insert_variant(
+                        conn, beatmap_id, mods, beatmap_data, difficulty_result
+                    )
+                    insert_tournament_prediction(
+                        conn,
+                        variant_id,
+                        mods_string,
+                        tournament_label,
+                        TOURNAMENT_LABELS,
+                    )
 
                 successful += 1
 
@@ -299,7 +303,9 @@ def main():
 
             if processed % BATCH_SIZE == 0:
                 conn.commit()
-                print(f"\nProgress: {processed}/{len(osu_files)} | successful={successful} | skipped={skipped} | failed_variants={failed_variants}")
+                print(
+                    f"\nProgress: {processed}/{len(osu_files)} | successful={successful} | skipped={skipped} | failed_variants={failed_variants}"
+                )
 
     conn.commit()
     conn.close()
@@ -312,6 +318,7 @@ def main():
     print(f"Successful:        {successful}")
     print(f"Skipped:            {skipped}")
     print(f"Failed variants:   {failed_variants}")
+
 
 if __name__ == "__main__":
     main()

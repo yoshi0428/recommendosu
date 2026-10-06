@@ -1,11 +1,13 @@
 import os
 import zipfile
-from tqdm import tqdm
 from pathlib import Path
+
+from tqdm import tqdm
 
 PROJECT_ROOT = Path(__file__).resolve().parents[0]
 ROOT_DIR = PROJECT_ROOT / "2024 (osu!)"
 OUTPUT_DIR = PROJECT_ROOT / "2024_osu"
+
 
 def extract_osu_files(root_dir, output_dir):
     """
@@ -18,20 +20,16 @@ def extract_osu_files(root_dir, output_dir):
     for dirpath, _, filenames in os.walk(root_dir):
         for filename in filenames:
             if filename.lower().endswith(".osz"):
-                osz_files.append(
-                    os.path.join(dirpath, filename)
-                )
+                osz_files.append(os.path.join(dirpath, filename))
 
     print(f"Found {len(osz_files)} .osz archives.")
 
     extracted_count = 0
 
     for osz_path in tqdm(osz_files, desc="Extracting .osu files"):
-
         try:
             with zipfile.ZipFile(osz_path, "r") as archive:
                 for member in archive.infolist():
-
                     if not member.filename.lower().endswith(".osu"):
                         continue
 
@@ -43,12 +41,11 @@ def extract_osu_files(root_dir, output_dir):
                     output_path = os.path.join(output_dir, filename)
 
                     if os.path.exists(output_path):
-
                         base, extension = os.path.splitext(filename)
 
                         counter = 1
                         while True:
-                            new_filename = (f"{base}_{counter}{extension}")
+                            new_filename = f"{base}_{counter}{extension}"
                             output_path = os.path.join(output_dir, new_filename)
 
                             if not os.path.exists(output_path):
@@ -56,7 +53,10 @@ def extract_osu_files(root_dir, output_dir):
 
                             counter += 1
 
-                    with archive.open(member) as source, open(output_path, "wb") as target:
+                    with (
+                        archive.open(member) as source,
+                        open(output_path, "wb") as target,
+                    ):
                         target.write(source.read())
 
                     extracted_count += 1
@@ -68,8 +68,6 @@ def extract_osu_files(root_dir, output_dir):
 
     print(f"\nExtracted {extracted_count} .osu files.")
 
+
 if __name__ == "__main__":
-    extract_osu_files(
-        ROOT_DIR,
-        OUTPUT_DIR
-    )
+    extract_osu_files(ROOT_DIR, OUTPUT_DIR)

@@ -2,12 +2,13 @@ import copy
 import os
 import sqlite3
 from collections import defaultdict
+
 import matplotlib.pyplot as plt
 import torch
-import torch.optim as optim
-from torch import nn
+from torch import nn, optim
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader, TensorDataset
+
 from beatmap_classifier.classifier.cnn_model import CNNModel
 
 TOURNAMENT_LABELS = {
@@ -15,77 +16,62 @@ TOURNAMENT_LABELS = {
         "column": "nm1",
         "mods": [],
     },
-
     "nm2": {
         "column": "nm2",
         "mods": [],
     },
-
     "nm3": {
         "column": "nm3",
         "mods": [],
     },
-
     "nm4": {
         "column": "nm4",
         "mods": [],
     },
-
     "nm5": {
         "column": "nm5",
         "mods": [],
     },
-
     "nm6": {
         "column": "nm6",
         "mods": [],
     },
-
     "dt1": {
         "column": "dt1",
         "mods": ["DT"],
     },
-
     "dt2_and_dt3": {
         "column": "dt2_and_dt3",
         "mods": ["DT"],
     },
-
     "dt4": {
         "column": "dt4",
         "mods": ["DT"],
     },
-
     "hr1": {
         "column": "hr1",
         "mods": ["HR"],
     },
-
     "hr2": {
         "column": "hr2",
         "mods": ["HR"],
     },
-
     "hr3": {
         "column": "hr3",
         "mods": ["HR"],
     },
-
     "hd1": {
         "column": "hd1",
         "mods": ["HD"],
     },
-
     "hd2": {
         "column": "hd2",
         "mods": ["HD"],
     },
-
     "hd3": {
         "column": "hd3",
         "mods": ["HD"],
     },
-
     "tiebreaker": {
         "column": "tiebreaker",
         "mods": [],
@@ -113,12 +99,15 @@ def load_pytorch_models(model_folder, model_class, model_kwargs, device):
 
     return models
 
+
 def pad_sequences_pt(sequences, dtype=torch.float32, maxlen=None):
     # Enforce float32 type and truncate sequences to maxlen if they exceed it
     processed_seqs = [torch.as_tensor(seq, dtype=dtype)[:maxlen] for seq in sequences]
 
     # Pad the truncated sequences
-    padded = torch.nn.utils.rnn.pad_sequence(processed_seqs, batch_first=True, padding_value=0.0)
+    padded = torch.nn.utils.rnn.pad_sequence(
+        processed_seqs, batch_first=True, padding_value=0.0
+    )
 
     # If the longest sequence was shorter than maxlen, manually pad the rest of the dimension
     if maxlen is not None and padded.shape[1] < maxlen:
@@ -126,24 +115,27 @@ def pad_sequences_pt(sequences, dtype=torch.float32, maxlen=None):
 
         # pad syntax for 2D/3D tensors: (left_pad, right_pad) for the last dimension, etc.
         # This appends zeros to the end of the time/sequence dimension
-        padded = torch.nn.functional.pad(padded, (0, 0, 0, padding_size) if padded.dim() == 3 else (0, padding_size))
+        padded = torch.nn.functional.pad(
+            padded, (0, 0, 0, padding_size) if padded.dim() == 3 else (0, padding_size)
+        )
 
     return padded
 
+
 def train_and_evaluate(
-        X_train,
-        y_train,
-        X_val,
-        y_val,
-        input_channels,
-        num_classes,
-        max_length=3502,
-        learning_rate=0.001,
-        dropout_rate=0.5,
-        l2_reg=0.001,
-        batch_size=16,
-        epochs=50,
-        patience=5,
+    X_train,
+    y_train,
+    X_val,
+    y_val,
+    input_channels,
+    num_classes,
+    max_length=3502,
+    learning_rate=0.001,
+    dropout_rate=0.5,
+    l2_reg=0.001,
+    batch_size=16,
+    epochs=50,
+    patience=5,
 ):
 
     # Determine the device (GPU if available, otherwise CPU)
@@ -174,7 +166,9 @@ def train_and_evaluate(
     patience_counter = 0
     best_val_loss = float("inf")
     best_model_weights = None
-    checkpoint_path = "./models/cnn_model_best.pth"  # Replaced .h5 with PyTorch extension
+    checkpoint_path = (
+        "./models/cnn_model_best.pth"  # Replaced .h5 with PyTorch extension
+    )
 
     # Setup history tracker dictionaries
     history = {
@@ -217,7 +211,9 @@ def train_and_evaluate(
         model.eval()
         val_loss, val_correct, val_total = 0.0, 0, 0
 
-        with torch.no_grad():  # Turn off gradient calculations for speed/memory efficiency
+        with (
+            torch.no_grad()
+        ):  # Turn off gradient calculations for speed/memory efficiency
             for inputs, targets in val_loader:
                 inputs, targets = inputs.to(device), targets.to(device)
 
@@ -236,7 +232,7 @@ def train_and_evaluate(
         history["val_accuracy"].append(epoch_val_acc)
 
         print(
-            f"Epoch {epoch+1}/{epochs} - loss: {epoch_loss:.4f} - acc: {epoch_acc:.4f} - val_loss: {epoch_val_loss:.4f} - val_acc: {epoch_val_acc:.4f}"
+            f"Epoch {epoch + 1}/{epochs} - loss: {epoch_loss:.4f} - acc: {epoch_acc:.4f} - val_loss: {epoch_val_loss:.4f} - val_acc: {epoch_val_acc:.4f}"
         )
 
         # ModelCheckpoint (save_best_only=True) & EarlyStopping
@@ -249,7 +245,7 @@ def train_and_evaluate(
             patience_counter += 1
 
         if patience_counter >= patience:
-            print(f"Early stopping triggered at epoch {epoch+1}")
+            print(f"Early stopping triggered at epoch {epoch + 1}")
             break
 
     # restore the best weights before returning the model
@@ -259,20 +255,22 @@ def train_and_evaluate(
 
     return model, history
 
+
 def plot_training_history(history):
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
 
-    ax1.plot(history['loss'], label='Train Loss')
-    ax1.plot(history['val_loss'], label='Validation Loss')
-    ax1.set_title('Loss')
+    ax1.plot(history["loss"], label="Train Loss")
+    ax1.plot(history["val_loss"], label="Validation Loss")
+    ax1.set_title("Loss")
     ax1.legend()
 
-    ax2.plot(history['accuracy'], label='Train Accuracy')
-    ax2.plot(history['val_accuracy'], label='Validation Accuracy')
-    ax2.set_title('Accuracy')
+    ax2.plot(history["accuracy"], label="Train Accuracy")
+    ax2.plot(history["val_accuracy"], label="Validation Accuracy")
+    ax2.set_title("Accuracy")
     ax2.legend()
 
     plt.show()
+
 
 def get_tournament_labels(cursor):
     """
@@ -344,27 +342,21 @@ def get_tournament_labels(cursor):
 
     return labels
 
-def get_data(
-    db_path,
-    chunk_size=50000
-):
+
+def get_data(db_path, chunk_size=50000):
     """
     Load beatmaps
     """
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
-    cursor.execute(
-        "SELECT MAX(v.length) FROM beatmap_vectors v"
-    )
+    cursor.execute("SELECT MAX(v.length) FROM beatmap_vectors v")
 
-    max_vector_length, = cursor.fetchone()
+    (max_vector_length,) = cursor.fetchone()
     print(f"Max Vector Length: {max_vector_length}")
 
-    cursor.execute(
-        "SELECT MAX(v.time_diff) FROM beatmap_vectors v"
-    )
-    max_time_diff, = cursor.fetchone()
+    cursor.execute("SELECT MAX(v.time_diff) FROM beatmap_vectors v")
+    (max_time_diff,) = cursor.fetchone()
     print(f"Max Time Diff: {max_time_diff}")
 
     # ========================================================
@@ -412,8 +404,17 @@ def get_data(
         if not rows:
             break
 
-        for beatmap_id, x_diff, y_diff, time_diff, length, distance, speed, speed_change, time_diff_change in rows:
-
+        for (
+            beatmap_id,
+            x_diff,
+            y_diff,
+            time_diff,
+            length,
+            distance,
+            speed,
+            speed_change,
+            time_diff_change,
+        ) in rows:
             if beatmap_id not in labels:
                 continue
 
@@ -440,16 +441,18 @@ def get_data(
             normalized_time_diff = effective_time_diff / max_time_diff
             normalized_length = length / max_vector_length
 
-            X[beatmap_id].append((
-                x_diff,
-                y_diff,
-                normalized_time_diff,
-                normalized_length,
-                distance,
-                effective_speed,
-                effective_speed_change,
-                effective_time_diff_change,
-            ))
+            X[beatmap_id].append(
+                (
+                    x_diff,
+                    y_diff,
+                    normalized_time_diff,
+                    normalized_length,
+                    distance,
+                    effective_speed,
+                    effective_speed_change,
+                    effective_time_diff_change,
+                )
+            )
 
     conn.close()
 
@@ -461,6 +464,7 @@ def get_data(
     print(f"Original beatmaps: {len(original_X)}")
 
     return original_X, original_y, beatmap_ids
+
 
 def get_additional_features(db_path, y, beatmap_ids):
     """
@@ -496,7 +500,7 @@ def get_additional_features(db_path, y, beatmap_ids):
     for i in range(len(y)):
         mods.append(TOURNAMENT_LABELS[y[i]]["mods"])
     for array in mods:
-        mods_flattened.append(array[0] if array else '')
+        mods_flattened.append(array[0] if array else "")
 
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
@@ -538,9 +542,8 @@ def get_additional_features(db_path, y, beatmap_ids):
         pp,
         pp_aim,
         pp_speed,
-        pp_acc
+        pp_acc,
     ) in cursor.fetchall():
-
         variants[(beatmap_id, mods)] = (
             ar,
             od,
@@ -563,12 +566,13 @@ def get_additional_features(db_path, y, beatmap_ids):
 
     # Match each beatmap_id with its required mod
     for beatmap_id, mod in zip(beatmap_ids, mods_flattened):
-
         mod = mod if mod else "NM"
         key = (beatmap_id, mod)
 
         if key not in variants:
-            print(f"WARNING: No variant found for beatmap_id={beatmap_id}, mods='{mod}'")
+            print(
+                f"WARNING: No variant found for beatmap_id={beatmap_id}, mods='{mod}'"
+            )
             continue
 
         (

@@ -16,12 +16,10 @@ MOD_ORDER = [
     "DT",
     "NC",
     "FL",
-
     # Difficulty Reduction
     "DC",
     "SR",
     "NR",
-
     # Difficulty Increase
     "SD",
     "PF",
@@ -31,14 +29,12 @@ MOD_ORDER = [
     "BL",
     "ST",
     "AC",
-
     # Automation
     "AT",
     "CN",
     "RX",
     "AP",
     "SO",
-
     # Conversion
     "TP",
     "DA",
@@ -62,7 +58,6 @@ MOD_ORDER = [
     "8K",
     "9K",
     "10K",
-
     # Fun
     "TR",
     "WG",
@@ -85,7 +80,6 @@ MOD_ORDER = [
     "SY",
     "DP",
     "BM",
-
     # System
     "TD",
     "SV2",
@@ -101,6 +95,7 @@ KNOWN_MODS = sorted(
 # --------------------------------------------------------
 # Preference weighting
 # --------------------------------------------------------
+
 
 def canonicalize_mods(mods):
     """
@@ -133,7 +128,10 @@ def canonicalize_mods(mods):
     # --------------------------------------------------------
     # Iterable representation
     # --------------------------------------------------------
-    if isinstance(mods, (list, tuple, set),):
+    if isinstance(
+        mods,
+        (list, tuple, set),
+    ):
         parsed_mods = []
 
         for mod in mods:
@@ -182,12 +180,7 @@ def _parse_mod_string(mod_string):
     """
 
     # Handle common separators.
-    mod_string = (
-        mod_string
-        .replace(",", "")
-        .replace(" ", "")
-        .replace("+", "")
-    )
+    mod_string = mod_string.replace(",", "").replace(" ", "").replace("+", "")
 
     if not mod_string:
         return []
@@ -196,17 +189,18 @@ def _parse_mod_string(mod_string):
     remaining = mod_string
 
     while remaining:
-
         matched = False
         for mod in KNOWN_MODS:
             if remaining.startswith(mod):
                 parsed.append(mod)
-                remaining = remaining[len(mod):]
+                remaining = remaining[len(mod) :]
                 matched = True
                 break
 
         if not matched:
-            raise ValueError(f"Unknown mod string: {mod_string!r}, remaining={remaining!r}")
+            raise ValueError(
+                f"Unknown mod string: {mod_string!r}, remaining={remaining!r}"
+            )
 
     return parsed
 
@@ -229,7 +223,7 @@ def get_score_weight(source, pp, top_weight, recent_weight, pp_weight):
     elif source == "recent":
         base_weight = recent_weight
     elif source == "top,recent":
-        base_weight = top_weight # Already a top play, so don't double-count it.
+        base_weight = top_weight  # Already a top play, so don't double-count it.
     else:
         # Unknown source.
         # This also makes the function reasonably safe if additional score sources are added later.
@@ -248,7 +242,7 @@ def get_score_weight(source, pp, top_weight, recent_weight, pp_weight):
             pp = 0.0
 
         if pp > 0:
-            pp_factor = 1.0 + pp_weight * (pp ** 0.5) / 10.0
+            pp_factor = 1.0 + pp_weight * (pp**0.5) / 10.0
         else:
             pp_factor = 1.0
 
@@ -269,14 +263,17 @@ def get_player_mod_preferences(conn, player_id, top_weight, recent_weight, pp_we
             ...
         }
     """
-    rows = conn.execute("""
+    rows = conn.execute(
+        """
         SELECT
             mods,
             source,
             pp
         FROM scores
         WHERE player_id = ?
-    """, (player_id,)).fetchall()
+    """,
+        (player_id,),
+    ).fetchall()
 
     preferences = defaultdict(float)
 
@@ -284,7 +281,9 @@ def get_player_mod_preferences(conn, player_id, top_weight, recent_weight, pp_we
         try:
             mods = canonicalize_mods(mods)
         except ValueError:
-            print(f"Warning: ignoring unsupported mod combination {mods!r} for player {player_id}")
+            print(
+                f"Warning: ignoring unsupported mod combination {mods!r} for player {player_id}"
+            )
             continue
 
         weight = get_score_weight(source, pp, top_weight, recent_weight, pp_weight)
@@ -298,21 +297,14 @@ def normalize_mod_preferences(preferences):
         return {}
 
     transformed = {
-        mods: math.log1p(preference)
-        for mods, preference in preferences.items()
+        mods: math.log1p(preference) for mods, preference in preferences.items()
     }
 
     max_preference = max(transformed.values())
     if max_preference <= 0:
-        return {
-            mods: 0.0
-            for mods in transformed
-        }
+        return {mods: 0.0 for mods in transformed}
 
-    return {
-        mods: value / max_preference
-        for mods, value in transformed.items()
-    }
+    return {mods: value / max_preference for mods, value in transformed.items()}
 
 
 def get_preferred_mods(
@@ -337,11 +329,16 @@ def get_preferred_mods(
         ]
     """
 
-    raw_preferences = get_player_mod_preferences(conn, player_id, top_weight, recent_weight, pp_weight)
+    raw_preferences = get_player_mod_preferences(
+        conn, player_id, top_weight, recent_weight, pp_weight
+    )
     normalized_preferences = normalize_mod_preferences(raw_preferences)
 
     preferred_mods = [
-        (mods, preference,)
+        (
+            mods,
+            preference,
+        )
         for mods, preference in normalized_preferences.items()
         if preference >= min_preference
     ]

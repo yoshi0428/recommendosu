@@ -73,10 +73,9 @@ def store_player_scores(conn, top_scores, recent_scores):
     stored = 0
     skipped = 0
 
-    all_scores = (
-        [(score, "top") for score in top_scores] +
-        [(score, "recent") for score in recent_scores]
-    )
+    all_scores = [(score, "top") for score in top_scores] + [
+        (score, "recent") for score in recent_scores
+    ]
 
     for score, source in all_scores:
         normalized = normalize_score(score, source)
@@ -87,11 +86,13 @@ def store_player_scores(conn, top_scores, recent_scores):
             FROM beatmaps
             WHERE beatmap_id = ?
             """,
-            (normalized["beatmap_id"],)
+            (normalized["beatmap_id"],),
         ).fetchone()
 
         if exists is None:
-            print(f"Skipping score {normalized['score_id']}: beatmap {normalized['beatmap_id']} not found in beatmaps.db")
+            print(
+                f"Skipping score {normalized['score_id']}: beatmap {normalized['beatmap_id']} not found in beatmaps.db"
+            )
             skipped += 1
             continue
 
@@ -116,5 +117,7 @@ def update_player_scores(conn, api, player_id, limit=200):
 
     top_scores, recent_scores = fetch_player_scores(api, player_id, limit=limit)
     stored = store_player_scores(conn, top_scores, recent_scores)
-    print(f"Player {player_id}: {len(top_scores)} top scores, {len(recent_scores)} recent scores, {stored} records processed.")
+    print(
+        f"Player {player_id}: {len(top_scores)} top scores, {len(recent_scores)} recent scores, {stored} records processed."
+    )
     return stored

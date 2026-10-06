@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def weighted_mean_and_std(values, weights):
     """
     Calculate a weighted mean and population standard deviation.
@@ -17,17 +18,18 @@ def weighted_mean_and_std(values, weights):
 
     return float(mean), float(std)
 
+
 def calculate_pp_potential(
-        variant,
-        difficulty_profile,
-        difficulty_std_floors,
-        difficulty_feature_weights,
-        pp_push_target_z=2.5,  # For PP filtering bounds
-        pp_push_max_z=7.5,  # For PP filtering bounds
-        feature_target_z=1.0,  # Ideal feature push distance (AR, BPM, etc.)
-        feature_max_z=3.0,  # Feature limit before exponential decay
-        pp_min=None,
-        pp_max=None,
+    variant,
+    difficulty_profile,
+    difficulty_std_floors,
+    difficulty_feature_weights,
+    pp_push_target_z=2.5,  # For PP filtering bounds
+    pp_push_max_z=7.5,  # For PP filtering bounds
+    feature_target_z=1.0,  # Ideal feature push distance (AR, BPM, etc.)
+    feature_max_z=3.0,  # Feature limit before exponential decay
+    pp_min=None,
+    pp_max=None,
 ):
     """
     Estimate PP potential for candidates that pass the intentional push threshold.
@@ -95,7 +97,7 @@ def calculate_pp_potential(
         f_std = max(f_std, std_floor)
 
         z_feat = (val - f_mean) / f_std
-        squared_diffs.append(weight * (z_feat ** 2))
+        squared_diffs.append(weight * (z_feat**2))
         weights.append(weight)
 
     if not weights or sum(weights) <= 0:

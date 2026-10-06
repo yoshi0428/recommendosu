@@ -8,11 +8,9 @@ class Reader:
 
     def read(self, n):
         if self.pos + n > len(self.data):
-            raise EOFError(
-                f"Unexpected EOF at offset {self.pos}"
-            )
+            raise EOFError(f"Unexpected EOF at offset {self.pos}")
 
-        result = self.data[self.pos:self.pos + n]
+        result = self.data[self.pos : self.pos + n]
         self.pos += n
         return result
 
@@ -44,23 +42,16 @@ def hex_dump(data, start_offset=0, bytes_per_line=16):
     lines = []
 
     for offset in range(0, len(data), bytes_per_line):
-        chunk = data[offset:offset + bytes_per_line]
+        chunk = data[offset : offset + bytes_per_line]
 
         hex_part = " ".join(f"{b:02x}" for b in chunk)
 
         # Pad hex column so ASCII lines line up
         hex_part = f"{hex_part:<47}"
 
-        ascii_part = "".join(
-            chr(b) if 32 <= b <= 126 else "."
-            for b in chunk
-        )
+        ascii_part = "".join(chr(b) if 32 <= b <= 126 else "." for b in chunk)
 
-        lines.append(
-            f"{start_offset + offset:08x}  "
-            f"{hex_part}  "
-            f"{ascii_part}"
-        )
+        lines.append(f"{start_offset + offset:08x}  {hex_part}  {ascii_part}")
 
     return "\n".join(lines)
 
@@ -79,9 +70,7 @@ def parse_osdb(filename):
     version = r.string()
 
     if version != "o!dm6":
-        raise ValueError(
-            f"Expected o!dm6, got {version!r}"
-        )
+        raise ValueError(f"Expected o!dm6, got {version!r}")
 
     creation_date = r.double()
     editor = r.string()
@@ -97,7 +86,6 @@ def parse_osdb(filename):
     # -------------------------
 
     for collection_index in range(collection_count):
-
         collection_name = r.string()
         online_id = r.int32()
         beatmap_count = r.int32()
@@ -119,12 +107,9 @@ def parse_osdb(filename):
 
         dump_size = 1000
 
-        chunk = data[start_offset:start_offset + dump_size]
+        chunk = data[start_offset : start_offset + dump_size]
 
-        dump = hex_dump(
-            chunk,
-            start_offset=start_offset
-        )
+        dump = hex_dump(chunk, start_offset=start_offset)
 
         # Print to console
         print("\n=== HEX DUMP ===")
@@ -143,10 +128,7 @@ def parse_osdb(filename):
 
             f.write(dump)
 
-        print(
-            "\nHex dump saved to: "
-            "osdb_hex_dump.txt"
-        )
+        print("\nHex dump saved to: osdb_hex_dump.txt")
 
         # Stop here.
         # We don't want to attempt parsing the beatmap yet.

@@ -11,7 +11,6 @@ from beatmap_recommender.api.model import RecommendationSettings
 from beatmap_recommender.api.osu_api_client import OsuAPIClient
 from beatmap_recommender.auth.token_manager import get_access_token
 from beatmap_recommender.cancellation import check_cancelled
-
 from beatmap_recommender.content_similarity.core_modules.cnn_xgboost_influence import (
     get_player_category_preferences,
 )
@@ -28,7 +27,6 @@ from beatmap_recommender.content_similarity.core_modules.variant_ranking import 
     get_player_difficulty_profiles,
     rank_variants,
 )
-
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
@@ -50,9 +48,7 @@ OSU_CLIENT_SECRET = os.getenv("OSU_CLIENT_SECRET")
 
 APPLICATION_TOKEN_REFRESH_BUFFER = 60
 
-_recommendation_semaphore = asyncio.Semaphore(
-    RECOMMENDATION_CONCURRENCY
-)
+_recommendation_semaphore = asyncio.Semaphore(RECOMMENDATION_CONCURRENCY)
 
 _application_access_token: str | None = None
 _application_token_expires_at = 0.0
@@ -60,6 +56,7 @@ _application_token_lock = asyncio.Lock()
 
 
 # ── Application OAuth ─────────────────────────────────────────────────────────
+
 
 def get_client_credentials_token(
     client_id: str,
@@ -102,7 +99,10 @@ async def get_application_access_token() -> str:
     async with _application_token_lock:
         now = time.time()
 
-        if _application_access_token is not None and now < _application_token_expires_at:
+        if (
+            _application_access_token is not None
+            and now < _application_token_expires_at
+        ):
             return _application_access_token
 
         token, expires_in = await asyncio.to_thread(
@@ -112,8 +112,11 @@ async def get_application_access_token() -> str:
         )
 
         _application_access_token = token
-        _application_token_expires_at = time.time() + expires_in - APPLICATION_TOKEN_REFRESH_BUFFER
+        _application_token_expires_at = (
+            time.time() + expires_in - APPLICATION_TOKEN_REFRESH_BUFFER
+        )
         return _application_access_token
+
 
 def recommend_player_sync(
     settings: RecommendationSettings,
@@ -133,18 +136,10 @@ def recommend_player_sync(
     print(f"[recommend_player_sync] Classifier weight: {classifier_weight}")
 
     requested_mods = (
-        {
-            mod.strip().upper()
-            for mod in settings.mods
-        }
-        if settings.mods
-        else None
+        {mod.strip().upper() for mod in settings.mods} if settings.mods else None
     )
 
-    excluded_mods = {
-        mod.strip().upper()
-        for mod in (settings.excluded_mods or [])
-    }
+    excluded_mods = {mod.strip().upper() for mod in (settings.excluded_mods or [])}
 
     check_cancelled(cancel_event)
     conn = sqlite3.connect(DB_PATH)
@@ -158,7 +153,9 @@ def recommend_player_sync(
             check_cancelled(cancel_event)
 
             if access_token is None:
-                raise ValueError("An osu! API access token is required to update player scores.")
+                raise ValueError(
+                    "An osu! API access token is required to update player scores."
+                )
 
             update_player_scores(
                 conn,
@@ -220,13 +217,7 @@ def recommend_player_sync(
         check_cancelled(cancel_event)
         print(f"\nPlayer {settings.player_id} difficulty profile:")
 
-        for feature in (
-            "star_rating",
-            "ar",
-            "od",
-            "bpm",
-            "pp"
-        ):
+        for feature in ("star_rating", "ar", "od", "bpm", "pp"):
             mean = difficulty_profile.get(f"{feature}_mean")
             std = difficulty_profile.get(f"{feature}_std")
 
@@ -234,15 +225,13 @@ def recommend_player_sync(
                 print(f"  {feature}: mean={mean:.3f}, std={std:.3f}")
 
         # ── Classifier preferences ─────────────────────────────
-        category_preferences = (
-            get_player_category_preferences(
-                conn,
-                settings.player_id,
-                recency_half_life_days=settings.recency_half_life_days,
-                ability_top_weight=settings.ability_top_weight,
-                ability_recent_weight=settings.ability_recent_weight,
-                ability_pp_weight=settings.ability_pp_weight,
-            )
+        category_preferences = get_player_category_preferences(
+            conn,
+            settings.player_id,
+            recency_half_life_days=settings.recency_half_life_days,
+            ability_top_weight=settings.ability_top_weight,
+            ability_recent_weight=settings.ability_recent_weight,
+            ability_pp_weight=settings.ability_pp_weight,
         )
 
         print()

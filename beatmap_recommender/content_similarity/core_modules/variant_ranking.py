@@ -1,5 +1,7 @@
 import time
+
 import numpy as np
+
 from beatmap_recommender.cancellation import check_cancelled
 from beatmap_recommender.content_similarity.core_modules.ability import (
     get_ability_score_weight,
@@ -8,9 +10,13 @@ from beatmap_recommender.content_similarity.core_modules.cnn_xgboost_influence i
     calculate_classifier_score,
     get_candidate_classifier_predictions,
 )
-from beatmap_recommender.content_similarity.core_modules.mod_preferences import canonicalize_mods
-from beatmap_recommender.content_similarity.core_modules.pp_potential import calculate_pp_potential, weighted_mean_and_std
-
+from beatmap_recommender.content_similarity.core_modules.mod_preferences import (
+    canonicalize_mods,
+)
+from beatmap_recommender.content_similarity.core_modules.pp_potential import (
+    calculate_pp_potential,
+    weighted_mean_and_std,
+)
 
 MOD_ORDER = ["EZ", "NF", "HT", "HD", "HR", "DT", "NC", "FL"]
 
@@ -51,7 +57,7 @@ def get_player_played_variants(
     chunk_size = 900
     for i in range(0, len(beatmap_ids), chunk_size):
         check_cancelled(cancel_event)
-        chunk = beatmap_ids[i:i + chunk_size]
+        chunk = beatmap_ids[i : i + chunk_size]
         placeholders = ",".join("?" for _ in chunk)
 
         rows = conn.execute(
@@ -111,12 +117,14 @@ def get_player_played_variants(
         # False True -> True True which would append top plays
         # False False -> True False which would append recent plays
         if not exclude_recent_plays or source in ("top", "top,recent"):
-            played_variants.append({
-                **variant,
-                "source": source,
-                "pp": pp,
-                "created_at": created_at,
-            })
+            played_variants.append(
+                {
+                    **variant,
+                    "source": source,
+                    "pp": pp,
+                    "created_at": created_at,
+                }
+            )
 
     check_cancelled(cancel_event)
     return played_variants
@@ -159,18 +167,15 @@ def get_player_difficulty_profiles(
             (
                 variant
                 for variant in variants
-                if variant["source"] in ("top", "top,recent") and variant.get("pp") is not None
+                if variant["source"] in ("top", "top,recent")
+                and variant.get("pp") is not None
             ),
             key=lambda variant: float(variant["pp"]),
             reverse=True,
         )
 
         # Highest PP top play in this profile.
-        top_pp = (
-            float(top_plays[0]["pp"])
-            if top_plays
-            else 0.0
-        )
+        top_pp = float(top_plays[0]["pp"]) if top_plays else 0.0
 
         for feature in features:
             check_cancelled(cancel_event)
@@ -243,7 +248,9 @@ def get_player_difficulty_profiles(
 
             mean, std = weighted_mean_and_std(values, weights)
             if feature == "pp":
-                print(f"[difficulty_profile] Global Profile --- PP: mean={mean:.2f}, std={std:.2f}")
+                print(
+                    f"[difficulty_profile] Global Profile --- PP: mean={mean:.2f}, std={std:.2f}"
+                )
 
             profile[f"{feature}_mean"] = mean
             profile[f"{feature}_std"] = std
@@ -314,35 +321,24 @@ def get_candidate_variants(
 
     for i in range(0, len(beatmap_ids), chunk_size):
         check_cancelled(cancel_event)
-        chunk = beatmap_ids[i:i + chunk_size]
+        chunk = beatmap_ids[i : i + chunk_size]
         placeholders = ",".join("?" for _ in chunk)
         params = list(chunk)
         conditions = [f"bv.beatmap_id IN ({placeholders})"]
 
         # ── Mod filters ────────────────────────────────────────────
         if requested_mods:
-            requested_mods_set = {
-                mod.strip().upper()
-                for mod in requested_mods
-            }
+            requested_mods_set = {mod.strip().upper() for mod in requested_mods}
 
             if exact_mods:
                 valid_variants = [
-                    "".join(
-                        mod
-                        for mod in MOD_ORDER
-                        if mod in requested_mods_set
-                    )
+                    "".join(mod for mod in MOD_ORDER if mod in requested_mods_set)
                 ]
 
                 if not valid_variants[0]:
                     valid_variants = ["NM"]
             else:
-                gameplay_mods = [
-                    mod
-                    for mod in MOD_ORDER
-                    if mod in requested_mods_set
-                ]
+                gameplay_mods = [mod for mod in MOD_ORDER if mod in requested_mods_set]
 
                 valid_variants = ["NM"] if "NM" in requested_mods_set else []
 
@@ -420,17 +416,18 @@ def get_candidate_variants(
         all_rows.extend(rows)
 
     check_cancelled(cancel_event)
-    print(f"[get_candidate_variants] SQLite query: {time.perf_counter() - start_query_time:.4f}s ({len(all_rows)} rows)")
+    print(
+        f"[get_candidate_variants] SQLite query: {time.perf_counter() - start_query_time:.4f}s ({len(all_rows)} rows)"
+    )
 
     start_conv_time = time.perf_counter()
 
-    variants = [
-        dict(zip(columns, row))
-        for row in all_rows
-    ]
+    variants = [dict(zip(columns, row)) for row in all_rows]
 
     check_cancelled(cancel_event)
-    print(f"[get_candidate_variants] Python conversion: {time.perf_counter() - start_conv_time:.4f}s ({len(variants)} variants)")
+    print(
+        f"[get_candidate_variants] Python conversion: {time.perf_counter() - start_conv_time:.4f}s ({len(variants)} variants)"
+    )
     return variants
 
 
@@ -444,7 +441,7 @@ def fetch_beatmap_metadata(conn, beatmap_ids):
     beatmap_ids = list(beatmap_ids)
 
     for i in range(0, len(beatmap_ids), chunk_size):
-        chunk = beatmap_ids[i:i + chunk_size]
+        chunk = beatmap_ids[i : i + chunk_size]
         placeholders = ",".join("?" for _ in chunk)
         rows = conn.execute(
             f"""
@@ -514,9 +511,7 @@ def calculate_difficulty_scores(
 
         values = np.asarray(
             [
-                float(variant[feature])
-                if variant.get(feature) is not None
-                else np.nan
+                float(variant[feature]) if variant.get(feature) is not None else np.nan
                 for variant in variants
             ],
             dtype=np.float32,
@@ -526,7 +521,7 @@ def calculate_difficulty_scores(
 
         z = (values - mean) / std
         valid = np.isfinite(z)
-        feature_values.append(np.where(valid, z ** 2, 0.0))
+        feature_values.append(np.where(valid, z**2, 0.0))
         feature_weights.append(np.where(valid, feature_weight, 0.0))
 
     check_cancelled(cancel_event)
@@ -554,7 +549,7 @@ def calculate_difficulty_scores(
             weighted_squared_distance[valid_variants].sum(axis=1)
             / total_weight[valid_variants]
         )
-        scores[valid_variants] = np.exp(-0.5 * distance ** 2)
+        scores[valid_variants] = np.exp(-0.5 * distance**2)
 
     check_cancelled(cancel_event)
     return scores
@@ -571,7 +566,9 @@ def score_variant(
 ):
     """Combine recommendation signals for one variant."""
     if recommendation_goal not in recommendation_config:
-        raise ValueError(f"Unknown recommendation goal: {recommendation_goal!r}. Expected one of {sorted(recommendation_config)}")
+        raise ValueError(
+            f"Unknown recommendation goal: {recommendation_goal!r}. Expected one of {sorted(recommendation_config)}"
+        )
 
     weights = recommendation_config[recommendation_goal]["weights"]
 
@@ -670,17 +667,9 @@ def rank_variants(
             max_difficulty_stars = float(max_stars)
             min_difficulty_stars = 0.0
     else:
-        min_difficulty_stars = (
-            float(min_stars)
-            if min_stars is not None
-            else None
-        )
+        min_difficulty_stars = float(min_stars) if min_stars is not None else None
 
-        max_difficulty_stars = (
-            float(max_stars)
-            if max_stars is not None
-            else None
-        )
+        max_difficulty_stars = float(max_stars) if max_stars is not None else None
 
     # ── PP push range ──────────────────────────────────────────
     pp_mean = difficulty_profile.get("pp_mean")
@@ -722,7 +711,9 @@ def rank_variants(
 
     for name, minimum, maximum in filter_ranges:
         if minimum is not None and maximum is not None and minimum > maximum:
-            raise ValueError(f"{name} ({minimum}) cannot be greater than {name.replace('min_', 'max_')} ({maximum})")
+            raise ValueError(
+                f"{name} ({minimum}) cannot be greater than {name.replace('min_', 'max_')} ({maximum})"
+            )
 
     # ── Collapse similarities ──────────────────────────────────
     start = time.perf_counter()
@@ -740,7 +731,9 @@ def rank_variants(
 
     check_cancelled(cancel_event)
 
-    print(f"[rank_variants] Collapse similarities: {time.perf_counter() - start:.4f}s ({len(candidate_similarity)} candidate beatmaps)")
+    print(
+        f"[rank_variants] Collapse similarities: {time.perf_counter() - start:.4f}s ({len(candidate_similarity)} candidate beatmaps)"
+    )
 
     if not candidate_similarity:
         return []
@@ -776,7 +769,9 @@ def rank_variants(
     )
 
     check_cancelled(cancel_event)
-    print(f"[rank_variants] Load candidate variants: {time.perf_counter() - start:.4f}s ({len(variants)} variants)")
+    print(
+        f"[rank_variants] Load candidate variants: {time.perf_counter() - start:.4f}s ({len(variants)} variants)"
+    )
     if not variants:
         return []
 
@@ -794,7 +789,9 @@ def rank_variants(
             f"({eligible_count} variants)"
         )
     else:
-        print("[rank_variants] Difficulty star floor: disabled (no player star-rating profile)")
+        print(
+            "[rank_variants] Difficulty star floor: disabled (no player star-rating profile)"
+        )
 
     # ── Classifier predictions ─────────────────────────────────
     check_cancelled(cancel_event)
@@ -803,16 +800,17 @@ def rank_variants(
 
     if classifier_weight > 0 and category_preferences:
         # Deduplicate because a beatmap can have multiple candidate variants.
-        classifier_beatmap_ids = list({
-            variant["beatmap_id"]
-            for variant in variants
-        })
+        classifier_beatmap_ids = list({variant["beatmap_id"] for variant in variants})
 
-        classifier_predictions = get_candidate_classifier_predictions(conn, classifier_beatmap_ids)
+        classifier_predictions = get_candidate_classifier_predictions(
+            conn, classifier_beatmap_ids
+        )
 
     check_cancelled(cancel_event)
 
-    print(f"[rank_variants] Classifier predictions: {time.perf_counter() - start:.4f}s ({len(classifier_predictions)} predictions)")
+    print(
+        f"[rank_variants] Classifier predictions: {time.perf_counter() - start:.4f}s ({len(classifier_predictions)} predictions)"
+    )
 
     # ── Difficulty scores ──────────────────────────────────────
     # The current ranker uses the global difficulty profile. Therefore, there is no reason to split variants by mod.
@@ -826,7 +824,9 @@ def rank_variants(
     )
 
     check_cancelled(cancel_event)
-    print(f"[rank_variants] Difficulty scores: {time.perf_counter() - start:.4f}s ({eligible_count} variants)")
+    print(
+        f"[rank_variants] Difficulty scores: {time.perf_counter() - start:.4f}s ({eligible_count} variants)"
+    )
 
     # ── Score variants + keep best per beatmap ─────────────────
     start = time.perf_counter()
@@ -846,7 +846,9 @@ def rank_variants(
 
         if category_preferences:
             probabilities = classifier_predictions.get(beatmap_id)
-            classifier_score = calculate_classifier_score(probabilities, category_preferences)
+            classifier_score = calculate_classifier_score(
+                probabilities, category_preferences
+            )
         else:
             classifier_score = 0.0
 
@@ -912,23 +914,22 @@ def rank_variants(
         pp_potential,
         final_score,
     ) in best_by_beatmap.values():
-        ranked_candidates.append({
-            **variant,
-            "content_similarity": content_similarity,
-            "mod_preference": mod_preference,
-            "difficulty_score": difficulty_score,
-            "classifier_score": classifier_score,
-            "pp_potential": pp_potential,
-            "final_score": final_score,
-        })
+        ranked_candidates.append(
+            {
+                **variant,
+                "content_similarity": content_similarity,
+                "mod_preference": mod_preference,
+                "difficulty_score": difficulty_score,
+                "classifier_score": classifier_score,
+                "pp_potential": pp_potential,
+                "final_score": final_score,
+            }
+        )
 
     sort_keys = config["sort_keys"]
 
     ranked_candidates.sort(
-        key=lambda variant: tuple(
-            variant[key]
-            for key in sort_keys
-        ),
+        key=lambda variant: tuple(variant[key] for key in sort_keys),
         reverse=True,
     )
 
@@ -944,14 +945,18 @@ def rank_variants(
     ranked = []
     for variant in ranked_candidates:
         b_meta = metadata_map.get(variant["beatmap_id"], {})
-        ranked.append({
-            **variant,
-            "title": b_meta.get("title"),
-            "artist": b_meta.get("artist"),
-            "creator": b_meta.get("creator"),
-            "version": b_meta.get("version"),
-        })
+        ranked.append(
+            {
+                **variant,
+                "title": b_meta.get("title"),
+                "artist": b_meta.get("artist"),
+                "creator": b_meta.get("creator"),
+                "version": b_meta.get("version"),
+            }
+        )
 
-    print(f"[rank_variants] Sort and truncate: {time.perf_counter() - start:.4f}s ({len(ranked)} results)")
+    print(
+        f"[rank_variants] Sort and truncate: {time.perf_counter() - start:.4f}s ({len(ranked)} results)"
+    )
     print(f"[rank_variants] TOTAL: {time.perf_counter() - total_start:.4f}s")
     return ranked

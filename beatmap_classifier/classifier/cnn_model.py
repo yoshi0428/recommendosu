@@ -7,18 +7,26 @@ from torch import nn
 I'll settle with this for now, and focus on the recommender system
 
 """
+
+
 class CNNModel(nn.Module):
     def __init__(
-            self,
-            input_channels,
-            num_classes,
-            max_length=3502,
-            dropout_rate=0.5,
+        self,
+        input_channels,
+        num_classes,
+        max_length=3502,
+        dropout_rate=0.5,
     ):
-        super(CNNModel, self).__init__()
-        self.conv1 = nn.Conv1d(in_channels=input_channels, out_channels=32, kernel_size=7, padding=3)
-        self.conv2 = nn.Conv1d(in_channels=32, out_channels=64, kernel_size=5, padding=2)
-        self.conv3 = nn.Conv1d(in_channels=64, out_channels=128, kernel_size=3, padding=1)
+        super().__init__()
+        self.conv1 = nn.Conv1d(
+            in_channels=input_channels, out_channels=32, kernel_size=7, padding=3
+        )
+        self.conv2 = nn.Conv1d(
+            in_channels=32, out_channels=64, kernel_size=5, padding=2
+        )
+        self.conv3 = nn.Conv1d(
+            in_channels=64, out_channels=128, kernel_size=3, padding=1
+        )
 
         self.bn1 = nn.BatchNorm1d(32)
         self.bn2 = nn.BatchNorm1d(64)
@@ -42,9 +50,7 @@ class CNNModel(nn.Module):
         for module in self.modules():
             if isinstance(module, (nn.Conv1d, nn.Linear)):
                 nn.init.kaiming_normal_(
-                    module.weight,
-                    mode='fan_out',
-                    nonlinearity='relu'
+                    module.weight, mode="fan_out", nonlinearity="relu"
                 )
 
                 if module.bias is not None:

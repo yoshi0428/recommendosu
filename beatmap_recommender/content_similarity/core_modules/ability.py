@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
+
 import numpy as np
+
 
 def get_recency_weight(created_at, recency_half_life_days):
     """
@@ -20,14 +22,26 @@ def get_recency_weight(created_at, recency_half_life_days):
     try:
         played_at = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
         now = datetime.now(timezone.utc)
-        age_days = max(0.0, (now - played_at).total_seconds() / 86400.0,)
+        age_days = max(
+            0.0,
+            (now - played_at).total_seconds() / 86400.0,
+        )
         return 0.5 ** (age_days / recency_half_life_days)
 
     except (TypeError, ValueError):
         # If the timestamp cannot be parsed, don't discard the score.
         return 1.0
 
-def get_ability_score_weight(source, pp, created_at, recency_half_life_days, ability_top_weight, ability_recent_weight, ability_pp_weight):
+
+def get_ability_score_weight(
+    source,
+    pp,
+    created_at,
+    recency_half_life_days,
+    ability_top_weight,
+    ability_recent_weight,
+    ability_pp_weight,
+):
     """
     Calculate the weight of a score when estimating current ability.
 

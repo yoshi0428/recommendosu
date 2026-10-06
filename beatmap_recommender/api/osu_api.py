@@ -2,6 +2,7 @@ import httpx
 
 OSU_API_BASE = "https://osu.ppy.sh/api/v2"
 
+
 async def get_authenticated_user(access_token: str) -> dict:
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.get(
