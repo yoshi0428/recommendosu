@@ -1,4 +1,4 @@
-ATTACH 'recommender.local.db' AS target_db;
+ATTACH '/home/yoshi0428/PycharmProjects/osu-predict/beatmap_recommender/dummy.db' AS target_db;
 
 -- Do not use BEGIN TRANSACTION here... an implicit one is already active
 INSERT INTO target_db.scores SELECT * FROM main.scores;
