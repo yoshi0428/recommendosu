@@ -1,16 +1,16 @@
 export const DEFAULT_DIFFICULTY_STD_FLOORS = {
   star_rating: 0.35,
-  ar: 0.50,
-  od: 0.50,
+  ar: 0.5,
+  od: 0.5,
   bpm: 15.0,
-}
+};
 
 export const DEFAULT_DIFFICULTY_FEATURE_WEIGHTS = {
   star_rating: 4.0,
   ar: 1.5,
   od: 1.0,
   bpm: 0.5,
-}
+};
 
 export const DEFAULT_SIMILARITY_FEATURE_WEIGHTS = {
   star_rating: 3.0,
@@ -23,16 +23,16 @@ export const DEFAULT_SIMILARITY_FEATURE_WEIGHTS = {
   pp_aim: 1.5,
   pp_speed: 1.5,
   pp_acc: 1.5,
-}
+};
 
 export const DEFAULT_RECOMMENDATION_CONFIG = {
   balanced: {
     weights: {
-      content: 0.50,
+      content: 0.5,
       mod_preference: 0.05,
       difficulty: 0.25,
-      classifier: 0.20,
-      pp_potential: 0.00,
+      classifier: 0.2,
+      pp_potential: 0.0,
     },
     sort_keys: [
       "final_score",
@@ -44,10 +44,10 @@ export const DEFAULT_RECOMMENDATION_CONFIG = {
 
   pp_potential: {
     weights: {
-      content: 0.50,
+      content: 0.5,
       mod_preference: 0.05,
-      difficulty: 0.10,
-      classifier: 0.10,
+      difficulty: 0.1,
+      classifier: 0.1,
       pp_potential: 0.25,
     },
     sort_keys: [
@@ -58,13 +58,13 @@ export const DEFAULT_RECOMMENDATION_CONFIG = {
       "classifier_score",
     ],
   },
-}
+};
 
 export function createDefaultSettings() {
   return {
     player_id: null,
     limit: 1000,
-    goal: 'balanced',
+    goal: "balanced",
     mods: [],
 
     min_stars: null,
@@ -99,25 +99,20 @@ export function createDefaultSettings() {
     ability_pp_weight: 0.05,
     recency_half_life_days: 30.0,
 
-    pp_push_target_z: 2.50,
-    pp_push_max_z: 5.00,
-    feature_target_z: 1.00,
-    feature_max_z: 3.00,
+    pp_push_target_z: 2.5,
+    pp_push_max_z: 5.0,
+    feature_target_z: 1.0,
+    feature_max_z: 3.0,
 
-    recommendation_config: structuredClone(
-      DEFAULT_RECOMMENDATION_CONFIG
-    ),
-
-  }
+    recommendation_config: structuredClone(DEFAULT_RECOMMENDATION_CONFIG),
+  };
 }
 
 export function normalizeSettings(settings) {
   return {
     ...settings,
 
-    player_id: settings.player_id
-      ? Number(settings.player_id)
-      : null,
+    player_id: settings.player_id ? Number(settings.player_id) : null,
 
     limit: Number(settings.limit),
 
@@ -148,5 +143,5 @@ export function normalizeSettings(settings) {
       ...DEFAULT_SIMILARITY_FEATURE_WEIGHTS,
       ...(settings.similarity_feature_weights ?? {}),
     },
-  }
+  };
 }

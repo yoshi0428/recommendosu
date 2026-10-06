@@ -1,77 +1,72 @@
-import {Button, Container} from 'react-bootstrap'
-import {Link} from 'react-router-dom'
+import { Button, Container } from "react-bootstrap";
+import { Link } from "react-router-dom";
 
-import useTheme from '../hooks/useTheme'
-
+import useTheme from "../hooks/useTheme";
 
 function About() {
-  const {theme} = useTheme()
+  const { theme } = useTheme();
 
-  const sectionClass = theme === 'dark'
-    ? 'bg-secondary bg-opacity-10 border-secondary'
-    : 'bg-white border-light-subtle'
+  const sectionClass =
+    theme === "dark"
+      ? "bg-secondary bg-opacity-10 border-secondary"
+      : "bg-white border-light-subtle";
 
   return (
     <div
       className={
-        theme === 'dark'
-          ? 'bg-dark text-light min-vh-100'
-          : 'bg-light text-dark min-vh-100'
+        theme === "dark"
+          ? "bg-dark text-light min-vh-100"
+          : "bg-light text-dark min-vh-100"
       }
     >
       <Container className="py-5">
-
         <div className="mb-4">
-          <Button
-            as={Link}
-            to="/"
-            variant="outline-secondary"
-          >
+          <Button as={Link} to="/" variant="outline-secondary">
             Back to Recommendations
           </Button>
         </div>
 
         {/* INTRO */}
         <div className={`p-4 mb-4 rounded border ${sectionClass}`}>
-          <h3 className="mb-3">
-            About
-          </h3>
+          <h3 className="mb-3">About</h3>
 
           <p>
-            An osu! beatmap recommender that I wrote to apply all my knowledge from my Computer Science bachelors. It
-            initially started because someone in my MapleStory guild talked about one of his friends using a recommender
-            to find beatmaps (if you see this Ken, what's up 👀). I was looking for a bigger scale project to complete by
-            myself that somewhat involved ML/DL.
+            An osu! beatmap recommender that I wrote to apply all my knowledge
+            from my Computer Science bachelors. It initially started because
+            someone in my MapleStory guild talked about one of his friends using
+            a recommender to find beatmaps (if you see this Ken, what's up 👀).
+            I was looking for a bigger scale project to complete by myself that
+            somewhat involved ML/DL.
           </p>
 
           <p className="mb-3">
-            This{' '}
+            This{" "}
             <a
               href="https://github.com/yoshi0428/recommendosu"
               target="_blank"
               rel="noopener noreferrer"
             >
               project
-            </a>{' '}
-            uses Python with FastAPI for the backend, SQLite for
-            the database, and react-bootstrap for the frontend. It is currently
-            deployed on this website using my PC and Docker Compose.
+            </a>{" "}
+            uses Python with FastAPI for the backend, SQLite for the database,
+            and react-bootstrap for the frontend. It is currently deployed on
+            this website using my PC and Docker Compose.
           </p>
 
           <p className="mb-3">
-            If you need to contact me, do it via{' '}
+            If you need to contact me, do it via{" "}
             <a
               href="https://osu.ppy.sh/users/10961031"
               target="_blank"
               rel="noopener noreferrer"
             >
               yoshi0428
-            </a>{' '}
+            </a>{" "}
             at osu!pm or <u>yoshiekn</u> on Discord.
           </p>
 
           <p className="mb-0">
-            I've also made a Discord server{' '}
+            I've also made a Discord server{" "}
             <a
               href="https://discord.gg/Dh4TzKGGB7"
               target="_blank"
@@ -85,13 +80,12 @@ function About() {
 
         {/* MODS */}
         <div className={`p-4 mb-4 rounded border ${sectionClass}`}>
-          <h3 className="mb-3">
-            Mods
-          </h3>
+          <h3 className="mb-3">Mods</h3>
 
           <p>
-            You can exclude mods by clicking the checkbox twice for a minus sign. The unchecked mods will be part of mod
-            combinations that may get recommended.
+            You can exclude mods by clicking the checkbox twice for a minus
+            sign. The unchecked mods will be part of mod combinations that may
+            get recommended.
           </p>
 
           <p>
@@ -111,251 +105,284 @@ function About() {
 
         {/* RECOMMENDATION GOALS */}
         <div className={`p-4 mb-4 rounded border ${sectionClass}`}>
-          <h3 className="mb-3">
-            Recommendation Goals
-          </h3>
+          <h3 className="mb-3">Recommendation Goals</h3>
 
           <p>
-            recommendosu offers several recommendation profiles that adjust how candidate beatmaps are ranked. Each
-            profile combines content similarity, difficulty, mod preference, and additional signals such as tournament
-            category classification or PP potential.
+            recommendosu offers several recommendation profiles that adjust how
+            candidate beatmaps are ranked. Each profile combines content
+            similarity, difficulty, mod preference, and additional signals such
+            as tournament category classification or PP potential.
           </p>
 
-          <hr className="my-4"/>
+          <hr className="my-4" />
 
-          <h4 className="mt-4 mb-3">
-            Balanced
-          </h4>
+          <h4 className="mt-4 mb-3">Balanced</h4>
 
           <p>
-            The <strong>Balanced</strong> profile is the default recommendation mode. It primarily prioritizes maps that
-            are similar to your existing plays, while also considering the types of tournament categories you tend to
-            play. Difficulty provides a smaller adjustment to help keep recommendations near your demonstrated ability,
-            while mod preferences have a small influence on the final ranking.
+            The <strong>Balanced</strong> profile is the default recommendation
+            mode. It primarily prioritizes maps that are similar to your
+            existing plays, while also considering the types of tournament
+            categories you tend to play. Difficulty provides a smaller
+            adjustment to help keep recommendations near your demonstrated
+            ability, while mod preferences have a small influence on the final
+            ranking.
           </p>
 
           <p>
-            <strong>Weights:</strong> 50% content similarity --- 25% difficulty --- 20% NM1–5 category match --- 5% mod
+            <strong>Weights:</strong> 50% content similarity --- 25% difficulty
+            --- 20% NM1–5 category match --- 5% mod preference
+          </p>
+
+          <hr className="my-4" />
+
+          <h4 className="mt-4 mb-3">PP Potential</h4>
+
+          <p>
+            The <strong>PP Potential</strong> profile places additional emphasis
+            on maps that may offer higher performance-point potential. Content
+            similarity remains the largest factor, while PP potential and
+            tournament category classification provide additional signals.
+            Difficulty has a smaller influence, helping recommendations remain
+            appropriate for the player's demonstrated ability without dominating
+            the ranking.
+          </p>
+
+          <p>
+            <strong>Weights:</strong> 50% content similarity --- 25% PP
+            potential --- 10% NM1–5 category match --- 10% difficulty --- 5% mod
             preference
           </p>
 
-          <hr className="my-4"/>
-
-          <h4 className="mt-4 mb-3">
-            PP Potential
-          </h4>
+          <hr className="my-4" />
 
           <p>
-            The <strong>PP Potential</strong> profile places additional emphasis on maps that may offer higher
-            performance-point potential. Content similarity remains the largest factor, while PP potential and
-            tournament category classification provide additional signals. Difficulty has a smaller influence, helping
-            recommendations remain appropriate for the player's demonstrated ability without dominating the ranking.
+            The <strong>NM1–5 classifier</strong> is used in both recommendation
+            profiles. It estimates the tournament category characteristics of
+            each beatmap and compares them with the player's category
+            preferences. These preferences are derived from past plays, taking
+            into account factors such as recency, top-play performance, and PP
+            performance.
           </p>
 
           <p>
-            <strong>Weights:</strong> 50% content similarity --- 25% PP potential --- 10% NM1–5 category match --- 10%
-            difficulty --- 5% mod preference
-          </p>
-
-          <hr className="my-4"/>
-
-          <p>
-            The <strong>NM1–5 classifier</strong> is used in both recommendation profiles. It estimates the tournament
-            category characteristics of each beatmap and compares them with the player's category preferences. These
-            preferences are derived from past plays, taking into account factors such as recency, top-play performance,
-            and PP performance.
+            For each candidate, the recommendation system compares the player's
+            category preferences against the CNN-XGBoost model's precomputed
+            classification probabilities of the beatmap's NM variant. The
+            resulting similarity contributes to the final recommendation score.
           </p>
 
           <p>
-            For each candidate, the recommendation system compares the player's category preferences against the
-            CNN-XGBoost model's precomputed classification probabilities of the beatmap's NM variant. The resulting
-            similarity contributes to the final recommendation score.
+            Since the classification is based on the base beatmap rather than a
+            specific modded variant, this signal can still influence
+            recommendations when the final recommended variant uses mods.
           </p>
 
-          <p>
-            Since the classification is based on the base beatmap rather than a specific modded variant, this signal can
-            still influence recommendations when the final recommended variant uses mods.
-          </p>
-
-          <hr className="my-4"/>
+          <hr className="my-4" />
 
           {/* QUICK NOTICE */}
           <h5 className="mb-0">
-            The following sections will go into more depth on difficulty, PP potential, and mod preference scores. I
-            find content similarity pretty intuitive, but just know that it uses scikit-learn's{' '}
+            The following sections will go into more depth on difficulty, PP
+            potential, and mod preference scores. I find content similarity
+            pretty intuitive, but just know that it uses scikit-learn's{" "}
             <a
               href="https://scikit-learn.org/stable/modules/generated/sklearn.neighbors.NearestNeighbors.html"
               target="_blank"
               rel="noopener noreferrer"
             >
               NearestNeighbors
-            </a>{' '}
+            </a>{" "}
             to find each top & recent play's top 20000 nearest neighbors.
           </h5>
         </div>
 
-
         {/* DIFFICULTY PROFILE */}
         <div className={`p-4 mb-4 rounded border ${sectionClass}`}>
-          <h3 className="mb-3">
-            Difficulty Profile
-          </h3>
+          <h3 className="mb-3">Difficulty Profile</h3>
 
           <p>
-            The difficulty score measures how closely a recommended map matches the difficulty characteristics of your
-            played maps. It considers{' '} <strong>Star Rating (SR), Approach Rate (AR), Overall Difficulty (OD), and
-            BPM</strong>. The difficulty score is then combined with content similarity and other recommendation signals
-            according to the selected recommendation goal.
+            The difficulty score measures how closely a recommended map matches
+            the difficulty characteristics of your played maps. It considers{" "}
+            <strong>
+              Star Rating (SR), Approach Rate (AR), Overall Difficulty (OD), and
+              BPM
+            </strong>
+            . The difficulty score is then combined with content similarity and
+            other recommendation signals according to the selected
+            recommendation goal.
           </p>
 
-          <hr className="my-4"/>
+          <hr className="my-4" />
 
-          <h4 className="mt-4 mb-3">
-            Difficulty Feature Weights
-          </h4>
+          <h4 className="mt-4 mb-3">Difficulty Feature Weights</h4>
 
           <p>
-            Each characteristic is standardized relative to your demonstrated difficulty profile, then combined into a
-            weighted distance. Maps closer to your profile receive a higher difficulty score, while maps farther away
-            receive a lower score.
+            Each characteristic is standardized relative to your demonstrated
+            difficulty profile, then combined into a weighted distance. Maps
+            closer to your profile receive a higher difficulty score, while maps
+            farther away receive a lower score.
           </p>
-
-          <p><strong>Weights:</strong>{' '} SR 4.0 --- AR 1.5 --- OD 1.0 --- BPM 0.5 </p>
-
-          <hr className="my-4"/>
-
-          <h4 className="mt-4 mb-3">
-            Difficulty Standard Deviation Floors
-          </h4>
 
           <p>
-            To prevent unusually small variations from having an outsized effect on the score, each feature also has a
-            minimum standard-deviation threshold.
+            <strong>Weights:</strong> SR 4.0 --- AR 1.5 --- OD 1.0 --- BPM
+            0.5{" "}
           </p>
 
-          <p><strong>Threshold values:</strong>{' '} SR 0.35 --- AR 0.50 --- OD 0.50 --- BPM 15 </p>
+          <hr className="my-4" />
+
+          <h4 className="mt-4 mb-3">Difficulty Standard Deviation Floors</h4>
+
+          <p>
+            To prevent unusually small variations from having an outsized effect
+            on the score, each feature also has a minimum standard-deviation
+            threshold.
+          </p>
+
+          <p>
+            <strong>Threshold values:</strong> SR 0.35 --- AR 0.50 --- OD 0.50
+            --- BPM 15{" "}
+          </p>
 
           <p className={"mb-0"}>
-            The recommender also applies a <strong>minimum/maximum difficulty threshold</strong> based on your
-            demonstrated Star Rating. This prevents content similarity from causing recommendations to fall
-            substantially below/above your demonstrated difficulty level.
+            The recommender also applies a{" "}
+            <strong>minimum/maximum difficulty threshold</strong> based on your
+            demonstrated Star Rating. This prevents content similarity from
+            causing recommendations to fall substantially below/above your
+            demonstrated difficulty level.
           </p>
         </div>
 
         {/* MOD PREFERENCE */}
         <div className={`p-4 mb-4 rounded border ${sectionClass}`}>
-          <h3 className="mb-3">
-            Mod Preferences
-          </h3>
+          <h3 className="mb-3">Mod Preferences</h3>
 
           <p>
-            Your mod preferences are inferred from the mod
-            combinations in your recorded plays. Each play contributes a weighted amount based on whether it is a top
-            play
-            or a recent play, with higher-PP plays receiving a small additional contribution.
-          </p>
-
-          <p><strong>Source weights:</strong>{' '} Top plays 3.0x --- Recent plays 1.0x</p>
-
-          <hr className="my-4"/>
-
-          <p>
-            Top plays receive more weight because they may provide stronger evidence of the mod combinations you tend to
-            choose for your strongest performances. Plays that appear in both the top and recent collections are counted
-            only once as top plays.
+            Your mod preferences are inferred from the mod combinations in your
+            recorded plays. Each play contributes a weighted amount based on
+            whether it is a top play or a recent play, with higher-PP plays
+            receiving a small additional contribution.
           </p>
 
           <p>
-            PP also provides a small additional weighting factor. Higher-PP plays receive slightly more influence, with
-            diminishing returns so that extremely high-PP scores do not dominate the preference profile.
+            <strong>Source weights:</strong> Top plays 3.0x --- Recent plays
+            1.0x
           </p>
 
-          <p><strong>Score weight:</strong>{' '} [TOP_WEIGHT or RECENT_WEIGHT] * (1 + PP_WEIGHT * sqrt(PP) / 10)</p>
+          <hr className="my-4" />
 
-          <hr className="my-4"/>
+          <p>
+            Top plays receive more weight because they may provide stronger
+            evidence of the mod combinations you tend to choose for your
+            strongest performances. Plays that appear in both the top and recent
+            collections are counted only once as top plays.
+          </p>
+
+          <p>
+            PP also provides a small additional weighting factor. Higher-PP
+            plays receive slightly more influence, with diminishing returns so
+            that extremely high-PP scores do not dominate the preference
+            profile.
+          </p>
+
+          <p>
+            <strong>Score weight:</strong> [TOP_WEIGHT or RECENT_WEIGHT] * (1 +
+            PP_WEIGHT * sqrt(PP) / 10)
+          </p>
+
+          <hr className="my-4" />
 
           <p className="mb-0">
-            After the weighted preferences are calculated, they are log-transformed and normalized so that your most
-            preferred mod combination has a preference value of 1.0. These normalized preferences are then used as one
-            of the signals when ranking recommendations.
+            After the weighted preferences are calculated, they are
+            log-transformed and normalized so that your most preferred mod
+            combination has a preference value of 1.0. These normalized
+            preferences are then used as one of the signals when ranking
+            recommendations.
           </p>
         </div>
 
         {/* ABILITY PROFILE */}
         <div className={`p-4 mb-4 rounded border ${sectionClass}`}>
-          <h3 className="mb-3">
-            Ability Profile
-          </h3>
+          <h3 className="mb-3">Ability Profile</h3>
 
           <p>
-            Your difficulty profile is built from your recorded plays, with each play contributing a different amount of
-            weight when estimating your demonstrated difficulty. Recent plays are given more importance because they are
-            possibly a better indicator of your current ability.
+            Your difficulty profile is built from your recorded plays, with each
+            play contributing a different amount of weight when estimating your
+            demonstrated difficulty. Recent plays are given more importance
+            because they are possibly a better indicator of your current
+            ability.
           </p>
 
           <p>
-            A play's weight is determined by three factors: <strong>recency, score source, and PP</strong>. The recency
-            component uses a 30-day half-life, meaning a play contributes half as much after 30 days, one quarter as
-            much after 60 days, and so on.
+            A play's weight is determined by three factors:{" "}
+            <strong>recency, score source, and PP</strong>. The recency
+            component uses a 30-day half-life, meaning a play contributes half
+            as much after 30 days, one quarter as much after 60 days, and so on.
           </p>
 
           <p>
-            <strong>Source weights:</strong>{' '}
-            Top plays 1.0x --- Recent plays 2.0x
+            <strong>Source weights:</strong> Top plays 1.0x --- Recent plays
+            2.0x
           </p>
 
-          <hr className="my-4"/>
+          <hr className="my-4" />
 
           <p>
-            Plays that appear in both collections are treated as recent plays rather than being counted twice. Higher-PP
-            plays also receive slightly more weight when estimating ability. This provides a small additional emphasis
-            on stronger performances without allowing PP to dominate the profile.
+            Plays that appear in both collections are treated as recent plays
+            rather than being counted twice. Higher-PP plays also receive
+            slightly more weight when estimating ability. This provides a small
+            additional emphasis on stronger performances without allowing PP to
+            dominate the profile.
           </p>
 
           <p className="mb-0">
-            <strong>PP influence:</strong>{' '}
-            1 + ABILITY_PP_WEIGHT * sqrt(PP) / 10
+            <strong>PP influence:</strong> 1 + ABILITY_PP_WEIGHT * sqrt(PP) / 10
           </p>
         </div>
 
         {/* PP POTENTIAL EXPLAINED */}
         <div className={`p-4 mb-4 rounded border ${sectionClass}`}>
-          <h3 className="mb-3">
-            PP Potential Explained
-          </h3>
+          <h3 className="mb-3">PP Potential Explained</h3>
 
           <p>
-            The <strong>PP Potential</strong> signal estimates how
-            promising a candidate is for earning PP relative to your demonstrated difficulty. It is not an estimate of
-            how
-            much PP you are guaranteed to gain.
+            The <strong>PP Potential</strong> signal estimates how promising a
+            candidate is for earning PP relative to your demonstrated
+            difficulty. It is not an estimate of how much PP you are guaranteed
+            to gain.
           </p>
 
           <p>
-            Candidates receive more PP-potential value when they offer higher
-            PP while remaining within a reasonable range of your demonstrated difficulty. Maps below your usual
-            difficulty
-            receive a reduced score, while maps that are substantially beyond your demonstrated difficulty are
-            penalized.
+            Candidates receive more PP-potential value when they offer higher PP
+            while remaining within a reasonable range of your demonstrated
+            difficulty. Maps below your usual difficulty receive a reduced
+            score, while maps that are substantially beyond your demonstrated
+            difficulty are penalized.
           </p>
 
           <p>
-            The system uses <strong>2.50 standard deviations</strong> above your demonstrated
-            difficulty as the point at which the below-ability penalty stops. Candidates closer than 2.50 standard
-            deviations to your profile receive a reduced PP-potential score. Candidates between <strong>2.50 and 5.00
-            standard deviations</strong> above or below this range do not receive an additional difficulty penalty.
+            The system uses <strong>2.50 standard deviations</strong> above your
+            demonstrated difficulty as the point at which the below-ability
+            penalty stops. Candidates closer than 2.50 standard deviations to
+            your profile receive a reduced PP-potential score. Candidates
+            between <strong>2.50 and 5.00 standard deviations</strong> above or
+            below this range do not receive an additional difficulty penalty.
           </p>
 
           <p>
-            Candidates more than <strong>5.00 standard deviations</strong> from your demonstrated difficulty receive an
-            increasingly strong penalty. This prevents extremely difficult maps from receiving a high PP-potential score
-            solely because their raw PP is high.
+            Candidates more than <strong>5.00 standard deviations</strong> from
+            your demonstrated difficulty receive an increasingly strong penalty.
+            This prevents extremely difficult maps from receiving a high
+            PP-potential score solely because their raw PP is high.
           </p>
 
           <p className="mb-0">
-            <strong>PP potential parameters</strong>{' '}
-            <span className="d-block">Below-ability threshold (PP Push Target Z) --- 2.50 standard deviations</span>
-            <span className="d-block">Maximum difficulty range (PP Push Maximum Z) --- 5.00 standard deviations</span>
+            <strong>PP potential parameters</strong>{" "}
+            <span className="d-block">
+              Below-ability threshold (PP Push Target Z) --- 2.50 standard
+              deviations
+            </span>
+            <span className="d-block">
+              Maximum difficulty range (PP Push Maximum Z) --- 5.00 standard
+              deviations
+            </span>
           </p>
         </div>
 
@@ -364,14 +391,12 @@ function About() {
             src="GoT80k9H6Gd1x.gif"
             alt="quagsire"
             className="img-fluid d-block mx-auto"
-            style={{maxWidth: '400px'}}
+            style={{ maxWidth: "400px" }}
           />
         </div>
-
       </Container>
     </div>
-  )
+  );
 }
 
-
-export default About
+export default About;

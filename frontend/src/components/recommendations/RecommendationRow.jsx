@@ -1,56 +1,49 @@
-import {useEffect, useRef, useState} from "react";
-import './RecommendationRow.css'
+import { useEffect, useRef, useState } from "react";
+import "./RecommendationRow.css";
 
-import {
-  PauseFill,
-  PlayFill,
-  VolumeUpFill,
-  X,
-} from 'react-bootstrap-icons'
-
+import { PauseFill, PlayFill, VolumeUpFill, X } from "react-bootstrap-icons";
 
 // shared event used to stop audio previews in other recommendation rows
-const AUDIO_PREVIEW_EVENT = 'recommendosu:audio-preview'
+const AUDIO_PREVIEW_EVENT = "recommendosu:audio-preview";
 
 // helper functions to format seconds into mm:ss or hh:mm:ss
 const formatDuration = (totalSeconds) => {
-  if (totalSeconds == null || isNaN(totalSeconds)) return '—'
-  const seconds = Math.round(totalSeconds)
-  const hours = Math.floor(seconds / 3600)
-  const minutes = Math.floor((seconds % 3600) / 60)
-  const remainingSeconds = seconds % 60
+  if (totalSeconds == null || isNaN(totalSeconds)) return "—";
+  const seconds = Math.round(totalSeconds);
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainingSeconds = seconds % 60;
 
-  const pad = (num) => String(num).padStart(2, '0')
+  const pad = (num) => String(num).padStart(2, "0");
 
   if (hours > 0) {
-    return `${hours}:${pad(minutes)}:${pad(remainingSeconds)}`
+    return `${hours}:${pad(minutes)}:${pad(remainingSeconds)}`;
   } else {
-    return `${minutes}:${pad(remainingSeconds)}`
+    return `${minutes}:${pad(remainingSeconds)}`;
   }
-}
+};
 
 const formatAudioTime = (seconds) => {
-  if (!Number.isFinite(seconds)) return '00:00:00'
+  if (!Number.isFinite(seconds)) return "00:00:00";
 
-  const totalSeconds = Math.floor(seconds)
-  const hours = Math.floor(totalSeconds / 3600)
-  const minutes = Math.floor((totalSeconds % 3600) / 60)
-  const remainingSeconds = totalSeconds % 60
+  const totalSeconds = Math.floor(seconds);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const remainingSeconds = totalSeconds % 60;
 
-  const pad = (num) => String(num).padStart(2, '0')
+  const pad = (num) => String(num).padStart(2, "0");
 
-  return `${pad(hours)}:${pad(minutes)}:${pad(remainingSeconds)}`
-}
-
+  return `${pad(hours)}:${pad(minutes)}:${pad(remainingSeconds)}`;
+};
 
 function RecommendationRow({
-                             recommendation,
-                             onSelectRecommendation,
-                             audioVolume,
-                             setAudioVolume,
-                             virtualRow,
-                             rowVirtualizer,
-                           }) {
+  recommendation,
+  onSelectRecommendation,
+  audioVolume,
+  setAudioVolume,
+  virtualRow,
+  rowVirtualizer,
+}) {
   const {
     beatmap_id,
     beatmapset_id,
@@ -68,148 +61,138 @@ function RecommendationRow({
     object_count,
     max_combo,
     pp,
-  } = recommendation
+  } = recommendation;
 
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [audioUrl, setAudioUrl] = useState(null)
-  const audioRef = useRef(null)
-  const audioUrlRef = useRef(null)
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [audioUrl, setAudioUrl] = useState(null);
+  const audioRef = useRef(null);
+  const audioUrlRef = useRef(null);
 
-  const [currentTime, setCurrentTime] = useState(0)
-  const [duration, setDuration] = useState(0)
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
 
-  const beatmapUrl = beatmap_id
-    ? `https://osu.ppy.sh/b/${beatmap_id}`
-    : '#'
+  const beatmapUrl = beatmap_id ? `https://osu.ppy.sh/b/${beatmap_id}` : "#";
 
   const coverUrl = beatmap_id
     ? `https://assets.ppy.sh/beatmaps/${beatmapset_id}/covers/list.jpg`
-    : null
+    : null;
 
   const playPreview = async () => {
     try {
       // Stop the current preview if already playing.
       if (isPlaying && audioRef.current) {
-        audioRef.current.pause()
-        audioRef.current.currentTime = 0
-        setCurrentTime(0)
-        setIsPlaying(false)
-        return
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+        setCurrentTime(0);
+        setIsPlaying(false);
+        return;
       }
 
       const params = new URLSearchParams({
         artist,
         title,
         creator,
-      })
+      });
 
       const response = await fetch(
-        `/api/v1/music/preview?${params.toString()}`,
-      )
+        `/api/v1/music/preview?${params.toString()}`
+      );
 
       if (!response.ok) {
-        throw new Error('Failed to fetch audio preview')
+        throw new Error("Failed to fetch audio preview");
       }
 
-      const previewTime = Number(
-        response.headers.get('X-Preview-Time') ?? 0,
-      )
+      const previewTime = Number(response.headers.get("X-Preview-Time") ?? 0);
 
-      const blob = await response.blob()
-      const url = URL.createObjectURL(blob)
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
 
       // clean up the previous object URL.
       if (audioUrlRef.current) {
-        URL.revokeObjectURL(audioUrlRef.current)
+        URL.revokeObjectURL(audioUrlRef.current);
       }
 
-      audioUrlRef.current = url
-      setAudioUrl(url)
+      audioUrlRef.current = url;
+      setAudioUrl(url);
 
       // reset playback position for the new preview.
-      setCurrentTime(previewTime / 1000)
+      setCurrentTime(previewTime / 1000);
 
       // wait for React to render the new audio element.
       requestAnimationFrame(() => {
-        if (!audioRef.current) return
+        if (!audioRef.current) return;
 
         // tell every other recommendation row to stop.
         window.dispatchEvent(
           new CustomEvent(AUDIO_PREVIEW_EVENT, {
             detail: audioRef.current,
-          }),
-        )
+          })
+        );
 
-        audioRef.current.volume = audioVolume
-        audioRef.current.currentTime = previewTime / 1000
-        audioRef.current.play()
-        setIsPlaying(true)
-      })
+        audioRef.current.volume = audioVolume;
+        audioRef.current.currentTime = previewTime / 1000;
+        audioRef.current.play();
+        setIsPlaying(true);
+      });
     } catch (error) {
-      console.error('Failed to play audio preview:', error)
+      console.error("Failed to play audio preview:", error);
     }
-  }
+  };
 
   const closePreview = () => {
     if (audioRef.current) {
-      audioRef.current.pause()
-      audioRef.current.currentTime = 0
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
     }
 
     if (audioUrlRef.current) {
-      URL.revokeObjectURL(audioUrlRef.current)
-      audioUrlRef.current = null
+      URL.revokeObjectURL(audioUrlRef.current);
+      audioUrlRef.current = null;
     }
 
-    setAudioUrl(null)
-    setIsPlaying(false)
-    setCurrentTime(0)
-    setDuration(0)
-  }
+    setAudioUrl(null);
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
+  };
 
   // Stop this row when another recommendation starts playing.
   useEffect(() => {
     const handleOtherAudioPreview = (event) => {
-      if (event.detail === audioRef.current) return
-      closePreview()
-    }
+      if (event.detail === audioRef.current) return;
+      closePreview();
+    };
 
-    window.addEventListener(
-      AUDIO_PREVIEW_EVENT,
-      handleOtherAudioPreview
-    )
+    window.addEventListener(AUDIO_PREVIEW_EVENT, handleOtherAudioPreview);
 
     return () => {
-      window.removeEventListener(
-        AUDIO_PREVIEW_EVENT,
-        handleOtherAudioPreview
-      )
-    }
-  }, [])
+      window.removeEventListener(AUDIO_PREVIEW_EVENT, handleOtherAudioPreview);
+    };
+  }, []);
 
   return (
     <>
       <tr
         data-index={virtualRow.index}
         ref={(node) => {
-          rowVirtualizer.measureElement(node)
+          rowVirtualizer.measureElement(node);
         }}
         onClick={() => onSelectRecommendation?.(recommendation)}
-        style={{cursor: 'pointer'}}
+        style={{ cursor: "pointer" }}
         title="Click to view score breakdown"
       >
-        <td className="text-start" style={{width: '40%'}}>
+        <td className="text-start" style={{ width: "40%" }}>
           <div className="d-flex align-items-center gap-2 gap-md-3 text-start">
             <div
               className="rounded flex-shrink-0 shadow-sm position-relative overflow-hidden bg-secondary"
               style={{
-                width: '104px',
-                height: '58px',
-                cursor: 'pointer',
+                width: "104px",
+                height: "58px",
+                cursor: "pointer",
               }}
               onClick={(e) => {
-                e.stopPropagation()
-                playPreview()
+                e.stopPropagation();
+                playPreview();
               }}
             >
               {coverUrl && (
@@ -221,7 +204,7 @@ function RecommendationRow({
                   className="w-100 h-100 object-fit-cover"
                   loading="lazy"
                   onError={(e) => {
-                    e.currentTarget.style.display = 'none'
+                    e.currentTarget.style.display = "none";
                   }}
                 />
               )}
@@ -229,23 +212,24 @@ function RecommendationRow({
               <div
                 className="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
                 style={{
-                  backgroundColor: 'rgba(0, 0, 0, 0.45)',
+                  backgroundColor: "rgba(0, 0, 0, 0.45)",
                   opacity: coverUrl && !isPlaying ? 0 : 1,
-                  transition: 'opacity 0.15s ease',
+                  transition: "opacity 0.15s ease",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.opacity = 1
+                  e.currentTarget.style.opacity = 1;
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.opacity = coverUrl && !isPlaying ? 0 : 1
+                  e.currentTarget.style.opacity =
+                    coverUrl && !isPlaying ? 0 : 1;
                 }}
               >
                 <span
                   className="text-white"
                   style={{
-                    fontSize: '1.5rem',
+                    fontSize: "1.5rem",
                     lineHeight: 1,
-                    textShadow: '0 1px 3px rgba(0, 0, 0, 0.5)',
+                    textShadow: "0 1px 3px rgba(0, 0, 0, 0.5)",
                   }}
                 >
                   {isPlaying ? (
@@ -253,7 +237,7 @@ function RecommendationRow({
                       size={24}
                       className="text-white"
                       style={{
-                        filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5))',
+                        filter: "drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5))",
                       }}
                     />
                   ) : (
@@ -261,7 +245,7 @@ function RecommendationRow({
                       size={24}
                       className="text-white"
                       style={{
-                        filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5))',
+                        filter: "drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5))",
                       }}
                     />
                   )}
@@ -275,37 +259,37 @@ function RecommendationRow({
                 src={audioUrl}
                 onLoadedMetadata={() => {
                   if (audioRef.current) {
-                    setDuration(audioRef.current.duration)
+                    setDuration(audioRef.current.duration);
                   }
                 }}
                 onTimeUpdate={() => {
                   if (audioRef.current) {
-                    setCurrentTime(audioRef.current.currentTime)
+                    setCurrentTime(audioRef.current.currentTime);
                   }
                 }}
                 onEnded={() => {
-                  setIsPlaying(false)
-                  setCurrentTime(0)
+                  setIsPlaying(false);
+                  setCurrentTime(0);
 
                   if (audioRef.current) {
-                    audioRef.current.currentTime = 0
+                    audioRef.current.currentTime = 0;
                   }
                 }}
               />
             )}
 
-            <div className="text-break" style={{minWidth: 0}}>
+            <div className="text-break" style={{ minWidth: 0 }}>
               <a
                 href={beatmapUrl}
                 target="_blank"
                 rel="noreferrer"
                 className="text-body d-block"
-                style={{textDecoration: 'none'}}
+                style={{ textDecoration: "none" }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.textDecoration = 'underline'
+                  e.currentTarget.style.textDecoration = "underline";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.textDecoration = 'none'
+                  e.currentTarget.style.textDecoration = "none";
                 }}
                 onClick={(e) => e.stopPropagation()}
               >
@@ -320,29 +304,43 @@ function RecommendationRow({
         </td>
 
         {/* Core stats visible on all screens */}
-        <td className="text-center">{pp != null ? Number(pp).toFixed(0) : '—'}</td>
-        <td className="text-center">{mods || 'NM'}</td>
-        <td className="text-center">{star_rating != null ? Number(star_rating).toFixed(2) : '—'}</td>
-        <td className="text-center">{bpm != null ? Number(bpm).toFixed(0) : '—'}</td>
-        <td className="text-center">{circle_size != null ? Number(circle_size).toFixed(1) : '—'}</td>
-        <td className="text-center">{ar != null ? Number(ar).toFixed(1) : '—'}</td>
-        <td className="text-center">{od != null ? Number(od).toFixed(1) : '—'}</td>
+        <td className="text-center">
+          {pp != null ? Number(pp).toFixed(0) : "—"}
+        </td>
+        <td className="text-center">{mods || "NM"}</td>
+        <td className="text-center">
+          {star_rating != null ? Number(star_rating).toFixed(2) : "—"}
+        </td>
+        <td className="text-center">
+          {bpm != null ? Number(bpm).toFixed(0) : "—"}
+        </td>
+        <td className="text-center">
+          {circle_size != null ? Number(circle_size).toFixed(1) : "—"}
+        </td>
+        <td className="text-center">
+          {ar != null ? Number(ar).toFixed(1) : "—"}
+        </td>
+        <td className="text-center">
+          {od != null ? Number(od).toFixed(1) : "—"}
+        </td>
         <td className="text-center">{formatDuration(length_seconds)}</td>
-        <td className="text-center">{max_combo != null ? `${max_combo.toLocaleString()}x` : '—'}</td>
+        <td className="text-center">
+          {max_combo != null ? `${max_combo.toLocaleString()}x` : "—"}
+        </td>
       </tr>
 
       {/* Audio player pill */}
       {audioUrl && (
         <tr>
-          <td colSpan="10" style={{padding: 0, border: 0}}>
+          <td colSpan="10" style={{ padding: 0, border: 0 }}>
             <div
               className="position-fixed bottom-0 start-50 translate-middle-x mb-3 px-2 px-sm-3 py-2 rounded-pill shadow d-flex align-items-center border border-3"
               style={{
                 zIndex: 1050,
-                width: 'min(600px, calc(100vw - 1rem))',
+                width: "min(600px, calc(100vw - 1rem))",
                 minWidth: 0,
-                backgroundColor: 'var(--audio-preview-bg-color)',
-                '--bs-border-color': 'var(--audio-preview-border-color)',
+                backgroundColor: "var(--audio-preview-bg-color)",
+                "--bs-border-color": "var(--audio-preview-border-color)",
               }}
               onClick={(e) => e.stopPropagation()}
             >
@@ -351,9 +349,9 @@ function RecommendationRow({
                 className="d-flex align-items-center flex-grow-1 rounded"
                 style={{
                   minWidth: 0,
-                  gap: '0.5rem',
-                  backgroundColor: 'var(--audio-preview-bg-color)',
-                  padding: '0.25rem 0.5rem',
+                  gap: "0.5rem",
+                  backgroundColor: "var(--audio-preview-bg-color)",
+                  padding: "0.25rem 0.5rem",
                 }}
               >
                 {/* Play / Pause */}
@@ -361,29 +359,25 @@ function RecommendationRow({
                   type="button"
                   className="btn btn-sm p-0 border-0 bg-transparent d-flex align-items-center justify-content-center flex-shrink-0"
                   style={{
-                    width: '20px',
-                    height: '20px',
+                    width: "20px",
+                    height: "20px",
                     lineHeight: 1,
-                    color: 'var(--audio-preview-text-color)',
+                    color: "var(--audio-preview-text-color)",
                   }}
                   onClick={() => {
-                    if (!audioRef.current) return
+                    if (!audioRef.current) return;
 
                     if (audioRef.current.paused) {
-                      audioRef.current.play()
-                      setIsPlaying(true)
+                      audioRef.current.play();
+                      setIsPlaying(true);
                     } else {
-                      audioRef.current.pause()
-                      setIsPlaying(false)
+                      audioRef.current.pause();
+                      setIsPlaying(false);
                     }
                   }}
-                  aria-label={isPlaying ? 'Pause preview' : 'Play preview'}
+                  aria-label={isPlaying ? "Pause preview" : "Play preview"}
                 >
-                  {isPlaying ? (
-                    <PauseFill size={20}/>
-                  ) : (
-                    <PlayFill size={20}/>
-                  )}
+                  {isPlaying ? <PauseFill size={20} /> : <PlayFill size={20} />}
                 </button>
 
                 {/* Audio time control */}
@@ -398,12 +392,12 @@ function RecommendationRow({
                   step="0.01"
                   value={currentTime}
                   onChange={(e) => {
-                    const newTime = Number(e.target.value)
+                    const newTime = Number(e.target.value);
 
-                    setCurrentTime(newTime)
+                    setCurrentTime(newTime);
 
                     if (audioRef.current) {
-                      audioRef.current.currentTime = newTime
+                      audioRef.current.currentTime = newTime;
                     }
                   }}
                   aria-label="Audio progress"
@@ -412,16 +406,17 @@ function RecommendationRow({
                 <span
                   className="text-nowrap flex-shrink-0 audio-preview-time"
                   style={{
-                    fontSize: '0.75rem',
-                    width: '108px',
-                    textAlign: 'center',
+                    fontSize: "0.75rem",
+                    width: "108px",
+                    textAlign: "center",
                     lineHeight: 1,
-                    color: 'var(--audio-preview-secondary-color)',
+                    color: "var(--audio-preview-secondary-color)",
                   }}
                 >
                   {formatAudioTime(currentTime)}
                   <span className="audio-preview-duration">
-                    {' / '}{formatAudioTime(duration)}
+                    {" / "}
+                    {formatAudioTime(duration)}
                   </span>
                 </span>
               </div>
@@ -430,15 +425,15 @@ function RecommendationRow({
               <div
                 className="d-flex align-items-center flex-shrink-0 rounded"
                 style={{
-                  gap: '0.5rem',
-                  backgroundColor: 'var(--audio-preview-bg-color)',
-                  padding: '0.25rem 0.5rem',
+                  gap: "0.5rem",
+                  backgroundColor: "var(--audio-preview-bg-color)",
+                  padding: "0.25rem 0.5rem",
                 }}
               >
                 <VolumeUpFill
                   size={20}
                   style={{
-                    color: 'var(--audio-preview-secondary-color)',
+                    color: "var(--audio-preview-secondary-color)",
                   }}
                 />
 
@@ -450,17 +445,17 @@ function RecommendationRow({
                   step="0.001"
                   value={audioVolume}
                   onChange={(e) => {
-                    const newVolume = Number(e.target.value)
+                    const newVolume = Number(e.target.value);
 
-                    setAudioVolume(newVolume)
+                    setAudioVolume(newVolume);
 
                     if (audioRef.current) {
-                      audioRef.current.volume = newVolume
+                      audioRef.current.volume = newVolume;
                     }
                   }}
                   aria-label="Preview volume"
                   style={{
-                    width: '60px',
+                    width: "60px",
                   }}
                 />
               </div>
@@ -470,23 +465,23 @@ function RecommendationRow({
                 type="button"
                 className="btn btn-sm p-0 border-0 bg-transparent d-flex align-items-center justify-content-center flex-shrink-0"
                 style={{
-                  width: '20px',
-                  height: '20px',
+                  width: "20px",
+                  height: "20px",
                   lineHeight: 1,
-                  marginLeft: '0.5rem',
-                  color: 'var(--audio-preview-secondary-color)',
+                  marginLeft: "0.5rem",
+                  color: "var(--audio-preview-secondary-color)",
                 }}
                 onClick={closePreview}
                 aria-label="Close audio preview"
               >
-                <X size={20}/>
+                <X size={20} />
               </button>
             </div>
           </td>
         </tr>
       )}
     </>
-  )
+  );
 }
 
-export default RecommendationRow
+export default RecommendationRow;

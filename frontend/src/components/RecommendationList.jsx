@@ -1,15 +1,14 @@
-import {Badge, Card, Col, Row, Stack} from 'react-bootstrap'
+import { Badge, Card, Col, Row, Stack } from "react-bootstrap";
 
-export default function RecommendationList({recommendations}) {
+export default function RecommendationList({ recommendations }) {
   if (!recommendations.length) {
-    return null
+    return null;
   }
 
   return (
     <>
       <h2 className="mb-3">
         Recommendations
-
         <Badge bg="secondary" className="ms-2">
           {recommendations.length}
         </Badge>
@@ -32,104 +31,80 @@ export default function RecommendationList({recommendations}) {
                     {recommendation.beatmap_id}
                   </Card.Title>
 
-                  <Badge bg="dark">
-                    {recommendation.mods || 'NM'}
-                  </Badge>
+                  <Badge bg="dark">{recommendation.mods || "NM"}</Badge>
                 </Stack>
 
                 <div className="mb-3">
                   <strong>
-                    {Number(
-                      recommendation.star_rating,
-                    ).toFixed(2)}
-                    ★
+                    {Number(recommendation.star_rating).toFixed(2)}★
                   </strong>
                 </div>
 
                 <Row className="small">
                   <Col xs={6}>
                     <div>
-                      <strong>BPM:</strong>{' '}
-                      {recommendation.bpm}
+                      <strong>BPM:</strong> {recommendation.bpm}
                     </div>
 
                     <div>
-                      <strong>AR:</strong>{' '}
-                      {recommendation.ar}
+                      <strong>AR:</strong> {recommendation.ar}
                     </div>
 
                     <div>
-                      <strong>OD:</strong>{' '}
-                      {recommendation.od}
+                      <strong>OD:</strong> {recommendation.od}
                     </div>
 
                     <div>
-                      <strong>CS:</strong>{' '}
-                      {recommendation.circle_size}
+                      <strong>CS:</strong> {recommendation.circle_size}
                     </div>
                   </Col>
 
                   <Col xs={6}>
                     <div>
-                      <strong>Length:</strong>{' '}
-                      {recommendation.length_seconds}s
+                      <strong>Length:</strong> {recommendation.length_seconds}s
                     </div>
 
                     <div>
-                      <strong>Objects:</strong>{' '}
-                      {recommendation.object_count}
+                      <strong>Objects:</strong> {recommendation.object_count}
                     </div>
 
                     <div>
-                      <strong>PP:</strong>{' '}
-                      {recommendation.pp ?? '-'}
+                      <strong>PP:</strong> {recommendation.pp ?? "-"}
                     </div>
                   </Col>
                 </Row>
 
-                <hr/>
+                <hr />
 
                 <div className="small">
                   <div>
-                    <strong>Final:</strong>{' '}
-                    {Number(
-                      recommendation.final_score,
-                    ).toFixed(4)}
+                    <strong>Final:</strong>{" "}
+                    {Number(recommendation.final_score).toFixed(4)}
                   </div>
 
                   <div>
-                    <strong>Content:</strong>{' '}
-                    {Number(
-                      recommendation.content_similarity,
-                    ).toFixed(4)}
+                    <strong>Content:</strong>{" "}
+                    {Number(recommendation.content_similarity).toFixed(4)}
                   </div>
 
                   <div>
-                    <strong>Difficulty:</strong>{' '}
-                    {Number(
-                      recommendation.difficulty_score,
-                    ).toFixed(4)}
+                    <strong>Difficulty:</strong>{" "}
+                    {Number(recommendation.difficulty_score).toFixed(4)}
                   </div>
 
                   <div>
-                    <strong>Mod Preference:</strong>{' '}
-                    {Number(
-                      recommendation.mod_preference,
-                    ).toFixed(4)}
+                    <strong>Mod Preference:</strong>{" "}
+                    {Number(recommendation.mod_preference).toFixed(4)}
                   </div>
 
                   <div>
-                    <strong>Classifier:</strong>{' '}
-                    {Number(
-                      recommendation.classifier_score,
-                    ).toFixed(4)}
+                    <strong>Classifier:</strong>{" "}
+                    {Number(recommendation.classifier_score).toFixed(4)}
                   </div>
 
                   <div>
-                    <strong>PP Potential:</strong>{' '}
-                    {Number(
-                      recommendation.pp_potential,
-                    ).toFixed(4)}
+                    <strong>PP Potential:</strong>{" "}
+                    {Number(recommendation.pp_potential).toFixed(4)}
                   </div>
                 </div>
               </Card.Body>
@@ -138,5 +113,5 @@ export default function RecommendationList({recommendations}) {
         ))}
       </Row>
     </>
-  )
+  );
 }

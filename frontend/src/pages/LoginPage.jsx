@@ -1,8 +1,7 @@
-import AuthScreen from '../components/AuthScreen'
-
+import AuthScreen from "../components/AuthScreen";
 
 function LoginPage() {
-  return <AuthScreen/>
+  return <AuthScreen />;
 }
 
-export default LoginPage
+export default LoginPage;
