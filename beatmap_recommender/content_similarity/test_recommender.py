@@ -60,8 +60,8 @@ RECOMMENDATION_GOAL = "balanced"
 # ["HD", "HR", "DT"]
 #                   → HD, HR, DT, HDHR, HDDT, HRDT, HDHRDT
 
-REQUESTED_MODS = ["NM"]
-EXCLUDED_MODS = ["EZ", "HT", "FL", "HD"]
+REQUESTED_MODS = []
+EXCLUDED_MODS = ["EZ", "HT", "FL"]
 
 
 # ── Candidate filters ──────────────────────────────────────────
