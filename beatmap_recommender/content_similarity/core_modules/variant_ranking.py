@@ -301,6 +301,8 @@ def get_candidate_variants(
     max_combo=None,
     min_cs=None,
     max_cs=None,
+    min_year=None,
+    max_year=None,
     cancel_event=None,
 ):
     """Fetch candidate variants and apply SQL-level filters."""
@@ -387,6 +389,7 @@ def get_candidate_variants(
         ("bv.length_seconds", min_length, max_length),
         ("bv.max_combo", min_combo, max_combo),
         ("bv.circle_size", min_cs, max_cs),
+        ("bv.year", min_year, max_year),
     )
 
     for column, minimum, maximum in numeric_filters:
@@ -637,6 +640,8 @@ def rank_variants(
     max_combo=None,
     min_cs=None,
     max_cs=None,
+    min_year=None,
+    max_year=None,
     recommendation_goal="balanced",
     recommendation_config=None,
     difficulty_std_floors=None,
@@ -737,6 +742,7 @@ def rank_variants(
         ("min_length", min_length, max_length),
         ("min_combo", min_combo, max_combo),
         ("min_cs", min_cs, max_cs),
+        ("min_year", min_year, max_year),
     )
 
     for name, minimum, maximum in filter_ranges:
@@ -778,6 +784,8 @@ def rank_variants(
         max_combo=max_combo,
         min_cs=min_cs,
         max_cs=max_cs,
+        min_year=min_year,
+        max_year=max_year,
         cancel_event=cancel_event,
     )
 

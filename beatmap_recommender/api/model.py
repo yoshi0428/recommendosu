@@ -2,6 +2,10 @@ from copy import deepcopy
 
 from pydantic import BaseModel, Field
 
+# Ranked beatmap years available in the recommender database.
+MIN_BEATMAP_YEAR = 2007
+MAX_BEATMAP_YEAR = 2026
+
 DIFFICULTY_STD_FLOORS = {
     "star_rating": 0.35,
     "ar": 0.50,
@@ -83,9 +87,7 @@ RECOMMENDATION_CONFIG = {
 class RecommendationSettings(BaseModel):
     # ── Internal values for the algorithm, effectively uncapped ───────────────────────────
     limit: int = Field(
-        default=1000,
-        ge=1,
-        le=100000,
+        default=1000, ge=1, le=100000,
     )
 
     neighbors_k: int = Field(default=147152, ge=1, le=147152)
@@ -95,8 +97,12 @@ class RecommendationSettings(BaseModel):
 
     goal: str = "balanced"
 
-    min_year: int | None = None
-    max_year: int | None = None
+    min_year: int | None = Field(
+        default=None, ge=MIN_BEATMAP_YEAR, le=MAX_BEATMAP_YEAR
+    )
+    max_year: int | None = Field(
+        default=None, ge=MIN_BEATMAP_YEAR, le=MAX_BEATMAP_YEAR
+    )
 
     mods: list[str] | None = Field(
         default=None,

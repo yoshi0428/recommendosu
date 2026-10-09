@@ -147,7 +147,7 @@ function BasicOptions({ settings, updateSetting }) {
 
           <Col md={3}>
             <Form.Group>
-              <Form.Label>Year range (WIP)</Form.Label>
+              <Form.Label>Year range</Form.Label>
 
               <div className="d-flex gap-2">
                 <Form.Control

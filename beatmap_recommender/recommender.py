@@ -254,6 +254,8 @@ def recommend_player_sync(
             max_combo=settings.max_combo,
             min_cs=settings.min_cs,
             max_cs=settings.max_cs,
+            min_year=settings.min_year,
+            max_year=settings.max_year,
             recommendation_goal=settings.goal,
             recommendation_config=recommendation_config,
             difficulty_std_floors=settings.difficulty_std_floors,
