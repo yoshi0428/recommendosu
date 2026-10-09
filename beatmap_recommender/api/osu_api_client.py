@@ -10,6 +10,10 @@ MAX_RETRIES = 5
 BACKOFF_BASE = 2
 
 
+class OsuAPINotFoundError(requests.HTTPError):
+    """The osu! API returned 404 Not Found."""
+
+
 class OsuAPIClient:
     def __init__(self, access_token: str):
         self.session = requests.Session()
@@ -103,6 +107,13 @@ class OsuAPIClient:
                 )
                 time.sleep(delay)
                 continue
+
+            # Not found, e.g. a restricted (banned) or nonexistent user
+            if response.status_code == 404:
+                raise OsuAPINotFoundError(
+                    f"osu! API returned 404 Not Found: {url}",
+                    response=response,
+                )
 
             # Successful / permanent response
             response.raise_for_status()

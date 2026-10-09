@@ -1,5 +1,3 @@
-import os
-import sqlite3
 from pathlib import Path
 
 from beatmap_recommender.content_similarity.core_modules.cnn_xgboost_influence import (
@@ -18,21 +16,18 @@ from beatmap_recommender.content_similarity.core_modules.variant_ranking import 
     get_player_difficulty_profiles,
     rank_variants,
 )
+from beatmap_recommender.database import connect_memory_db, load_memory_db
 from beatmap_recommender.recommender_db_setup.osu_api_client import OsuAPIClient
 
 # ── Configuration ──────────────────────────────────────────────
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-DB_PATH = Path(
-    os.getenv(
-        "DB_PATH",
-        PROJECT_ROOT / "beatmap_recommender/recommender.local.db",
-    )
-)
+# Loaded into memory; fetched scores are written back to this file.
+LOCAL_DB_PATH = PROJECT_ROOT / "beatmap_recommender/recommender.local.db"
 
 NUM_RECOMMENDATIONS = 100
-NEIGHBORS_K = 20_000
+NEIGHBORS_K = 147_152
 BATCH_SIZE = 16_384
 SCORE_LIMIT = 1000
 
@@ -190,9 +185,8 @@ def main():
     config = RECOMMENDATION_CONFIG[RECOMMENDATION_GOAL]
     classifier_weight = config["weights"]["classifier"]
 
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
+    load_memory_db(LOCAL_DB_PATH)
+    conn = connect_memory_db()
 
     try:
         api = OsuAPIClient()

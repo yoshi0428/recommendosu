@@ -41,6 +41,9 @@ from beatmap_recommender.cancellation import (
     create_cancellation_event,
     remove_cancellation_event,
 )
+from beatmap_recommender.content_similarity.core_modules.score_collector import (
+    PlayerNotFoundError,
+)
 from beatmap_recommender.data_audio.extract_audio import sanitize_filename
 from beatmap_recommender.database import connect_memory_db, load_memory_db
 from beatmap_recommender.recommender import recommend_player
@@ -363,6 +366,12 @@ async def recommend_get(
             session_id=session_id,
             session_player_id=player_id,
         )
+    except PlayerNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        )
+
     except ValueError as exc:
         raise HTTPException(
             status_code=400,
@@ -436,6 +445,12 @@ async def recommend_post(
                 "X-Recommendation-Cancelled": "true",
                 "X-Recommendation-Id": recommendation_id,
             },
+        )
+
+    except PlayerNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
         )
 
     except ValueError as exc:

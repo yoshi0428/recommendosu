@@ -1,4 +1,5 @@
 import { Card, Form } from "react-bootstrap";
+import { DEFAULT_EXCLUDED_MODS } from "../utils/recommendation";
 
 const INDIVIDUAL_MODS = ["NM", "HD", "HR", "DT", "EZ", "HT", "FL"];
 
@@ -89,9 +90,11 @@ function ModOptions({ settings, updateSetting }) {
   const handleExactModsChange = (enabled) => {
     updateSetting("exact_mods", enabled);
 
-    // Reset mod selection when switching modes.
+    // Reset mod selection when switching modes. Exact mode only uses the
+    // checked mods, so the default exclusions are dropped there and
+    // restored when switching back.
     updateSetting("mods", []);
-    updateSetting("excluded_mods", []);
+    updateSetting("excluded_mods", enabled ? [] : [...DEFAULT_EXCLUDED_MODS]);
   };
 
   return (

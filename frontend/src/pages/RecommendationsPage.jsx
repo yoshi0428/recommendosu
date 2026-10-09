@@ -13,7 +13,12 @@ import SiteHeader from "../components/SiteHeader.jsx";
 import RecommendationSettingsModal from "../components/recommendations/RecommendationSettingsModal.jsx";
 
 function RecommendationsPage({ user, logout }) {
-  const [settings, setSettings] = useState(createDefaultSettings);
+  // App only renders this page once the user has loaded, so their ID can
+  // seed the initial settings directly.
+  const [settings, setSettings] = useState(() => ({
+    ...createDefaultSettings(),
+    player_id: user?.player_id ?? null,
+  }));
 
   const [recommendations, setRecommendations] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -36,23 +41,6 @@ function RecommendationsPage({ user, logout }) {
 
     return () => clearTimeout(timer);
   }, [selectedRecommendation]);
-
-  useEffect(() => {
-    if (user?.player_id == null) {
-      return;
-    }
-
-    setSettings((current) => {
-      if (current.player_id !== null) {
-        return current;
-      }
-
-      return {
-        ...current,
-        player_id: user.player_id,
-      };
-    });
-  }, [user]);
 
   const updateSetting = (key, value) => {
     setSettings((current) => ({

@@ -1,5 +1,17 @@
+from beatmap_recommender.api.osu_api_client import OsuAPINotFoundError
 from beatmap_recommender.database import connect_disk_db, is_memory_db
 from beatmap_recommender.recommender_db_setup.db_insertion import insert_score
+
+
+class PlayerNotFoundError(LookupError):
+    """The osu! API has no public profile for this player ID."""
+
+    def __init__(self, player_id):
+        self.player_id = player_id
+        super().__init__(
+            f"osu! player {player_id} was not found. "
+            "The ID may be wrong, or the account may be restricted."
+        )
 
 
 def fetch_player_scores(api, player_id, limit=200):
@@ -9,7 +21,17 @@ def fetch_player_scores(api, player_id, limit=200):
     Returns:
         tuple[list, list]:
             top_scores, recent_scores
+
+    Raises:
+        PlayerNotFoundError: if osu! returns 404 for the player.
     """
+    try:
+        return _fetch_player_scores(api, player_id, limit)
+    except OsuAPINotFoundError as exc:
+        raise PlayerNotFoundError(player_id) from exc
+
+
+def _fetch_player_scores(api, player_id, limit):
     top_scores = api.get(
         f"/users/{player_id}/scores/best",
         params={

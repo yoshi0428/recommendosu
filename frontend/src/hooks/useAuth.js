@@ -7,20 +7,20 @@ export function useAuth() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    async function checkAuthentication() {
+      try {
+        const data = await getCurrentUser();
+        console.log("Authenticated user:", data);
+        setUser(data);
+      } catch {
+        setError("Failed to connect to the backend.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
     checkAuthentication();
   }, []);
-
-  async function checkAuthentication() {
-    try {
-      const data = await getCurrentUser();
-      console.log("Authenticated user:", data);
-      setUser(data);
-    } catch (err) {
-      setError("Failed to connect to the backend.");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function handleLogout() {
     try {

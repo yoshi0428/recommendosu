@@ -19,21 +19,30 @@ MEMORY_DB_URI = "file:/recommender?vfs=memdb"
 CONNECTION_TIMEOUT = 60
 
 _memory_anchor: sqlite3.Connection | None = None
+_memory_source_path: Path | None = None
 _memory_lock = threading.Lock()
 
 
-def load_memory_db() -> None:
+def load_memory_db(db_path: Path | None = None) -> None:
     """
-    Copy the on-disk database into the shared in-memory database.
+    Copy an on-disk database (DB_PATH by default) into the shared
+    in-memory database. Only one database can be loaded per process.
 
     The anchor connection is kept open for the lifetime of the process,
     otherwise SQLite frees the in-memory database when the last
     connection to it closes.
     """
-    global _memory_anchor
+    global _memory_anchor, _memory_source_path
+
+    db_path = Path(db_path or DB_PATH).resolve()
 
     with _memory_lock:
         if _memory_anchor is not None:
+            if db_path != _memory_source_path:
+                raise RuntimeError(
+                    f"{_memory_source_path} is already loaded into memory; "
+                    f"cannot also load {db_path}."
+                )
             return
 
         anchor = sqlite3.connect(
@@ -44,7 +53,7 @@ def load_memory_db() -> None:
         # The source must be opened as a URI for VACUUM INTO to treat
         # MEMORY_DB_URI as a URI rather than a file name.
         disk_conn = sqlite3.connect(
-            f"{DB_PATH.resolve().as_uri()}?mode=ro",
+            f"{db_path.as_uri()}?mode=ro",
             uri=True,
         )
 
@@ -59,18 +68,26 @@ def load_memory_db() -> None:
             disk_conn.close()
 
         _memory_anchor = anchor
-        print(f"Loaded {DB_PATH} into memory.")
+        _memory_source_path = db_path
+        print(f"Loaded {db_path} into memory.")
 
 
 def connect_memory_db() -> sqlite3.Connection:
-    load_memory_db()
+    # Falls back to DB_PATH if nothing has been loaded yet.
+    if _memory_anchor is None:
+        load_memory_db()
+
     conn = sqlite3.connect(MEMORY_DB_URI, uri=True, timeout=CONNECTION_TIMEOUT)
     conn.execute("PRAGMA foreign_keys=ON")
     return conn
 
 
 def connect_disk_db() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH, timeout=CONNECTION_TIMEOUT)
+    """Connect to the database file the in-memory database was loaded from."""
+    conn = sqlite3.connect(
+        _memory_source_path or DB_PATH,
+        timeout=CONNECTION_TIMEOUT,
+    )
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
     return conn

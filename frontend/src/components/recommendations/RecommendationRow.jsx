@@ -58,7 +58,6 @@ function RecommendationRow({
     ar,
     od,
     length_seconds,
-    object_count,
     max_combo,
     pp,
   } = recommendation;

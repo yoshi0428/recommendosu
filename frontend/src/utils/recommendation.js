@@ -60,12 +60,16 @@ export const DEFAULT_RECOMMENDATION_CONFIG = {
   },
 };
 
+// Mods excluded from recommendations until the user re-enables them.
+export const DEFAULT_EXCLUDED_MODS = ["EZ", "HT", "FL"];
+
 export function createDefaultSettings() {
   return {
     player_id: null,
     limit: 100000,
     goal: "balanced",
     mods: [],
+    excluded_mods: [...DEFAULT_EXCLUDED_MODS],
 
     min_stars: null,
     max_stars: null,
@@ -117,6 +121,7 @@ export function normalizeSettings(settings) {
     limit: Number(settings.limit),
 
     mods: settings.mods ?? [],
+    excluded_mods: settings.excluded_mods ?? [],
 
     min_stars: settings.min_stars ?? null,
     max_stars: settings.max_stars ?? null,

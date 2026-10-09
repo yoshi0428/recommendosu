@@ -11,6 +11,9 @@ function RecommendationBody({
   const [audioVolume, setAudioVolume] = useState(0.01);
   const scrollRef = useRef(null);
 
+  // TanStack Virtual can't be optimized by the React Compiler, which this
+  // project doesn't use, so the warning doesn't apply.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const rowVirtualizer = useVirtualizer({
     count: recommendations.length,
     getScrollElement: () => scrollRef.current,
@@ -20,7 +23,7 @@ function RecommendationBody({
 
   useEffect(() => {
     rowVirtualizer.measure();
-  }, [recommendations.length]);
+  }, [rowVirtualizer, recommendations.length]);
 
   if (loading) {
     return (
