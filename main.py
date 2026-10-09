@@ -1,6 +1,5 @@
 import mimetypes
 import os
-import sqlite3
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -43,6 +42,7 @@ from beatmap_recommender.cancellation import (
     remove_cancellation_event,
 )
 from beatmap_recommender.data_audio.extract_audio import sanitize_filename
+from beatmap_recommender.database import connect_memory_db, load_memory_db
 from beatmap_recommender.recommender import recommend_player
 
 API_PREFIX = "/api/v1"
@@ -50,12 +50,6 @@ SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "false").lower() == "
 
 PROJECT_ROOT = Path(__file__).resolve().parents[0]
 AUDIO_DIR = PROJECT_ROOT / "beatmap_recommender" / "data_audio"
-DB_PATH = Path(
-    os.getenv(
-        "DB_PATH",
-        PROJECT_ROOT / "beatmap_recommender/recommender.db",
-    )
-)
 
 AUDIO_INDEX = {}
 
@@ -65,6 +59,7 @@ async def lifespan(app: FastAPI):
     initialize_token_store()
     initialize_session_store()
     initialize_state_store()
+    load_memory_db()
 
     if AUDIO_DIR.is_dir():
         for audio_path in AUDIO_DIR.rglob("*"):
@@ -520,7 +515,7 @@ async def music_preview(
             detail="Audio preview not found.",
         )
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = connect_memory_db()
 
     cursor = conn.execute(
         """

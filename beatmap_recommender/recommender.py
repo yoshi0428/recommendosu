@@ -1,9 +1,7 @@
 import asyncio
 import os
-import sqlite3
 import threading
 import time
-from pathlib import Path
 
 import requests
 
@@ -27,17 +25,9 @@ from beatmap_recommender.content_similarity.core_modules.variant_ranking import 
     get_player_difficulty_profiles,
     rank_variants,
 )
+from beatmap_recommender.database import connect_memory_db
 
 # ── Configuration ─────────────────────────────────────────────────────────────
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-
-DB_PATH = Path(
-    os.getenv(
-        "DB_PATH",
-        PROJECT_ROOT / "beatmap_recommender/recommender.db",
-    )
-)
 
 BATCH_SIZE = 16_384
 RECOMMENDATION_CONCURRENCY = 4
@@ -142,12 +132,9 @@ def recommend_player_sync(
     excluded_mods = {mod.strip().upper() for mod in (settings.excluded_mods or [])}
 
     check_cancelled(cancel_event)
-    conn = sqlite3.connect(DB_PATH)
+    conn = connect_memory_db()
 
     try:
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA foreign_keys=ON")
-
         # ── Update player scores ───────────────────────────────
         if update_scores:
             check_cancelled(cancel_event)

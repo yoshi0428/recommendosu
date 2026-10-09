@@ -1,3 +1,4 @@
+from beatmap_recommender.database import connect_disk_db, is_memory_db
 from beatmap_recommender.recommender_db_setup.db_insertion import insert_score
 
 
@@ -70,8 +71,15 @@ def normalize_score(score, source):
 
 
 def store_player_scores(conn, top_scores, recent_scores):
+    """
+    Store scores in the connected database.
+
+    If conn is the shared in-memory database, the scores are also written
+    to the on-disk database so they survive a restart.
+    """
     stored = 0
     skipped = 0
+    to_insert = []
 
     all_scores = [(score, "top") for score in top_scores] + [
         (score, "recent") for score in recent_scores
@@ -96,10 +104,22 @@ def store_player_scores(conn, top_scores, recent_scores):
             skipped += 1
             continue
 
-        insert_score(conn, normalized)
+        to_insert.append(normalized)
         stored += 1
 
-    conn.commit()
+    if is_memory_db(conn):
+        disk_conn = connect_disk_db()
+        try:
+            with disk_conn:
+                for normalized in to_insert:
+                    insert_score(disk_conn, normalized)
+        finally:
+            disk_conn.close()
+
+    with conn:
+        for normalized in to_insert:
+            insert_score(conn, normalized)
+
     print(f"Stored: {stored}, Skipped: {skipped}")
     return stored
 
