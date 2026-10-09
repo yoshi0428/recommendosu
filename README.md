@@ -5,9 +5,12 @@ I will slowly document all of this in my free time. This project is running on m
 I've created a Discord server [here!](https://discord.gg/Dh4TzKGGB7)
 
 This recommender fetches your top/recent plays via your osu! API token, 
-and performs a calculation to find the 20000 nearest neighbors (configurable) to each top/recent play. 
-If no mod filters are applied, multiply this by the repository's available combinations (20) and we get at worst 4 million vectors to sort and obtain the top recommendations. 
-I have optimized this down to around 10 seconds for outputting the top 1000 recommendations to the frontend.
+and compares every ranked map (~147,000) against each top/recent play. 
+Each map keeps only its best similarity to any of your plays. 
+Every map is stored as NM plus 19 mod combinations (~2.9 million variants in total), but your difficulty range and any filters are applied in SQL first, 
+so a typical request scores around 130,000 variants to obtain the top recommendations. 
+The recommender database (~540MB) is loaded into memory at startup, and only newly fetched scores are written back to disk. 
+I have optimized this down to around 2-3 seconds for outputting the top 1000 recommendations to the frontend (not counting the osu! API fetch).
 
 I opted with a content similarity approach, as I found that performing user-user/item-item collaborative filtering is difficult due to the time needed to gather per-country user play data.
 

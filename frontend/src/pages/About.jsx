@@ -183,15 +183,9 @@ function About() {
           <h5 className="mb-0">
             The following sections will go into more depth on difficulty, PP
             potential, and mod preference scores. I find content similarity
-            pretty intuitive, but just know that it uses scikit-learn's{" "}
-            <a
-              href="https://scikit-learn.org/stable/modules/generated/sklearn.neighbors.NearestNeighbors.html"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              NearestNeighbors
-            </a>{" "}
-            to find each top & recent play's top 20000 nearest neighbors.
+            pretty intuitive, but just know that it compares every ranked map
+            against each of your top & recent plays, and keeps each map's
+            closest match.
           </h5>
         </div>
 
