@@ -10,7 +10,7 @@ Each map keeps only its best similarity to any of your plays.
 Every map is stored as NM plus 19 mod combinations (~2.9 million variants in total), but your difficulty range and any filters are applied in SQL first, 
 so a typical request scores around 130,000 variants to obtain the top recommendations. 
 The recommender database (~540MB) is loaded into memory at startup, and only newly fetched scores are written back to disk. 
-I have optimized this down to around 2-3 seconds for outputting the top 1000 recommendations to the frontend (not counting the osu! API fetch).
+I have optimized this down to around 2-3 seconds for outputting the top 100,000 recommendations to the frontend (not counting the osu! API fetch).
 
 I opted with a content similarity approach, as I found that performing user-user/item-item collaborative filtering is difficult due to the time needed to gather per-country user play data.
 
