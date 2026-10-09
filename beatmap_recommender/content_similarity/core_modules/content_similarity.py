@@ -1,6 +1,9 @@
 import numpy as np
-from sklearn.neighbors import NearestNeighbors
 from tqdm import tqdm
+
+# Upper bound on seed x candidate distances held in memory per batch
+# (float64, so 8_000_000 is about 64MB).
+MAX_BATCH_DISTANCES = 8_000_000
 
 SIMILARITY_FEATURES = [
     "star_rating",
@@ -48,8 +51,8 @@ def get_player_seed_maps(conn, player_id):
             COALESCE(bv.od, 0.0),
             COALESCE(bv.circle_size, 0.0),
             COALESCE(bv.pp_aim, 0.0),
-            COALESCE(bv.pp_acc, 0.0),
-            COALESCE(bv.pp_speed, 0.0)
+            COALESCE(bv.pp_speed, 0.0),
+            COALESCE(bv.pp_acc, 0.0)
         FROM scores AS s
         JOIN beatmap_variants AS bv
             ON bv.beatmap_id = s.beatmap_id
@@ -71,8 +74,8 @@ def get_maps(conn, mods="NM", player_id=None):
             COALESCE(bv.od, 0.0),
             COALESCE(bv.circle_size, 0.0),
             COALESCE(bv.pp_aim, 0.0),
-            COALESCE(bv.pp_acc, 0.0),
-            COALESCE(bv.pp_speed, 0.0)
+            COALESCE(bv.pp_speed, 0.0),
+            COALESCE(bv.pp_acc, 0.0)
         FROM beatmap_variants AS bv
         WHERE bv.mods = ?
     """
@@ -100,8 +103,15 @@ def calculate_seed_similarity(
     top_k=50,
     batch_size=8192,
     similarity_feature_weights=None,
-    n_jobs=-1,
 ):
+    """
+    Find each seed's top_k nearest candidates and keep, per candidate,
+    the best similarity to any seed.
+
+    Returns:
+        dict[str, float]: candidate beatmap_id -> best similarity, for
+        every candidate that is within top_k of at least one seed.
+    """
     if len(seed_beatmap_ids) == 0 or len(candidate_beatmap_ids) == 0:
         return {}
 
@@ -120,15 +130,19 @@ def calculate_seed_similarity(
         seed_matrix *= weights
         candidate_matrix *= weights
 
+    # float64 because the |s|^2 + |c|^2 - 2 s.c expansion loses precision
+    # in float32 (sklearn upcasts for the same reason).
+    seed_matrix = seed_matrix.astype(np.float64)
+    candidate_matrix = candidate_matrix.astype(np.float64)
+
     n_candidates = len(candidate_beatmap_ids)
     query_k = min(top_k, n_candidates)
 
-    nn = NearestNeighbors(
-        n_neighbors=query_k, algorithm="brute", metric="euclidean", n_jobs=n_jobs
-    )
-    nn.fit(candidate_matrix)
+    # Cap each batch's seed x candidate distance matrix to bound memory.
+    batch_size = max(1, min(batch_size, MAX_BATCH_DISTANCES // n_candidates))
 
-    similarities = {}
+    candidate_sq_norms = np.einsum("ij,ij->i", candidate_matrix, candidate_matrix)
+    best_similarity = np.full(n_candidates, -1.0)
     n_seeds = len(seed_beatmap_ids)
 
     for start in tqdm(
@@ -136,21 +150,32 @@ def calculate_seed_similarity(
         desc="Calculating seed similarities",
         unit="batch",
     ):
-        end = min(start + batch_size, n_seeds)
-        batch_seeds = seed_matrix[start:end]
+        batch_seeds = seed_matrix[start : start + batch_size]
 
-        distances, indices = nn.kneighbors(batch_seeds)
+        # Squared euclidean distance: |s|^2 + |c|^2 - 2 s.c
+        distances = (
+            np.einsum("ij,ij->i", batch_seeds, batch_seeds)[:, None]
+            + candidate_sq_norms[None, :]
+            - 2.0 * (batch_seeds @ candidate_matrix.T)
+        )
+        np.maximum(distances, 0.0, out=distances)
+        np.sqrt(distances, out=distances)
 
-        # Vectorized conversion: similarity = 1 / (1 + distance)
-        sim_scores = 1.0 / (1.0 + distances)
-        matched_ids = candidate_beatmap_ids[indices]
+        if query_k < n_candidates:
+            indices = np.argpartition(distances, query_k - 1, axis=1)[:, :query_k]
+            sim_scores = 1.0 / (1.0 + np.take_along_axis(distances, indices, axis=1))
+            np.maximum.at(best_similarity, indices.ravel(), sim_scores.ravel())
+        else:
+            sim_scores = 1.0 / (1.0 + distances.min(axis=0))
+            np.maximum(best_similarity, sim_scores, out=best_similarity)
 
-        for local_i in range(end - start):
-            global_i = start + local_i
-            seed_id = seed_beatmap_ids[global_i]
-            similarities[seed_id] = list(zip(matched_ids[local_i], sim_scores[local_i]))
-
-    return similarities
+    matched = best_similarity >= 0.0
+    return dict(
+        zip(
+            candidate_beatmap_ids[matched].tolist(),
+            best_similarity[matched].tolist(),
+        )
+    )
 
 
 def build_seed_similarity_index(
@@ -159,7 +184,6 @@ def build_seed_similarity_index(
     top_k=50,
     batch_size=8192,
     similarity_feature_weights=None,
-    workers=-1,
     exclude_already_played=True,
 ):
     seed_beatmap_ids, seed_matrix = get_player_seed_maps(conn, player_id)
@@ -193,5 +217,4 @@ def build_seed_similarity_index(
         top_k=top_k,
         batch_size=batch_size,
         similarity_feature_weights=similarity_feature_weights,
-        n_jobs=workers,
     )

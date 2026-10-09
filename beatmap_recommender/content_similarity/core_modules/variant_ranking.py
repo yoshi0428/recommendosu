@@ -1,3 +1,4 @@
+import heapq
 import time
 
 import numpy as np
@@ -19,6 +20,20 @@ from beatmap_recommender.content_similarity.core_modules.pp_potential import (
 )
 
 MOD_ORDER = ["EZ", "NF", "HT", "HD", "HR", "DT", "NC", "FL"]
+
+# Above this many candidate beatmaps, get_candidate_variants() scans the
+# whole table instead of looking candidates up in chunks.
+FULL_SCAN_MIN_CANDIDATES = 50_000
+
+# Per-variant scores stored alongside each variant in rank_variants().
+SCORE_FIELDS = (
+    "content_similarity",
+    "mod_preference",
+    "difficulty_score",
+    "classifier_score",
+    "pp_potential",
+    "final_score",
+)
 
 
 def get_player_played_variants(
@@ -319,101 +334,115 @@ def get_candidate_variants(
         "pp_flashlight",
     ]
 
-    for i in range(0, len(beatmap_ids), chunk_size):
-        check_cancelled(cancel_event)
-        chunk = beatmap_ids[i : i + chunk_size]
-        placeholders = ",".join("?" for _ in chunk)
-        params = list(chunk)
-        conditions = [f"bv.beatmap_id IN ({placeholders})"]
+    conditions = []
+    params = []
 
-        # ── Mod filters ────────────────────────────────────────────
-        if requested_mods:
-            requested_mods_set = {mod.strip().upper() for mod in requested_mods}
+    # ── Mod filters ────────────────────────────────────────────
+    if requested_mods:
+        requested_mods_set = {mod.strip().upper() for mod in requested_mods}
 
-            if exact_mods:
-                valid_variants = [
-                    "".join(mod for mod in MOD_ORDER if mod in requested_mods_set)
+        if exact_mods:
+            valid_variants = [
+                "".join(mod for mod in MOD_ORDER if mod in requested_mods_set)
+            ]
+
+            if not valid_variants[0]:
+                valid_variants = ["NM"]
+        else:
+            gameplay_mods = [mod for mod in MOD_ORDER if mod in requested_mods_set]
+
+            valid_variants = ["NM"] if "NM" in requested_mods_set else []
+
+            for mask in range(1, 1 << len(gameplay_mods)):
+                combination = [
+                    gameplay_mods[index]
+                    for index in range(len(gameplay_mods))
+                    if mask & (1 << index)
                 ]
+                valid_variants.append("".join(combination))
 
-                if not valid_variants[0]:
-                    valid_variants = ["NM"]
+        mod_placeholders = ",".join("?" for _ in valid_variants)
+        conditions.append(f"bv.mods IN ({mod_placeholders})")
+        params.extend(valid_variants)
+
+    if excluded_mods:
+        for mod in excluded_mods:
+            if mod == "NM":
+                conditions.append("bv.mods != 'NM'")
             else:
-                gameplay_mods = [mod for mod in MOD_ORDER if mod in requested_mods_set]
+                conditions.append("bv.mods NOT LIKE ?")
+                params.append(f"%{mod}%")
 
-                valid_variants = ["NM"] if "NM" in requested_mods_set else []
+    # ── Numeric filters ────────────────────────────────────────
+    numeric_filters = (
+        (
+            "bv.star_rating",
+            difficulty_min_stars if difficulty_min_stars is not None else min_stars,
+            difficulty_max_stars if difficulty_max_stars is not None else max_stars,
+        ),
+        ("bv.bpm", min_bpm, max_bpm),
+        ("bv.pp", min_pp, max_pp),
+        ("bv.ar", min_ar, max_ar),
+        ("bv.od", min_od, max_od),
+        ("bv.length_seconds", min_length, max_length),
+        ("bv.max_combo", min_combo, max_combo),
+        ("bv.circle_size", min_cs, max_cs),
+    )
 
-                for mask in range(1, 1 << len(gameplay_mods)):
-                    combination = [
-                        gameplay_mods[index]
-                        for index in range(len(gameplay_mods))
-                        if mask & (1 << index)
-                    ]
-                    valid_variants.append("".join(combination))
+    for column, minimum, maximum in numeric_filters:
+        if minimum is not None:
+            conditions.append(f"{column} >= ?")
+            params.append(minimum)
 
-            mod_placeholders = ",".join("?" for _ in valid_variants)
-            conditions.append(f"bv.mods IN ({mod_placeholders})")
-            params.extend(valid_variants)
+        if maximum is not None:
+            conditions.append(f"{column} <= ?")
+            params.append(maximum)
 
-        if excluded_mods:
-            for mod in excluded_mods:
-                if mod == "NM":
-                    conditions.append("bv.mods != 'NM'")
-                else:
-                    conditions.append("bv.mods NOT LIKE ?")
-                    params.append(f"%{mod}%")
+    select_sql = """
+        SELECT
+            bv.variant_id,
+            CAST(bv.beatmap_id AS TEXT),
+            bv.beatmapset_id,
+            bv.mods,
+            bv.hp_drain,
+            bv.circle_size,
+            bv.od,
+            bv.ar,
+            bv.star_rating,
+            bv.max_combo,
+            bv.bpm,
+            bv.length_seconds,
+            bv.object_count,
+            bv.pp,
+            bv.pp_aim,
+            bv.pp_speed,
+            bv.pp_acc,
+            bv.pp_flashlight
+        FROM beatmap_variants AS bv
+    """
 
-        # ── Numeric filters ────────────────────────────────────────
-        numeric_filters = (
-            (
-                "bv.star_rating",
-                difficulty_min_stars if difficulty_min_stars is not None else min_stars,
-                difficulty_max_stars if difficulty_max_stars is not None else max_stars,
-            ),
-            ("bv.bpm", min_bpm, max_bpm),
-            ("bv.pp", min_pp, max_pp),
-            ("bv.ar", min_ar, max_ar),
-            ("bv.od", min_od, max_od),
-            ("bv.length_seconds", min_length, max_length),
-            ("bv.max_combo", min_combo, max_combo),
-            ("bv.circle_size", min_cs, max_cs),
-        )
+    if len(beatmap_ids) >= FULL_SCAN_MIN_CANDIDATES:
+        # One table scan is faster than a primary key lookup per beatmap
+        # once the candidates cover a large part of the table.
+        candidate_ids = set(beatmap_ids)
+        where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        cursor = conn.execute(f"{select_sql} {where}", params)
 
-        for column, minimum, maximum in numeric_filters:
-            if minimum is not None:
-                conditions.append(f"{column} >= ?")
-                params.append(minimum)
+        while rows := cursor.fetchmany(65536):
+            check_cancelled(cancel_event)
+            all_rows.extend(row for row in rows if row[1] in candidate_ids)
+    else:
+        for i in range(0, len(beatmap_ids), chunk_size):
+            check_cancelled(cancel_event)
+            chunk = beatmap_ids[i : i + chunk_size]
+            placeholders = ",".join("?" for _ in chunk)
+            chunk_conditions = [f"bv.beatmap_id IN ({placeholders})", *conditions]
 
-            if maximum is not None:
-                conditions.append(f"{column} <= ?")
-                params.append(maximum)
-
-        rows = conn.execute(
-            f"""
-            SELECT
-                bv.variant_id,
-                CAST(bv.beatmap_id AS TEXT),
-                bv.beatmapset_id,
-                bv.mods,
-                bv.hp_drain,
-                bv.circle_size,
-                bv.od,
-                bv.ar,
-                bv.star_rating,
-                bv.max_combo,
-                bv.bpm,
-                bv.length_seconds,
-                bv.object_count,
-                bv.pp,
-                bv.pp_aim,
-                bv.pp_speed,
-                bv.pp_acc,
-                bv.pp_flashlight
-            FROM beatmap_variants AS bv
-            WHERE {" AND ".join(conditions)}
-            """,
-            params,
-        ).fetchall()
-        all_rows.extend(rows)
+            rows = conn.execute(
+                f"{select_sql} WHERE {' AND '.join(chunk_conditions)}",
+                [*chunk, *params],
+            ).fetchall()
+            all_rows.extend(rows)
 
     check_cancelled(cancel_event)
     print(
@@ -621,13 +650,14 @@ def rank_variants(
     """
     Rank variants for all candidate base maps.
 
+    similarity_index maps candidate beatmap_id -> best content similarity.
+
     Candidate processing:
-        1. Keep the best similarity per beatmap.
-        2. Load candidate variants with SQL-level filters.
-        3. Calculate difficulty scores.
-        4. Calculate recommendation scores.
-        5. Keep the best variant per beatmap.
-        6. Sort and truncate.
+        1. Load candidate variants with SQL-level filters.
+        2. Calculate difficulty scores.
+        3. Calculate recommendation scores.
+        4. Keep the best variant per beatmap.
+        5. Sort and truncate.
     """
     check_cancelled(cancel_event)
     total_start = time.perf_counter()
@@ -715,25 +745,8 @@ def rank_variants(
                 f"{name} ({minimum}) cannot be greater than {name.replace('min_', 'max_')} ({maximum})"
             )
 
-    # ── Collapse similarities ──────────────────────────────────
-    start = time.perf_counter()
-    candidate_similarity = {}
-
-    for similar_maps in similarity_index.values():
-        check_cancelled(cancel_event)
-        for beatmap_id, similarity in similar_maps:
-            beatmap_id = str(beatmap_id)
-            similarity = float(similarity)
-            previous = candidate_similarity.get(beatmap_id)
-
-            if previous is None or similarity > previous:
-                candidate_similarity[beatmap_id] = similarity
-
-    check_cancelled(cancel_event)
-
-    print(
-        f"[rank_variants] Collapse similarities: {time.perf_counter() - start:.4f}s ({len(candidate_similarity)} candidate beatmaps)"
-    )
+    # build_seed_similarity_index() already keeps the best similarity per beatmap.
+    candidate_similarity = similarity_index
 
     if not candidate_similarity:
         return []
@@ -903,40 +916,30 @@ def rank_variants(
     check_cancelled(cancel_event)
     start = time.perf_counter()
 
-    # Reconstruct dict items for remaining deduplicated candidates
-    ranked_candidates = []
-    for (
-        variant,
-        content_similarity,
-        mod_preference,
-        difficulty_score,
-        classifier_score,
-        pp_potential,
-        final_score,
-    ) in best_by_beatmap.values():
-        ranked_candidates.append(
-            {
-                **variant,
-                "content_similarity": content_similarity,
-                "mod_preference": mod_preference,
-                "difficulty_score": difficulty_score,
-                "classifier_score": classifier_score,
-                "pp_potential": pp_potential,
-                "final_score": final_score,
-            }
+    # best_by_beatmap values are (variant, *SCORE_FIELDS) tuples.
+    score_positions = {field: index for index, field in enumerate(SCORE_FIELDS, 1)}
+    sort_getters = [
+        (score_positions[key], None) if key in score_positions else (0, key)
+        for key in config["sort_keys"]
+    ]
+
+    def sort_key(entry):
+        return tuple(
+            entry[position] if key is None else entry[0][key]
+            for position, key in sort_getters
         )
 
-    sort_keys = config["sort_keys"]
-
-    ranked_candidates.sort(
-        key=lambda variant: tuple(variant[key] for key in sort_keys),
-        reverse=True,
-    )
+    if top_k is None:
+        winners = sorted(best_by_beatmap.values(), key=sort_key, reverse=True)
+    else:
+        # Same order as sorted(..., reverse=True)[:top_k], without sorting everything.
+        winners = heapq.nlargest(top_k, best_by_beatmap.values(), key=sort_key)
 
     check_cancelled(cancel_event)
 
-    if top_k is not None:
-        ranked_candidates = ranked_candidates[:top_k]
+    ranked_candidates = [
+        {**entry[0], **dict(zip(SCORE_FIELDS, entry[1:]))} for entry in winners
+    ]
 
     # Fetch beatmap string metadata only for top_k maps
     winning_beatmap_ids = [v["beatmap_id"] for v in ranked_candidates]

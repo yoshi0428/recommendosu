@@ -31,7 +31,6 @@ from beatmap_recommender.database import connect_memory_db
 
 BATCH_SIZE = 16_384
 RECOMMENDATION_CONCURRENCY = 4
-WORKERS = -1
 
 OSU_CLIENT_ID = os.getenv("OSU_CLIENT_ID")
 OSU_CLIENT_SECRET = os.getenv("OSU_CLIENT_SECRET")
@@ -162,7 +161,6 @@ def recommend_player_sync(
             top_k=settings.neighbors_k,
             batch_size=BATCH_SIZE,
             similarity_feature_weights=settings.similarity_feature_weights,
-            workers=WORKERS,
             exclude_already_played=settings.exclude_already_played,
         )
 

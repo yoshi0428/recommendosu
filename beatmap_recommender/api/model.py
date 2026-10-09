@@ -81,18 +81,19 @@ RECOMMENDATION_CONFIG = {
 
 
 class RecommendationSettings(BaseModel):
-    # ── Basic recommendation options ───────────────────────────
-    player_id: int | None = None
-
+    # ── Internal values for the algorithm, effectively uncapped ───────────────────────────
     limit: int = Field(
         default=1000,
         ge=1,
         le=100000,
     )
 
-    goal: str = "balanced"
+    neighbors_k: int = Field(default=147152, ge=1, le=147152)
 
-    neighbors_k: int = Field(default=20000, ge=1, le=147152)
+    # ── Basic recommendation options ───────────────────────────
+    player_id: int | None = None
+
+    goal: str = "balanced"
 
     min_year: int | None = None
     max_year: int | None = None

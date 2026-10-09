@@ -35,7 +35,6 @@ NUM_RECOMMENDATIONS = 100
 NEIGHBORS_K = 20_000
 BATCH_SIZE = 16_384
 SCORE_LIMIT = 1000
-WORKERS = -1
 
 PLAYER_IDS = [
     8140599,
@@ -217,31 +216,29 @@ def main():
             top_k=NEIGHBORS_K,
             batch_size=BATCH_SIZE,
             similarity_feature_weights=SIMILARITY_FEATURE_WEIGHTS,
-            workers=WORKERS,
             exclude_already_played=EXCLUDE_ALREADY_PLAYED,
         )
 
         print(
-            f"Player {PLAYER_ID}: {len(similarity_index)} seed maps with similarity results."
+            f"Player {PLAYER_ID}: {len(similarity_index)} candidate maps with similarity results."
         )
 
         if not similarity_index:
             print("No similarity results found.")
             return
 
-        seed_beatmap_id = next(iter(similarity_index))
-        similar_maps = similarity_index[seed_beatmap_id][:10]
+        most_similar = sorted(
+            similarity_index.items(), key=lambda item: item[1], reverse=True
+        )[:10]
 
-        print(f"\nSeed beatmap {seed_beatmap_id}:")
-        for beatmap_id, similarity in similar_maps:
+        print("\nMost similar candidates:")
+        for beatmap_id, similarity in most_similar:
             print(f"  {beatmap_id}: {similarity:.4f}")
 
         # ── Inspect map features ──────────────────────────────
 
-        beatmap_ids = [
-            seed_beatmap_id,
-            *(beatmap_id for beatmap_id, _ in similar_maps),
-        ]
+        beatmap_ids = [beatmap_id for beatmap_id, _ in most_similar]
+        similarity_rank = {beatmap_id: rank for rank, beatmap_id in enumerate(beatmap_ids)}
         placeholders = ",".join("?" for _ in beatmap_ids)
 
         rows = conn.execute(
@@ -260,17 +257,12 @@ def main():
             FROM beatmap_variants AS bv
             WHERE bv.mods = 'NM'
               AND bv.beatmap_id IN ({placeholders})
-            ORDER BY
-                CASE bv.beatmap_id
-                    WHEN ? THEN 0
-                    ELSE 1
-                END,
-                bv.beatmap_id
             """,
-            beatmap_ids + [seed_beatmap_id],
+            beatmap_ids,
         ).fetchall()
+        rows.sort(key=lambda row: similarity_rank[str(row[1])])
 
-        print("\nNM map features:")
+        print("\nNM map features (most similar first):")
         for row in rows:
             print(
                 f"beatmap={row[1]}, variant={row[0]}, mods={row[2]}, "

@@ -144,72 +144,8 @@ function BasicOptions({ settings, updateSetting }) {
               </Form.Select>
             </Form.Group>
           </Col>
-        </Row>
-
-        <Row className="g-3 mt-1">
-          <Col md={3}>
-            <Form.Group>
-              <Form.Label>Number of Recommendations</Form.Label>
-
-              <Form.Control
-                type="number"
-                min={1}
-                max={100000}
-                step={1}
-                value={settings.limit ?? ""}
-                onChange={(event) => {
-                  const val = event.target.value;
-                  if (val === "") {
-                    updateSetting("limit", null);
-                  } else {
-                    const parsed = parseInt(val, 10);
-                    const clamped = Math.min(
-                      100000,
-                      Math.max(1, isNaN(parsed) ? 1 : parsed)
-                    );
-                    updateSetting("limit", clamped);
-                  }
-                }}
-              />
-
-              <Form.Text className="text-muted">
-                Max 100000, have fun :)
-              </Form.Text>
-            </Form.Group>
-          </Col>
 
           <Col md={3}>
-            <Form.Group>
-              <Form.Label>Number of Neighbors</Form.Label>
-
-              <Form.Control
-                type="number"
-                min={1}
-                max={147152}
-                step={1}
-                value={settings.neighbors_k ?? 20000}
-                onChange={(event) => {
-                  const val = event.target.value;
-                  if (val === "") {
-                    updateSetting("neighbors_k", "");
-                    return;
-                  }
-                  const parsed = parseInt(val, 10);
-                  const clamped = Math.min(
-                    147152,
-                    Math.max(1, isNaN(parsed) ? 1 : parsed)
-                  );
-                  updateSetting("neighbors_k", clamped);
-                }}
-              />
-
-              <Form.Text className="text-muted">
-                Defaults to 20000, max 147152
-              </Form.Text>
-            </Form.Group>
-          </Col>
-
-          <Col md={6}>
             <Form.Group>
               <Form.Label>Year range (WIP)</Form.Label>
 
