@@ -1,12 +1,12 @@
-import { Card, Col, Form, Row } from "react-bootstrap";
-import { useState } from "react";
+import {Card, Col, Form, Row} from "react-bootstrap";
+import {useState} from "react";
 
 const GOALS = [
   ["balanced", "Balanced"],
   ["pp_potential", "PP Potential"],
 ];
 
-function BasicOptions({ settings, updateSetting }) {
+function BasicOptions({settings, updateSetting}) {
   const [minYearInput, setMinYearInput] = useState(
     settings.min_year?.toString() ?? ""
   );
@@ -179,7 +179,8 @@ function BasicOptions({ settings, updateSetting }) {
                 />
               </div>
 
-              <Form.Text className="text-muted">Inclusive range</Form.Text>
+              <Form.Text className="text-muted">Inclusive range. Lower and upper bounds default to 2007 and 2026
+                respectively.</Form.Text>
             </Form.Group>
           </Col>
         </Row>
