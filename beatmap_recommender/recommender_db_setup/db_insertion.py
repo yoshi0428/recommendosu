@@ -52,7 +52,11 @@ def insert_base_beatmap(conn, beatmap_data, md5, year, status):
             version = excluded.version,
             preview_time = excluded.preview_time,
             year = excluded.year,
-            status = excluded.status,
+            status = CASE
+                WHEN beatmaps.status = 'ranked' AND excluded.status = 'loved'
+                    THEN beatmaps.status
+                ELSE excluded.status
+            END,
             hp_drain = excluded.hp_drain,
             circle_size = excluded.circle_size,
             od = excluded.od,
@@ -174,7 +178,11 @@ def insert_variant(
         DO UPDATE SET
             beatmapset_id = excluded.beatmapset_id,
             year = excluded.year,
-            status = excluded.status,
+            status = CASE
+                WHEN beatmap_variants.status = 'ranked' AND excluded.status = 'loved'
+                    THEN beatmap_variants.status
+                ELSE excluded.status
+            END,
             hp_drain = excluded.hp_drain,
             circle_size = excluded.circle_size,
             od = excluded.od,
