@@ -5,8 +5,8 @@ from pathlib import Path
 from tqdm import tqdm
 
 PROJECT_ROOT = Path(__file__).resolve().parents[0]
-ROOT_DIR = PROJECT_ROOT / "2026-09 (osu!)"
-OUTPUT_DIR = PROJECT_ROOT / "2026_osu"
+ROOT_DIR = PROJECT_ROOT / "2026"
+OUTPUT_DIR = PROJECT_ROOT / ("Loved/2026")
 
 
 def extract_osu_files(root_dir, output_dir):

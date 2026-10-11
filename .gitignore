@@ -234,7 +234,8 @@ __marimo__/
 /beatmap_classifier/data/Freemod
 /beatmap_classifier/data/Tiebreaker
 /beatmap_classifier/dot_osu_extract/outputs
-/beatmap_recommender/data/2*
+/beatmap_recommender/data/Ranked
+/beatmap_recommender/data/Loved
 /beatmap_recommender/data_audio/2*
 
 # for now, i'd like to exclude this until i can properly resolve the related issue.

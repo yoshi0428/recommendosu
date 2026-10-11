@@ -39,23 +39,29 @@ def parse_osu_file(
         "artist": "",
         "creator": "",
         "version": "",
+
         # Base difficulty
         "hp_drain": None,
         "circle_size": None,
         "od": None,
         "ar": None,
+
         # Slider settings
         "slider_multiplier": None,
         "slider_tick": None,
+
         # Base timing
         "bpm": None,
         "min_bpm": None,
         "max_bpm": None,
+
         # Map statistics
         "length_seconds": None,
         "object_count": 0,
+
         # Raw hit objects
         "hit_objects": [],
+
         # Raw base vectors
         "vectors": [],
     }
@@ -79,17 +85,12 @@ def parse_osu_file(
         if not line:
             continue
 
-        # ------------------------------------------------
         # Section header
-        # ------------------------------------------------
-
         if line.startswith("[") and line.endswith("]"):
             section = line[1:-1]
             continue
 
-        # =================================================
         # General (to check game mode)
-        # =================================================
         if section == "General":
             if ":" not in line:
                 continue
@@ -113,10 +114,7 @@ def parse_osu_file(
                 if data["mode"] != 0:
                     return None
 
-        # =================================================
         # Metadata
-        # =================================================
-
         if section == "Metadata":
             if ":" not in line:
                 continue
@@ -148,10 +146,7 @@ def parse_osu_file(
                 except ValueError:
                     data["beatmapset_id"] = None
 
-        # =================================================
         # Difficulty
-        # =================================================
-
         elif section == "Difficulty":
             if ":" not in line:
                 continue
@@ -181,10 +176,7 @@ def parse_osu_file(
             elif key == "SliderTickRate":
                 data["slider_tick"] = value
 
-        # =================================================
         # Timing Points
-        # =================================================
-
         elif section == "TimingPoints":
             obj_data = line.split(",")
             if len(obj_data) < 2:
@@ -196,17 +188,12 @@ def parse_osu_file(
             except ValueError:
                 continue
 
-            # ------------------------------------------------
             # Positive beat length = uninherited timing point.
-            # ------------------------------------------------
             if beat_length > 0:
                 bpm = 60000.0 / beat_length
                 timing_points.append((time, bpm))
 
-        # =================================================
         # Hit Objects
-        # =================================================
-
         elif section == "HitObjects":
             obj_data = line.split(",")
 
@@ -224,10 +211,7 @@ def parse_osu_file(
             hit_circle_flag = 0b00000001
             slider_flag = 0b00000010
 
-            # ------------------------------------------------
             # Circle
-            # ------------------------------------------------
-
             if hit_object_type & hit_circle_flag:
                 hit_object = {
                     "x": x,
@@ -238,10 +222,7 @@ def parse_osu_file(
 
                 data["hit_objects"].append(hit_object)
 
-            # ------------------------------------------------
             # Slider
-            # ------------------------------------------------
-
             elif hit_object_type & slider_flag:
                 if len(obj_data) <= 7:
                     continue
@@ -265,10 +246,7 @@ def parse_osu_file(
 
                 data["hit_objects"].append(hit_object)
 
-    # ========================================================
     # BPM
-    # ========================================================
-
     if timing_points:
         bpms = [bpm for _, bpm in timing_points]
 
@@ -276,14 +254,10 @@ def parse_osu_file(
         data["min_bpm"] = min(bpms)
         data["max_bpm"] = max(bpms)
 
-    # ========================================================
     # Object Count
-    # ========================================================
     data["object_count"] = len(data["hit_objects"])
 
-    # ========================================================
     # Base Map Length
-    # ========================================================
     if len(data["hit_objects"]) >= 2:
         first_object_time = data["hit_objects"][0]["time"]
         last_object_time = data["hit_objects"][-1]["time"]

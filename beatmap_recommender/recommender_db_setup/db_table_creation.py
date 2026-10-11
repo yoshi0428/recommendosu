@@ -14,6 +14,7 @@ def create_tables(conn):
             preview_time REAL NOT NULL,
             
             year INTEGER NOT NULL DEFAULT 0,
+            status TEXT NOT NULL,
 
             hp_drain REAL NOT NULL,
             circle_size REAL NOT NULL,
@@ -66,6 +67,7 @@ def create_tables(conn):
             mods TEXT NOT NULL,
             
             year INTEGER NOT NULL DEFAULT 0,
+            status TEXT NOT NULL,
 
             hp_drain REAL NOT NULL,
             circle_size REAL NOT NULL,
@@ -102,27 +104,6 @@ def create_tables(conn):
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS variant_predictions (
             variant_id INTEGER PRIMARY KEY,
-
-            "2007" REAL,
-            "2008" REAL,
-            "2009" REAL,
-            "2010" REAL,
-            "2011" REAL,
-            "2012" REAL,
-            "2013" REAL,
-            "2014" REAL,
-            "2015" REAL,
-            "2016" REAL,
-            "2017" REAL,
-            "2018" REAL,
-            "2019" REAL,
-            "2020" REAL,
-            "2021" REAL,
-            "2022" REAL,
-            "2023" REAL,
-            "2024" REAL,
-            "2025" REAL,
-            "2026" REAL,
             
             nm1 REAL,
             nm2 REAL,

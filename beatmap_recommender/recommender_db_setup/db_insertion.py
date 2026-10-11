@@ -7,12 +7,8 @@ from beatmap_recommender.recommender_db_setup.beatmap_mods import (
     get_modded_stats,
 )
 
-# ============================================================
-# Base Beatmap
-# ============================================================
 
-
-def insert_base_beatmap(conn, beatmap_data, md5, year):
+def insert_base_beatmap(conn, beatmap_data, md5, year, status):
     """
     Insert the base beatmap.
 
@@ -33,6 +29,7 @@ def insert_base_beatmap(conn, beatmap_data, md5, year):
             version,
             preview_time,
             year,
+            status,
             hp_drain,
             circle_size,
             od,
@@ -45,7 +42,7 @@ def insert_base_beatmap(conn, beatmap_data, md5, year):
             length_seconds,
             object_count
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(beatmap_id) DO UPDATE SET
             beatmapset_id = excluded.beatmapset_id,
             md5 = excluded.md5,
@@ -55,6 +52,7 @@ def insert_base_beatmap(conn, beatmap_data, md5, year):
             version = excluded.version,
             preview_time = excluded.preview_time,
             year = excluded.year,
+            status = excluded.status,
             hp_drain = excluded.hp_drain,
             circle_size = excluded.circle_size,
             od = excluded.od,
@@ -77,6 +75,7 @@ def insert_base_beatmap(conn, beatmap_data, md5, year):
             beatmap_data["version"],
             beatmap_data["preview_time"],
             year,
+            status,
             beatmap_data["hp_drain"],
             beatmap_data["circle_size"],
             beatmap_data["od"],
@@ -92,65 +91,12 @@ def insert_base_beatmap(conn, beatmap_data, md5, year):
     )
 
 
-# ============================================================
-# Base Vectors
-# ============================================================
-
-
-def insert_vectors(conn, beatmap_id, vectors):
-    """
-    Insert raw beatmap vectors while preserving their order.
-    """
-
-    if not vectors:
-        return
-
-    cursor = conn.cursor()
-
-    cursor.executemany(
-        """
-        INSERT OR IGNORE INTO beatmap_vectors (
-            beatmap_id,
-            vector_index,
-            x_diff,
-            y_diff,
-            time_diff,
-            length,
-            distance,
-            speed,
-            speed_change,
-            time_diff_change
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        [
-            (
-                beatmap_id,
-                index,
-                vector[0],
-                vector[1],
-                vector[2],
-                vector[3],
-                vector[4],
-                vector[5],
-                vector[6],
-                vector[7],
-            )
-            for index, vector in enumerate(vectors)
-        ],
-    )
-
-
-# ============================================================
-# Beatmap Variants
-# ============================================================
-
-
 def insert_variant(
     conn,
     beatmap_id,
     beatmapset_id,
     year,
+    status,
     mods,
     base_data,
     difficulty_result,
@@ -175,49 +121,28 @@ def insert_variant(
 
     cursor = conn.cursor()
 
-    # --------------------------------------------------------
     # Canonical mod string
-    # --------------------------------------------------------
     mods_string = canonicalize_mods(mods)
 
-    # --------------------------------------------------------
     # Calculate modded difficulty statistics
-    # --------------------------------------------------------
-
     stats = get_modded_stats(
         base_data,
         difficulty_result,
         mods,
     )
 
-    # --------------------------------------------------------
     # Calculate effective BPM
-    # --------------------------------------------------------
-
-    (
-        effective_bpm,
-        effective_min_bpm,
-        effective_max_bpm,
-    ) = apply_bpm_mod(
+    effective_bpm, effective_min_bpm, effective_max_bpm = apply_bpm_mod(
         base_data["bpm"],
         base_data["min_bpm"],
         base_data["max_bpm"],
         mods,
     )
 
-    # --------------------------------------------------------
     # Calculate effective length
-    # --------------------------------------------------------
+    effective_length = apply_length_mod(base_data["length_seconds"], mods)
 
-    effective_length = apply_length_mod(
-        base_data["length_seconds"],
-        mods,
-    )
-
-    # --------------------------------------------------------
     # Insert / update variant
-    # --------------------------------------------------------
-
     cursor.execute(
         """
         INSERT INTO beatmap_variants (
@@ -225,6 +150,7 @@ def insert_variant(
             beatmapset_id,
             mods,
             year,
+            status,
             hp_drain,
             circle_size,
             od,
@@ -242,15 +168,13 @@ def insert_variant(
             pp_acc,
             pp_flashlight
         )
-        VALUES (
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 
         ON CONFLICT(beatmap_id, mods)
         DO UPDATE SET
             beatmapset_id = excluded.beatmapset_id,
             year = excluded.year,
+            status = excluded.status,
             hp_drain = excluded.hp_drain,
             circle_size = excluded.circle_size,
             od = excluded.od,
@@ -275,6 +199,7 @@ def insert_variant(
             beatmapset_id,
             mods_string,
             year,
+            status,
             stats["hp_drain"],
             stats["circle_size"],
             stats["od"],
@@ -295,85 +220,10 @@ def insert_variant(
     )
 
     row = cursor.fetchone()
-
     if row is None:
-        raise RuntimeError(
-            f"Failed to retrieve variant ID for {beatmap_id} + {mods_string}"
-        )
+        raise RuntimeError(f"Failed to retrieve variant ID for {beatmap_id} + {mods_string}")
 
     return row[0], mods_string
-
-
-def insert_variant_prediction_labels(
-    conn,
-    variant_id,
-    mods_string,
-    folder_name,
-    variant_predictions_labels,
-):
-    """
-    Mark the appropriate beatmap variant as belonging to a
-    variant_predictions classification.
-
-    The folder name is matched case-insensitively.
-    """
-
-    label = folder_name.strip().lower()
-
-    variant_predictions = variant_predictions_labels.get(label)
-
-    if variant_predictions is None:
-        return False
-
-    prediction_column = variant_predictions["column"]
-    required_mods = variant_predictions["mods"]
-
-    # --------------------------------------------------------
-    # Determine canonical mod string
-    # --------------------------------------------------------
-
-    if not required_mods:
-        required_mod_string = "NM"
-    else:
-        required_mod_string = "".join(sorted(mod.upper() for mod in required_mods))
-
-    # --------------------------------------------------------
-    # Make sure this prediction belongs to this variant.
-    #
-    # Example:
-    #
-    # NM1 must not be inserted into the DT variant.
-    # --------------------------------------------------------
-
-    if mods_string != required_mod_string:
-        return False
-
-    cursor = conn.cursor()
-
-    # --------------------------------------------------------
-    # Ensure prediction row exists
-    # --------------------------------------------------------
-
-    cursor.execute(
-        """
-        INSERT OR IGNORE INTO variant_predictions (
-            variant_id
-        )
-        VALUES (?)
-        """,
-        (variant_id,),
-    )
-
-    cursor.execute(
-        f"""
-        UPDATE variant_predictions
-        SET {prediction_column} = 1
-        WHERE variant_id = ?
-        """,
-        (variant_id,),
-    )
-
-    return True
 
 
 def insert_score(conn, score):
