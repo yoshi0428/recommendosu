@@ -39,7 +39,7 @@ The classifier's dataset are tournament maps in [NM1](https://osucollector.com/c
 [NM4](https://osucollector.com/collections/18938/NM4), and [NM5](https://osucollector.com/collections/18939/NM5).
 Shoutouts to [Specter](https://osu.ppy.sh/users/14551370) for making many tournament collections publicly available.
 
-The recommender's dataset are all ranked beatmaps from 2007-2026, seen from this: [2007-2023](https://osu.ppy.sh/community/forums/topics/330552?n=1), [2024-2026](https://osu.ppy.sh/community/forums/topics/2045828?n=1)
+The recommender's dataset are all ranked and loved beatmaps from 2007-2026, seen from this: [2007-2023](https://osu.ppy.sh/community/forums/topics/330552?n=1), [2024-2026](https://osu.ppy.sh/community/forums/topics/2045828?n=1), [Loved](https://osudl.org/)
 
 I will provide the download link to the .osu files, the classifier database, and the recommender database ([here!](https://www.mediafire.com/file/9gwvef84g4ezn74/recommendosu-data_06-10-2026.zip/file)).
 
