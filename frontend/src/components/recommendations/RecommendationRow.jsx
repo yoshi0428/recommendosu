@@ -52,6 +52,7 @@ function RecommendationRow({
     version,
     creator,
     mods,
+    status,
     star_rating,
     bpm,
     circle_size,
@@ -292,7 +293,11 @@ function RecommendationRow({
                 }}
                 onClick={(e) => e.stopPropagation()}
               >
-                <strong className="text-break d-block">
+                <strong
+                  className={`text-break d-block${
+                    status ? ` beatmap-status-${status}` : ""
+                  }`}
+                >
                   {title
                     ? `${artist} - ${title} [${version}]`
                     : `Beatmap ${beatmap_id}`}

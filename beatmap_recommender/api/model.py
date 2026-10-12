@@ -1,4 +1,5 @@
 from copy import deepcopy
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -120,8 +121,9 @@ class RecommendationSettings(BaseModel):
         default=False,
     )
 
-    only_loved: bool = Field(
-        default=False,
+    # "all" mixes ranked and loved maps into one list.
+    beatmap_status: Literal["ranked", "loved", "all"] = Field(
+        default="all",
     )
 
     exact_mods: bool = Field(

@@ -6,6 +6,12 @@ const GOALS = [
   ["pp_potential", "PP Potential"],
 ];
 
+const BEATMAP_STATUSES = [
+  ["all", "All"],
+  ["ranked", "Ranked"],
+  ["loved", "Loved"],
+];
+
 function BasicOptions({settings, updateSetting}) {
   const [minYearInput, setMinYearInput] = useState(
     settings.min_year?.toString() ?? ""
@@ -147,22 +153,20 @@ function BasicOptions({settings, updateSetting}) {
 
           <Col md={2}>
             <Form.Group>
-              <Form.Label>Loved?</Form.Label>
+              <Form.Label>Map Status</Form.Label>
 
               <Form.Select
-                value={String(settings.only_loved ?? false)}
+                value={settings.beatmap_status ?? "all"}
                 onChange={(event) =>
-                  updateSetting(
-                    "only_loved",
-                    event.target.value === "true"
-                  )
+                  updateSetting("beatmap_status", event.target.value)
                 }
               >
-                <option value="false">No</option>
-                <option value="true">Yes</option>
+                {BEATMAP_STATUSES.map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
               </Form.Select>
-
-              <Form.Text className="text-muted">If yes, only loved maps will appear</Form.Text>
             </Form.Group>
           </Col>
 

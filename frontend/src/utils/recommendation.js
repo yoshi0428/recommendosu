@@ -68,6 +68,7 @@ export function createDefaultSettings() {
     player_id: null,
     limit: 10000000,
     goal: "balanced",
+    beatmap_status: "all",
     mods: [],
     excluded_mods: [...DEFAULT_EXCLUDED_MODS],
 

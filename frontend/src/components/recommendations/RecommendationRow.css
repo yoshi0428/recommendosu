@@ -12,6 +12,26 @@
   --audio-preview-secondary-color: #9ca3af;
 }
 
+/* Title colours follow osu!'s ranked (green) and loved (pink) statuses,
+   tuned to stay readable (WCAG AA) on each theme's table background. */
+[data-bs-theme="light"] {
+  --status-ranked-color: #2e7d32;
+  --status-loved-color: #c2185b;
+}
+
+[data-bs-theme="dark"] {
+  --status-ranked-color: #9be15d;
+  --status-loved-color: #ff79b4;
+}
+
+.beatmap-status-ranked {
+  color: var(--status-ranked-color);
+}
+
+.beatmap-status-loved {
+  color: var(--status-loved-color);
+}
+
 [data-bs-theme="light"] .audio-preview-range {
   --audio-preview-range-border: #9ca3af;
 }

@@ -160,7 +160,7 @@ def recommend_player_sync(
             batch_size=BATCH_SIZE,
             similarity_feature_weights=settings.similarity_feature_weights,
             exclude_already_played=settings.exclude_already_played,
-            status="loved" if settings.only_loved else "ranked",
+            status=None if settings.beatmap_status == "all" else settings.beatmap_status,
         )
 
         check_cancelled(cancel_event)
@@ -236,7 +236,7 @@ def recommend_player_sync(
             requested_mods=requested_mods,
             exact_mods=settings.exact_mods,
             excluded_mods=excluded_mods,
-            only_loved=settings.only_loved,
+            beatmap_status=settings.beatmap_status,
             min_stars=settings.min_stars,
             max_stars=settings.max_stars,
             min_bpm=settings.min_bpm,

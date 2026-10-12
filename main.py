@@ -139,6 +139,11 @@ class Recommendation(BaseModel):
         examples=["Insane"],
     )
 
+    status: str = Field(
+        description="Beatmap status in the recommender database.",
+        examples=["ranked", "loved"],
+    )
+
     mods: str = Field(
         description="Canonical mod combination for this recommendation.",
         examples=["NM", "HD", "HR", "HDDT"],

@@ -281,7 +281,7 @@ def get_candidate_variants(
     requested_mods=None,
     exact_mods=False,
     excluded_mods=None,
-    only_loved=False,
+    beatmap_status="all",
     min_stars=None,
     max_stars=None,
     difficulty_min_stars=None,
@@ -333,6 +333,7 @@ def get_candidate_variants(
         "pp_speed",
         "pp_acc",
         "pp_flashlight",
+        "status",
     ]
 
     conditions = []
@@ -375,8 +376,9 @@ def get_candidate_variants(
                 params.append(f"%{mod}%")
 
     # ── Status filter ──────────────────────────────────────────
-    conditions.append("bv.status = ?")
-    params.append("loved" if only_loved else "ranked")
+    if beatmap_status != "all":
+        conditions.append("bv.status = ?")
+        params.append(beatmap_status)
 
     # ── Numeric filters ────────────────────────────────────────
     numeric_filters = (
@@ -423,7 +425,8 @@ def get_candidate_variants(
             bv.pp_aim,
             bv.pp_speed,
             bv.pp_acc,
-            bv.pp_flashlight
+            bv.pp_flashlight,
+            bv.status
         FROM beatmap_variants AS bv
     """
 
@@ -621,7 +624,7 @@ def rank_variants(
     requested_mods=None,
     exact_mods=False,
     excluded_mods=None,
-    only_loved=False,
+    beatmap_status="all",
     min_stars=None,
     max_stars=None,
     min_bpm=None,
@@ -759,7 +762,7 @@ def rank_variants(
         requested_mods=requested_mods,
         exact_mods=exact_mods,
         excluded_mods=excluded_mods,
-        only_loved=only_loved,
+        beatmap_status=beatmap_status,
         min_stars=min_stars,
         max_stars=max_stars,
         difficulty_min_stars=min_difficulty_stars,
