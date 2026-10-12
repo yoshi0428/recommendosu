@@ -36,6 +36,10 @@ def _fetch_maps_as_numpy(conn, query, params=()):
     matrix_data = [[0.0 if val is None else val for val in r[1:]] for r in rows]
     matrix = np.array(matrix_data, dtype=np.float32)
 
+    # Some loved gimmick maps store inf BPM; a single inf turns every
+    # mean/std into NaN and wipes out all similarities.
+    np.nan_to_num(matrix, copy=False, nan=0.0, posinf=0.0, neginf=0.0)
+
     return beatmap_ids, matrix
 
 
@@ -62,7 +66,7 @@ def get_player_seed_maps(conn, player_id):
     return _fetch_maps_as_numpy(conn, query, (player_id,))
 
 
-def get_maps(conn, mods="NM", player_id=None):
+def get_maps(conn, mods="NM", player_id=None, status=None):
     query = """
         SELECT
             bv.beatmap_id,
@@ -80,6 +84,10 @@ def get_maps(conn, mods="NM", player_id=None):
         WHERE bv.mods = ?
     """
     params = [mods]
+
+    if status is not None:
+        query += " AND bv.status = ?"
+        params.append(status)
 
     if player_id is not None:
         query += """
@@ -185,6 +193,7 @@ def build_seed_similarity_index(
     batch_size=8192,
     similarity_feature_weights=None,
     exclude_already_played=True,
+    status=None,
 ):
     seed_beatmap_ids, seed_matrix = get_player_seed_maps(conn, player_id)
     if len(seed_beatmap_ids) == 0:
@@ -196,18 +205,18 @@ def build_seed_similarity_index(
     # excludes already played beatmaps within your scores, if True
     if exclude_already_played:
         candidate_beatmap_ids, candidate_matrix = get_maps(
-            conn, mods="NM", player_id=player_id
+            conn, mods="NM", player_id=player_id, status=status
         )
     else:
         candidate_beatmap_ids, candidate_matrix = get_maps(
-            conn, mods="NM", player_id=None
+            conn, mods="NM", player_id=None, status=status
         )
 
     if len(candidate_beatmap_ids) == 0:
         print("No unplayed NM candidate maps remain.")
         return {}
 
-    print(f"\nNM candidate pool: {len(candidate_beatmap_ids):,} maps.\n")
+    print(f"\nNM candidate pool ({status or 'all'}): {len(candidate_beatmap_ids):,} maps.\n")
 
     return calculate_seed_similarity(
         seed_beatmap_ids=seed_beatmap_ids,

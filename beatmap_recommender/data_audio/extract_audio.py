@@ -8,8 +8,8 @@ from pathlib import Path
 from tqdm import tqdm
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-ROOT_DIR = PROJECT_ROOT / "beatmap_recommender" / "data_audio" / "2026-09 (osu!)"
-OUTPUT_DIR = PROJECT_ROOT / "beatmap_recommender" / "data_audio" / "2026-09_audio"
+ROOT_DIR = PROJECT_ROOT / "beatmap_recommender" / "data_audio" / "2026"
+OUTPUT_DIR = PROJECT_ROOT / "beatmap_recommender" / "data_audio" / "Loved" / "2026"
 DB_PATH = PROJECT_ROOT / "beatmap_recommender" / "dummy.db"
 
 

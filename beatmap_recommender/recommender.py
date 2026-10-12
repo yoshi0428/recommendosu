@@ -139,9 +139,7 @@ def recommend_player_sync(
             check_cancelled(cancel_event)
 
             if access_token is None:
-                raise ValueError(
-                    "An osu! API access token is required to update player scores."
-                )
+                raise ValueError("An osu! API access token is required to update player scores.")
 
             update_player_scores(
                 conn,
@@ -162,6 +160,7 @@ def recommend_player_sync(
             batch_size=BATCH_SIZE,
             similarity_feature_weights=settings.similarity_feature_weights,
             exclude_already_played=settings.exclude_already_played,
+            status="loved" if settings.only_loved else "ranked",
         )
 
         check_cancelled(cancel_event)
@@ -226,7 +225,6 @@ def recommend_player_sync(
         check_cancelled(cancel_event)
 
         # ── Final ranking ──────────────────────────────────────
-
         ranked_variants = rank_variants(
             conn,
             similarity_index=similarity_index,
@@ -238,6 +236,7 @@ def recommend_player_sync(
             requested_mods=requested_mods,
             exact_mods=settings.exact_mods,
             excluded_mods=excluded_mods,
+            only_loved=settings.only_loved,
             min_stars=settings.min_stars,
             max_stars=settings.max_stars,
             min_bpm=settings.min_bpm,
@@ -270,7 +269,6 @@ def recommend_player_sync(
         check_cancelled(cancel_event)
 
         # ── Output ─────────────────────────────────────────────
-
         print(f"\nRecommendation goal: {settings.goal}")
         print(f"\nTop {len(ranked_variants)} recommendations (cut to 10):")
 

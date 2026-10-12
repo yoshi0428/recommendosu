@@ -5,6 +5,8 @@ import RecommendationRow from "./RecommendationRow";
 
 function RecommendationBody({
   recommendations,
+  totalCount,
+  onVisibleRangeChange,
   loading,
   onSelectRecommendation,
 }) {
@@ -15,7 +17,7 @@ function RecommendationBody({
   // project doesn't use, so the warning doesn't apply.
   // eslint-disable-next-line react-hooks/incompatible-library
   const rowVirtualizer = useVirtualizer({
-    count: recommendations.length,
+    count: totalCount,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => 70,
     overscan: 10,
@@ -23,7 +25,18 @@ function RecommendationBody({
 
   useEffect(() => {
     rowVirtualizer.measure();
-  }, [rowVirtualizer, recommendations.length]);
+  }, [rowVirtualizer, totalCount]);
+
+  const virtualRows = rowVirtualizer.getVirtualItems();
+  const firstIndex = virtualRows[0]?.index;
+  const lastIndex = virtualRows[virtualRows.length - 1]?.index;
+
+  // Rows past the first page are fetched from the server as they scroll in.
+  useEffect(() => {
+    if (firstIndex !== undefined) {
+      onVisibleRangeChange(firstIndex, lastIndex);
+    }
+  }, [firstIndex, lastIndex, onVisibleRangeChange]);
 
   if (loading) {
     return (
@@ -37,7 +50,7 @@ function RecommendationBody({
     );
   }
 
-  if (recommendations.length === 0) {
+  if (totalCount === 0) {
     return (
       <div className="flex-grow-1 d-flex flex-column">
         <Alert variant="secondary" className="mb-0">
@@ -46,8 +59,6 @@ function RecommendationBody({
       </div>
     );
   }
-
-  const virtualRows = rowVirtualizer.getVirtualItems();
 
   const firstRow = virtualRows[0];
   const lastRow = virtualRows[virtualRows.length - 1];
@@ -103,6 +114,24 @@ function RecommendationBody({
 
             {virtualRows.map((virtualRow) => {
               const recommendation = recommendations[virtualRow.index];
+
+              if (recommendation === undefined) {
+                return (
+                  <tr
+                    key={`loading-${virtualRow.index}`}
+                    data-index={virtualRow.index}
+                    ref={rowVirtualizer.measureElement}
+                  >
+                    <td
+                      colSpan="10"
+                      className="text-center text-muted"
+                      style={{ height: "70px" }}
+                    >
+                      Loading...
+                    </td>
+                  </tr>
+                );
+              }
 
               return (
                 <RecommendationRow

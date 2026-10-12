@@ -66,7 +66,7 @@ export const DEFAULT_EXCLUDED_MODS = ["EZ", "HT", "FL"];
 export function createDefaultSettings() {
   return {
     player_id: null,
-    limit: 100000,
+    limit: 10000000,
     goal: "balanced",
     mods: [],
     excluded_mods: [...DEFAULT_EXCLUDED_MODS],

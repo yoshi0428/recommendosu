@@ -23,7 +23,7 @@ from beatmap_recommender.recommender_db_setup.dot_osu_indexer import (
 # Configuration
 # ============================================================
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DB_PATH = PROJECT_ROOT / "beatmap_recommender/recommender.db"
+DB_PATH = PROJECT_ROOT / "beatmap_recommender/dummy.db"
 DATA_ROOT = PROJECT_ROOT / "beatmap_recommender/data"
 MODEL_FOLDER = PROJECT_ROOT / "beatmap_classifier/models/full/bagged_models"
 LABEL_ENCODER_PATH = PROJECT_ROOT / "beatmap_classifier/models/full/label_encoder.pkl"
@@ -102,6 +102,8 @@ selected_features = [
 
 indices = [additional_feature_names.index(name) for name in selected_features]
 
+class UnclassifiableBeatmap(Exception):
+    """Map parsed fine but has no usable hit objects (empty, all spinners, all filtered sliders)."""
 
 def find_beatmap_file(
     beatmap_id,
@@ -420,7 +422,7 @@ def predict_beatmap(
     if beatmap_vectors is None:
         raise ValueError("Beatmap has no vectors")
     if len(beatmap_vectors) == 0:
-        raise ValueError("Beatmap contains zero vectors")
+        raise UnclassifiableBeatmap("No usable hit objects (empty / spinners only / sliders over length cap)")
 
     # CHANGED:
     # This metadata is diagnostic only.
@@ -546,6 +548,7 @@ def main():
         bagged_models, label_encoder, meta_model, star_calculator = load_classifier()
 
         successful = 0
+        skipped = 0
         failed = 0
 
         # CHANGED:
@@ -633,6 +636,12 @@ def main():
                     f"NM5={probabilities.get('NM5', 0.0):.3f})"
                 )
 
+            except UnclassifiableBeatmap as e:
+                skipped += 1
+                clear_prediction(conn, variant_id)
+                save_status(conn, variant_id, "skipped", str(e))
+                print(f"  -> SKIPPED: {e}")
+
             except Exception as e:
                 failed += 1
                 clear_prediction(conn, variant_id)
@@ -655,6 +664,7 @@ def main():
         print("Precomputation complete")
         print("=" * 60)
         print(f"Successful: {successful:,}")
+        print(f"Skipped:    {skipped:,}")
         print(f"Failed:     {failed:,}")
         print(f"Total:      {total:,}")
 

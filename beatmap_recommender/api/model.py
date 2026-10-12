@@ -87,10 +87,10 @@ RECOMMENDATION_CONFIG = {
 class RecommendationSettings(BaseModel):
     # ── Internal values for the algorithm, effectively uncapped ───────────────────────────
     limit: int = Field(
-        default=1000, ge=1, le=100000,
+        default=10000000, ge=1, le=10000000,
     )
 
-    neighbors_k: int = Field(default=147152, ge=1, le=147152)
+    neighbors_k: int = Field(default=151240, ge=1, le=151240)
 
     # ── Basic recommendation options ───────────────────────────
     player_id: int | None = None
@@ -117,6 +117,10 @@ class RecommendationSettings(BaseModel):
     )
 
     exclude_recent_plays: bool = Field(
+        default=False,
+    )
+
+    only_loved: bool = Field(
         default=False,
     )
 

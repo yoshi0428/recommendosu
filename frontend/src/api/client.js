@@ -85,6 +85,40 @@ export async function getRecommendations(body, options = {}) {
   );
 }
 
+export async function getRecommendationPage(
+  recommendationId,
+  offset,
+  limit,
+  options = {}
+) {
+  const params = new URLSearchParams({
+    offset: String(offset),
+    limit: String(limit),
+  });
+
+  const response = await fetch(
+    `${API_BASE}/recommend/${recommendationId}/page?${params}`,
+    {
+      credentials: "include",
+      signal: options.signal,
+    }
+  );
+
+  const contentType = response.headers.get("content-type") || "";
+  const data = contentType.includes("application/json")
+    ? await response.json()
+    : null;
+
+  if (!response.ok) {
+    throw new Error(
+      data?.detail ||
+        `Recommendation page request failed with status ${response.status}`
+    );
+  }
+
+  return data;
+}
+
 export async function cancelRecommendation(recommendationId) {
   const response = await fetch(
     `${API_BASE}/recommend/${recommendationId}/cancel`,

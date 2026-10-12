@@ -33,7 +33,7 @@ DATABASE_PATH = PROJECT_ROOT / "beatmap_recommender/dummy.db"
 ROOT_DIR = PROJECT_ROOT / "beatmap_recommender/data"
 CSV_PATH = (
     PROJECT_ROOT
-    / "beatmap_recommender/recommender_db_setup/repair_missing_rows/unfetchable_beatmaps_rows.csv"
+    / "beatmap_recommender/recommender_db_setup/repair_missing_rows/fixed_beatmap_rows.csv"
 )
 
 

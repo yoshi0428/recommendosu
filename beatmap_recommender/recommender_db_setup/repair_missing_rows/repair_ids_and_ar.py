@@ -14,8 +14,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DB_PATH = PROJECT_ROOT / "beatmap_recommender/dummy.db"
 CSV_PATH = (
     PROJECT_ROOT
-    / "beatmap_recommender/recommender_db_setup/repair_missing_rows/unfetchable_beatmaps_rows.csv"
+    / "beatmap_recommender/recommender_db_setup/repair_missing_rows/fixed_beatmap_rows.csv"
 )
+
+# CSV old_beatmap_id -> the ID the row was actually inserted under in the DB.
+DB_ID_OVERRIDES = {
+    "691208": "545053",
+}
 
 
 def migrate_beatmap_ids():
@@ -39,6 +44,10 @@ def migrate_beatmap_ids():
 
         for row in corrections:
             old_beatmap_id = str(row["old_beatmap_id"]).strip()
+            db_beatmap_id = DB_ID_OVERRIDES.get(old_beatmap_id, old_beatmap_id)
+            if db_beatmap_id != old_beatmap_id:
+                print(f"  Special case: {old_beatmap_id} is stored as {db_beatmap_id}")
+
             new_beatmap_id = str(row["beatmap_id"]).strip()
             new_beatmapset_id = str(row["beatmapset_id"]).strip() or None
             new_ar = float(row["ar"])
@@ -55,45 +64,23 @@ def migrate_beatmap_ids():
             # ------------------------------------------------
             existing = cursor.execute(
                 """
-                SELECT
-                    beatmap_id,
-                    beatmapset_id,
-                    ar
+                SELECT beatmap_id, beatmapset_id, ar
                 FROM beatmaps
                 WHERE beatmap_id = ?
-            """,
-                (old_beatmap_id,),
+                """,
+                (db_beatmap_id,),
             ).fetchone()
 
             if existing is None:
-                raise RuntimeError(f"Could not find old beatmap_id: {old_beatmap_id}")
-
-            # ------------------------------------------------
-            # Make sure corrected ID doesn't already exist.
-            # ------------------------------------------------
-            collision = cursor.execute(
-                """
-                SELECT 1
-                FROM beatmaps
-                WHERE beatmap_id = ?
-            """,
-                (new_beatmap_id,),
-            ).fetchone()
-
-            if collision:
                 raise RuntimeError(
-                    f"Corrected beatmap_id already exists: "
-                    f"{new_beatmap_id}\n"
-                    f"Existing row: {collision}"
+                    f"Could not find old beatmap_id: {old_beatmap_id} (looked up as {db_beatmap_id})"
                 )
 
             # ------------------------------------------------
             # Sanity-check that this is one of the fallback rows we expect to repair.
             # ------------------------------------------------
-            if existing[1] is not None:
-                raise RuntimeError(
-                    f"{old_beatmap_id}: expected NULL beatmapset_id, got {existing[1]}"
-                )
+            if existing[1] not in (None, "-1"):
+                raise RuntimeError(f"{old_beatmap_id}: expected NULL beatmapset_id, got {existing[1]}")
 
             if existing[2] != new_ar:
                 print(f"  AR correction: {existing[2]} -> {new_ar}")
@@ -113,19 +100,13 @@ def migrate_beatmap_ids():
                         AND existing.mods = v.mods
                   )
             """,
-                (
-                    old_beatmap_id,
-                    new_beatmap_id,
-                ),
+                (db_beatmap_id, new_beatmap_id,),
             ).fetchall()
 
+            # it's ok to collide for the -1 beatmapset_ids that were changed
             if variant_collision:
                 mods = [row[0] for row in variant_collision]
-
-                raise RuntimeError(
-                    f"{old_beatmap_id} -> {new_beatmap_id}: "
-                    f"variant collision for mods {mods}"
-                )
+                print(f"{old_beatmap_id} -> {new_beatmap_id}: variant collision for mods {mods}")
 
             # ------------------------------------------------
             # Temporary ID.
@@ -134,27 +115,13 @@ def migrate_beatmap_ids():
             temp_id = f"__migration__{uuid.uuid4().hex}"
 
             cursor.execute(
-                """
-                UPDATE beatmaps
-                SET beatmap_id = ?
-                WHERE beatmap_id = ?
-            """,
-                (
-                    temp_id,
-                    old_beatmap_id,
-                ),
+                "UPDATE beatmaps SET beatmap_id = ? WHERE beatmap_id = ?",
+                (temp_id, db_beatmap_id),
             )
 
             cursor.execute(
-                """
-                UPDATE beatmap_variants
-                SET beatmap_id = ?
-                WHERE beatmap_id = ?
-            """,
-                (
-                    temp_id,
-                    old_beatmap_id,
-                ),
+                "UPDATE beatmap_variants SET beatmap_id = ? WHERE beatmap_id = ?",
+                (temp_id, db_beatmap_id),
             )
 
             # ------------------------------------------------

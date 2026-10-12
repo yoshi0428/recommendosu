@@ -80,7 +80,7 @@ function About() {
 
         {/* MODS */}
         <div className={`p-4 mb-4 rounded border ${sectionClass}`}>
-          <h3 className="mb-3">Mods</h3>
+          <h3 className="mb-3">Tips</h3>
 
           <p>
             You can exclude mods by clicking the checkbox twice for a minus
@@ -97,9 +97,19 @@ function About() {
             single mod.
           </p>
 
-          <p className="mb-0">
+          <p>
             If you need an exact mod combination, turn on the "Exact
             combination" toggle in Advanced.
+          </p>
+
+          <hr className="my-4" />
+
+          <p>
+            Setting a minimum star rating without setting a maximum star rating will set the maximum star rating to infinity.
+          </p>
+
+          <p className="mb-0">
+            Setting a maximum star rating without setting a minimum star rating will set the minimum star rating to 0.
           </p>
         </div>
 

@@ -90,9 +90,9 @@ function BasicOptions({settings, updateSetting}) {
             </Form.Group>
           </Col>
 
-          <Col md={3}>
+          <Col md={2}>
             <Form.Group>
-              <Form.Label>Recommendation Goal</Form.Label>
+              <Form.Label>Goal</Form.Label>
 
               <Form.Select
                 value={settings.goal}
@@ -145,7 +145,28 @@ function BasicOptions({settings, updateSetting}) {
             </Form.Group>
           </Col>
 
-          <Col md={3}>
+          <Col md={2}>
+            <Form.Group>
+              <Form.Label>Loved?</Form.Label>
+
+              <Form.Select
+                value={String(settings.only_loved ?? false)}
+                onChange={(event) =>
+                  updateSetting(
+                    "only_loved",
+                    event.target.value === "true"
+                  )
+                }
+              >
+                <option value="false">No</option>
+                <option value="true">Yes</option>
+              </Form.Select>
+
+              <Form.Text className="text-muted">If yes, only loved maps will appear</Form.Text>
+            </Form.Group>
+          </Col>
+
+          <Col md={2}>
             <Form.Group>
               <Form.Label>Year range</Form.Label>
 
@@ -179,8 +200,7 @@ function BasicOptions({settings, updateSetting}) {
                 />
               </div>
 
-              <Form.Text className="text-muted">Inclusive range. Lower and upper bounds default to 2007 and 2026
-                respectively.</Form.Text>
+              <Form.Text className="text-muted">Lower/upper bounds default to 2007/2026</Form.Text>
             </Form.Group>
           </Col>
         </Row>
