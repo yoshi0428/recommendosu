@@ -692,13 +692,10 @@ def rank_variants(
         max_difficulty_stars = star_mean + difficulty_star_std_multiplier * star_std
 
         # Explicit star filters override the automatic difficulty bounds.
-        if min_stars is not None:
-            min_difficulty_stars = float(min_stars)
-            max_difficulty_stars = float("inf")
-
-        if max_stars is not None:
-            max_difficulty_stars = float(max_stars)
-            min_difficulty_stars = 0.0
+        # A one-sided filter leaves the other side open.
+        if min_stars is not None or max_stars is not None:
+            min_difficulty_stars = float(min_stars) if min_stars is not None else 0.0
+            max_difficulty_stars = float(max_stars) if max_stars is not None else float("inf")
     else:
         min_difficulty_stars = float(min_stars) if min_stars is not None else None
 

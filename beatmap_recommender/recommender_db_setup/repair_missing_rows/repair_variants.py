@@ -10,7 +10,6 @@ import os
 import sqlite3
 from pathlib import Path
 
-from osu_tools import OsuCalculator
 from tqdm import tqdm
 
 from beatmap_recommender.content_similarity.core_modules.mod_preferences import (
@@ -23,6 +22,7 @@ from beatmap_recommender.recommender_db_setup.beatmap_mods import (
     get_modded_stats,
 )
 from beatmap_recommender.recommender_db_setup.parser import parse_osu_file
+from beatmap_recommender.recommender_db_setup.star_calculator import VersionAwareOsuCalculator
 
 # ============================================================
 # Configuration
@@ -397,7 +397,7 @@ def main():
 
         conn.execute("BEGIN")
 
-        star_calculator = OsuCalculator()
+        star_calculator = VersionAwareOsuCalculator()
 
         for beatmap_id in tqdm(
             sorted(corrected_ids),

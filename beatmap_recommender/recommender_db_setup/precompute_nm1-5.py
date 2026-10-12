@@ -3,7 +3,6 @@ import sqlite3
 from pathlib import Path
 
 import numpy as np
-import osu_tools
 import torch
 
 from beatmap_classifier.classifier.augment_faster import (
@@ -18,6 +17,7 @@ from beatmap_classifier.classifier_db_setup.parser import parse_osu_file
 from beatmap_recommender.recommender_db_setup.dot_osu_indexer import (
     build_osu_file_index,
 )
+from beatmap_recommender.recommender_db_setup.star_calculator import VersionAwareOsuCalculator
 
 # ============================================================
 # Configuration
@@ -517,7 +517,7 @@ def load_classifier():
     print(f"Loaded {len(bagged_models)} CNN models")
     print("Creating star calculator...")
 
-    star_calculator = osu_tools.OsuCalculator()
+    star_calculator = VersionAwareOsuCalculator()
 
     return bagged_models, label_encoder, meta_model, star_calculator
 

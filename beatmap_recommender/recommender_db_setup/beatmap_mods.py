@@ -65,7 +65,7 @@ def apply_mod_to_stat(value, mods, stat):
 
     if stat == "cs":
         if "HR" in mods:
-            return min(10.0, value * 1.4)
+            return min(10.0, value * 1.3)
 
         if "EZ" in mods:
             return value * 0.5

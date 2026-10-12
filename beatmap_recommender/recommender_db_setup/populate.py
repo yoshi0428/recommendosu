@@ -4,7 +4,6 @@ import sqlite3
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
-from osu_tools import OsuCalculator
 from tqdm import tqdm
 
 from beatmap_recommender.recommender_db_setup.beatmap_mods import calculate_difficulty
@@ -18,6 +17,7 @@ from beatmap_recommender.recommender_db_setup.db_table_creation import (
 )
 from beatmap_recommender.recommender_db_setup.osu_api_client import OsuAPIClient
 from beatmap_recommender.recommender_db_setup.parser import parse_osu_file
+from beatmap_recommender.recommender_db_setup.star_calculator import VersionAwareOsuCalculator
 
 # ============================================================
 # Configuration
@@ -60,7 +60,7 @@ def init_worker():
     This avoids repeatedly constructing the calculator for every beatmap.
     """
     global _worker_calculator
-    _worker_calculator = OsuCalculator()
+    _worker_calculator = VersionAwareOsuCalculator()
 
 
 def process_difficulty(file_path):

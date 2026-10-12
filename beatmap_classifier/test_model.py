@@ -5,7 +5,6 @@ import time
 from pathlib import Path
 
 import numpy as np
-import osu_tools
 import requests
 import torch
 from classifier_db_setup.parser import parse_osu_file
@@ -22,6 +21,7 @@ from beatmap_classifier.classifier_db_setup.beatmap_mods import (
     calculate_difficulty,
     get_modded_stats,
 )
+from beatmap_recommender.recommender_db_setup.star_calculator import VersionAwareOsuCalculator
 
 # ============================================================
 # Configuration
@@ -319,7 +319,7 @@ def main():
         DEVICE,
     )
 
-    star_calculator = osu_tools.OsuCalculator()
+    star_calculator = VersionAwareOsuCalculator()
     elapsed = time.perf_counter() - start
 
     print(f"\nLoaded models in {elapsed:.2f}s")

@@ -54,7 +54,7 @@ def apply_mod_to_stat(value, mods, stat):
     directly exposed by the installed osu-tools-py version.
 
     HR:
-        AR / CS / OD / HP are multiplied by 1.4 and capped at 10.
+        CS is multiplied by 1.3, AR / OD / HP by 1.4, all capped at 10.
 
     EZ:
         AR / CS / OD / HP are multiplied by 0.5.
@@ -79,7 +79,7 @@ def apply_mod_to_stat(value, mods, stat):
 
     if stat == "cs":
         if "HR" in mods:
-            return min(10.0, value * 1.4)
+            return min(10.0, value * 1.3)
 
         if "EZ" in mods:
             return value * 0.5
