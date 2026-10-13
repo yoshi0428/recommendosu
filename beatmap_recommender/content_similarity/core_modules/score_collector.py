@@ -2,6 +2,9 @@ from beatmap_recommender.api.osu_api_client import OsuAPINotFoundError
 from beatmap_recommender.database import connect_disk_db, is_memory_db
 from beatmap_recommender.recommender_db_setup.db_insertion import insert_score
 
+# The most scores osu! returns from one /users/{id}/scores/* request.
+API_PAGE_SIZE = 100
+
 
 class PlayerNotFoundError(LookupError):
     """The osu! API has no public profile for this player ID."""
@@ -32,23 +35,38 @@ def fetch_player_scores(api, player_id, limit=200):
 
 
 def _fetch_player_scores(api, player_id, limit):
-    top_scores = api.get(
-        f"/users/{player_id}/scores/best",
-        params={
-            "limit": limit,
-            "include_fails": 1,
-        },
-    )
-
-    recent_scores = api.get(
-        f"/users/{player_id}/scores/recent",
-        params={
-            "limit": limit,
-            "include_fails": 1,
-        },
-    )
+    top_scores = _fetch_paginated(api, f"/users/{player_id}/scores/best", limit)
+    recent_scores = _fetch_paginated(api, f"/users/{player_id}/scores/recent", limit)
 
     return top_scores, recent_scores
+
+
+def _fetch_paginated(api, endpoint, limit):
+    """
+    Fetch up to `limit` scores from a /users/{id}/scores/* endpoint.
+
+    osu! returns at most API_PAGE_SIZE scores per request (a larger limit is
+    silently clamped), so anything beyond that has to be paged with offset.
+    The best-scores list itself stops at 200.
+    """
+    scores = []
+    while len(scores) < limit:
+        page_size = min(API_PAGE_SIZE, limit - len(scores))
+        page = api.get(
+            endpoint,
+            params={
+                "limit": page_size,
+                "offset": len(scores),
+                "include_fails": 1,
+            },
+        )
+        scores.extend(page)
+
+        # A short page means the list has run out.
+        if len(page) < page_size:
+            break
+
+    return scores
 
 
 def normalize_score(score, source):

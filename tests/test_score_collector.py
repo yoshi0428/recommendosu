@@ -268,6 +268,8 @@ class FakeOsuAPI:
     """
     Stands in for OsuAPIClient. Returns canned responses per endpoint and
     records every request, so tests can check what was asked for.
+
+    Like the real API, it honours offset and clamps limit to 100.
     """
 
     def __init__(self, top=(), recent=(), error=None):
@@ -282,7 +284,10 @@ class FakeOsuAPI:
         self.requests.append((endpoint, params))
         if self.error:
             raise self.error
-        return self.responses[endpoint]
+        params = params or {}
+        offset = params.get("offset", 0)
+        limit = min(params.get("limit", 100), 100)
+        return self.responses[endpoint][offset : offset + limit]
 
 
 def test_update_player_scores_fetches_and_stores(recommender_db):
@@ -299,9 +304,48 @@ def test_update_player_scores_fetches_and_stores(recommender_db):
 
     # The request parameters are part of the contract with osu!.
     assert api.requests == [
-        (f"/users/{PLAYER_ID}/scores/best", {"limit": 100, "include_fails": 1}),
-        (f"/users/{PLAYER_ID}/scores/recent", {"limit": 100, "include_fails": 1}),
+        (f"/users/{PLAYER_ID}/scores/best", {"limit": 100, "offset": 0, "include_fails": 1}),
+        (f"/users/{PLAYER_ID}/scores/recent", {"limit": 100, "offset": 0, "include_fails": 1}),
     ]
+
+
+def test_fetch_pages_past_the_100_score_api_limit():
+    # osu! returns at most 100 scores per request, so a top 200 takes two
+    # requests: offset 0 and offset 100.
+    top = [api_score(i) for i in range(200)]
+    recent = [api_score(1000 + i) for i in range(150)]
+    api = FakeOsuAPI(top=top, recent=recent)
+
+    top_scores, recent_scores = score_collector.fetch_player_scores(api, PLAYER_ID, limit=200)
+
+    assert [s["id"] for s in top_scores] == list(range(200))
+    assert [s["id"] for s in recent_scores] == [1000 + i for i in range(150)]
+    assert [(endpoint.rsplit("/", 1)[1], params["offset"], params["limit"]) for endpoint, params in api.requests] == [
+        ("best", 0, 100),
+        ("best", 100, 100),
+        ("recent", 0, 100),
+        ("recent", 100, 100),  # Returns 50, so paging stops here.
+    ]
+
+
+def test_fetch_stops_after_a_short_page():
+    # A player with only 30 top plays: one request, no empty follow-up.
+    api = FakeOsuAPI(top=[api_score(i) for i in range(30)])
+
+    top_scores, recent_scores = score_collector.fetch_player_scores(api, PLAYER_ID, limit=200)
+
+    assert len(top_scores) == 30
+    assert recent_scores == []
+    assert len(api.requests) == 2  # One per endpoint.
+
+
+def test_fetch_last_page_asks_only_for_the_remainder():
+    api = FakeOsuAPI(top=[api_score(i) for i in range(200)])
+
+    top_scores, _ = score_collector.fetch_player_scores(api, PLAYER_ID, limit=150)
+
+    assert len(top_scores) == 150
+    assert [params["limit"] for endpoint, params in api.requests if endpoint.endswith("best")] == [100, 50]
 
 
 def test_unknown_player_raises_player_not_found(recommender_db):
