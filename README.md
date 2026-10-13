@@ -42,7 +42,7 @@ Shoutouts to [Specter](https://osu.ppy.sh/users/14551370) for making many tourna
 
 The recommender's dataset are all ranked and loved beatmaps from 2007-2026, seen from this: [2007-2023](https://osu.ppy.sh/community/forums/topics/330552?n=1), [2024-2026](https://osu.ppy.sh/community/forums/topics/2045828?n=1), [Loved](https://osudl.org/)
 
-I will provide the download link to the .osu files, the classifier database, and the recommender database ([here!](https://www.mediafire.com/file/ihe4kkfm6tmzfv7/recommendosu-data_fixed_12-10-2026.zip/file)).
+I will provide the download link to the .osu files, the classifier database, and the recommender database ([here!](https://drive.google.com/drive/folders/1ieotIJppsimwpRJbcZzQ7oC41nzc7Oz2?usp=sharing)).
 
 # Requirements
 
