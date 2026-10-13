@@ -10,6 +10,22 @@
       "problemMatcher": []
     },
     {
+      // Only the tests marked slow (they're skipped by default in pytest.ini).
+      "label": "Backend slow tests",
+      "type": "shell",
+      "command": "python -m pytest -m slow",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      // Fast + slow. The later -m overrides the "not slow" from addopts.
+      "label": "Backend tests (incl. slow)",
+      "type": "shell",
+      "command": "python -m pytest -m \"slow or not slow\"",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
       "label": "Frontend tests",
       "type": "shell",
       "command": "npm test",
@@ -22,6 +38,13 @@
       "dependsOn": ["Backend tests", "Frontend tests"],
       "dependsOrder": "sequence",
       "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "All tests (incl. slow)",
+      "dependsOn": ["Backend tests (incl. slow)", "Frontend tests"],
+      "dependsOrder": "sequence",
+      "group": "test",
       "problemMatcher": []
     }
   ]

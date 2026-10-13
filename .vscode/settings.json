@@ -1,6 +1,8 @@
 {
   "python.testing.pytestEnabled": true,
-  "python.testing.pytestArgs": ["tests"],
+  // Show slow tests in the Testing UI too (pytest.ini hides them by default).
+  // Note that "Run All" in the Testing UI will then run them as well.
+  "python.testing.pytestArgs": ["tests", "-m", "slow or not slow"],
 
   // Vitest extension (vitest.explorer): use the frontend's Vite config, which
   // points Vitest at tests/frontend and resolves packages from
