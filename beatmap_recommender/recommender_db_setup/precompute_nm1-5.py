@@ -11,6 +11,8 @@ from beatmap_classifier.classifier.augment_faster import (
 from beatmap_classifier.classifier.cnn_model import CNNModel
 from beatmap_classifier.classifier.utils_training import (
     load_pytorch_models,
+    load_vector_normalization,
+    normalize_beatmap_vectors,
     pad_sequences_pt,
 )
 from beatmap_classifier.classifier_db_setup.parser import parse_osu_file
@@ -28,6 +30,9 @@ DATA_ROOT = PROJECT_ROOT / "beatmap_recommender/data"
 MODEL_FOLDER = PROJECT_ROOT / "beatmap_classifier/models/full/bagged_models"
 LABEL_ENCODER_PATH = PROJECT_ROOT / "beatmap_classifier/models/full/label_encoder.pkl"
 META_MODEL_PATH = PROJECT_ROOT / "beatmap_classifier/models/full/meta_model.pkl"
+
+# The scales training divided time_diff / slider length by (see get_data()).
+VECTOR_NORMALIZATION_PATH = PROJECT_ROOT / "beatmap_classifier/models/full/vector_normalization.json"
 
 MAX_SEQUENCE_LENGTH = 4096
 MAX_SLIDER_LENGTH = 500.0
@@ -390,6 +395,7 @@ def predict_beatmap(
     bagged_models,
     label_encoder,
     meta_model,
+    vector_normalization,
 ):
     """
     Run the complete CNN + XGBoost classifier on one
@@ -424,6 +430,11 @@ def predict_beatmap(
     if len(beatmap_vectors) == 0:
         raise UnclassifiableBeatmap("No usable hit objects (empty / spinners only / sliders over length cap)")
 
+    # The parser returns raw milliseconds / slider lengths, but the model was
+    # trained on vectors scaled by get_data(). Apply the same scaling, or the
+    # CNN and the movement features see values thousands of times too large.
+    beatmap_vectors = normalize_beatmap_vectors(beatmap_vectors, vector_normalization)
+
     # CHANGED:
     # This metadata is diagnostic only.
     # A missing BeatmapID/AR/etc. is no longer fatal because
@@ -456,9 +467,7 @@ def predict_beatmap(
     if cnn_probs is None:
         raise ValueError("CNN prediction returned None")
 
-    movement_features = extract_movement_features_from_X(
-        np.asarray(beatmap_vectors, dtype=np.float32)
-    )
+    movement_features = extract_movement_features_from_X(beatmap_vectors)
     movement_features = np.asarray(movement_features, dtype=np.float32)
 
     # CHANGED:
@@ -519,7 +528,10 @@ def load_classifier():
 
     star_calculator = VersionAwareOsuCalculator()
 
-    return bagged_models, label_encoder, meta_model, star_calculator
+    print("Loading vector normalization...")
+    vector_normalization = load_vector_normalization(VECTOR_NORMALIZATION_PATH)
+
+    return bagged_models, label_encoder, meta_model, star_calculator, vector_normalization
 
 
 # ============================================================
@@ -545,7 +557,7 @@ def main():
             print("No NM variants require classifier prediction.")
             return
 
-        bagged_models, label_encoder, meta_model, star_calculator = load_classifier()
+        bagged_models, label_encoder, meta_model, star_calculator, vector_normalization = load_classifier()
 
         successful = 0
         skipped = 0
@@ -619,6 +631,7 @@ def main():
                     bagged_models,
                     label_encoder,
                     meta_model,
+                    vector_normalization,
                 )
 
                 save_prediction(conn, variant_id, prediction)

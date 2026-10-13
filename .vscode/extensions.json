@@ -1,0 +1,4 @@
+{
+  // Positron/VS Code offers to install these when the folder is opened.
+  "recommendations": ["ms-python.python", "vitest.explorer"]
+}

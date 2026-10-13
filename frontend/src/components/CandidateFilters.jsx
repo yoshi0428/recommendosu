@@ -1,8 +1,13 @@
+import { useId } from "react";
 import { Card, Col, Form, Row } from "react-bootstrap";
 
 function NumberInput({ label, value, onChange, step = "any" }) {
+  // controlId links the label to the input (clicking the label focuses it,
+  // and screen readers announce the input by its label).
+  const id = useId();
+
   return (
-    <Form.Group>
+    <Form.Group controlId={id}>
       <Form.Label className="small mb-1">{label}</Form.Label>
       <Form.Control
         type="number"

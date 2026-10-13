@@ -1,0 +1,9 @@
+{
+  "python.testing.pytestEnabled": true,
+  "python.testing.pytestArgs": ["tests"],
+
+  // Vitest extension (vitest.explorer): use the frontend's Vite config, which
+  // points Vitest at tests/frontend and resolves packages from
+  // frontend/node_modules.
+  "vitest.rootConfig": "frontend/vite.config.js"
+}

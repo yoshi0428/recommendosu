@@ -171,7 +171,7 @@ def get_player_difficulty_profiles(
     check_cancelled(cancel_event)
 
     if not played_variants:
-        return {}, {}
+        return {}
 
     features = ("star_rating", "ar", "od", "bpm", "pp")
 

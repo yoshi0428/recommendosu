@@ -5,12 +5,13 @@ I will slowly document all of this in my free time. This project is running on m
 I've created a Discord server [here!](https://discord.gg/Dh4TzKGGB7)
 
 This recommender fetches your top/recent plays via your osu! API token, 
-and compares every ranked map (~147,000) against each top/recent play. 
+and compares every ranked and loved map (~151,000) against each top/recent play. 
 Each map keeps only its best similarity to any of your plays. 
-Every map is stored as NM plus 19 mod combinations (~2.9 million variants in total), but your difficulty range and any filters are applied in SQL first, 
-so a typical request scores around 130,000 variants to obtain the top recommendations. 
+Every map is stored as NM plus 19 mod combinations (~3 million variants in total), but your difficulty range and any filters are applied in SQL first, 
+so a typical request scores around 150,000 variants to obtain the top recommendations. 
 The recommender database (~540MB) is loaded into memory at startup, and only newly fetched scores are written back to disk. 
-I have optimized this down to around 2-3 seconds for outputting the top 100,000 recommendations to the frontend (not counting the osu! API fetch).
+I have optimized this down to around 2-3 seconds for outputting the top 100,000 recommendations to the frontend (not counting the osu! API fetch). 
+Number of recommendations are currently uncapped in the deployed website, but expect the worst-case query (max_stars = inf, all mod combinations) to take around 1 minute to complete.
 
 I opted with a content similarity approach, as I found that performing user-user/item-item collaborative filtering is difficult due to the time needed to gather per-country user play data.
 
@@ -57,6 +58,7 @@ scikit-learn
 osu-tools-py
 pydantic
 python-dotenv
+pytest
 Requests
 torch
 tqdm
@@ -94,16 +96,67 @@ I used DB Browser for SQLite while making this project.
 `)
 - `/beatmap_recommender/recommender.py`: The recommender for the backend. You can tweak some of the global variables if desired.
 
-Running the database population script takes a while (~7h30m), because the .osu files before version 10 do not have beatmap id and approach rate values. 
-The code attempts to retrieve them by getting the file's MD5 hash and calling the osu! API. 
-Despite that, it may return 404, so I set the beatmap id as the hash and the AR to 8 as a fallback. 
-It is possible to repair the 404'd beatmaps by first running `/beatmap_recommender/recommender_db_setup/repair_missing_rows`'s `repair_ids_and_ar.py`, then `repair_variants.py`.
-
 If there is one file I would choose to really understand, it's `/beatmap_recommender/content_similarity/core_modules/variant_ranking.py`.
+
+### Rebuilding the recommender database
+
+You only need this if you want to rebuild the database from the .osu files yourself; the [download link](#data) already includes a finished database.
+
+The scripts expect the .osu files to be laid out as `beatmap_recommender/data/<Ranked|Loved>/<year>/*.osu`, because the beatmap status and year are taken from the folder names. 
+Every script below reads and writes `beatmap_recommender/dummy.db` (see `DATABASE_PATH` / `DB_PATH` at the top of each file), so the app won't use the result until you copy or rename it to `beatmap_recommender/recommender.local.db` (local) or `beatmap_recommender/recommender.db` (production). 
+Run the scripts from `beatmap_recommender/recommender_db_setup/`, in this order:
+
+1. **`populate.py`** creates the tables and inserts every beatmap plus its 20 mod variants (NM and 19 mod combinations), with star rating and pp from `VersionAwareOsuCalculator`. This takes a while (~7h30m). 
+   .osu files before format v10 have no beatmap ID or approach rate, so the script looks them up through the osu! API using the file's MD5 hash. 
+   When the API returns 404, it falls back to using the MD5 hash as the beatmap ID and AR 8.
+2. **`repair_missing_rows/repair_ids_and_ar.py`** (pass 1) fixes those fallback rows, using the manually corrected IDs, beatmapset IDs and ARs in `repair_missing_rows/fixed_beatmap_rows.csv`.
+3. **`repair_missing_rows/repair_variants.py`** (pass 2) recalculates the mod variants of the repaired beatmaps, since they were originally calculated with the fallback AR.
+4. **`precompute_nm1-5.py`** runs the CNN-XGBoost classifier on every NM variant and stores the NM1 to NM5 probabilities. It uses the GPU if one is available. 
+   It reads the model files in `beatmap_classifier/models/full/`, including `vector_normalization.json`, which the training notebook writes so that predictions scale their inputs the same way training did. 
+   `SELECTION_MODE` picks what to classify: `"pending"` (not yet classified), `"failed"` (pending plus previous failures), or `"all"` (everything, which is what you want after retraining the model).
+
+`repair_missing_rows/repair_legacy_format_variants.py` is not part of this order. 
+It fixed a database that had been populated before `VersionAwareOsuCalculator` existed, when old maps got inflated star ratings, and shouldn't be needed anymore.
 
 ### Frontend
 
 This was meant to be run with Docker compose. See the Docker Commands section later.
+
+# Testing
+
+The backend tests use pytest and the frontend tests use Vitest. Both suites live in `/tests` (the frontend ones in `/tests/frontend`).
+
+```
+### backend, from the repository root
+pip install -r requirements-dev.txt
+python -m pytest
+
+### also run the slower tests against the real beatmap_recommender/dummy.db
+python -m pytest -m slow
+
+### frontend
+cd frontend
+npm install
+npm test
+```
+
+Tests that need files which aren't in the repository (`dummy.db`, the .osu files in `beatmap_recommender/data`, or osu-tools-py) skip themselves when those are missing.
+
+### A note on how the tests were written
+
+The testing in this project was done with massive help from [Claude Code](https://claude.com/claude-code), Anthropic's AI coding assistant. 
+I knew the general concepts of software testing but hadn't written many tests myself, 
+so Claude Code wrote the backend and frontend test suites, the test configuration, and the comments explaining each testing technique as it's used. 
+Writing the tests also turned up real bugs, which were then fixed:
+
+- **The classifier was fed differently scaled inputs than it was trained on.** 
+  Training divides each note's time gap by 86,087 and each slider length by 500, but `precompute_nm1-5.py` passed the raw values, so the model saw numbers up to ~86,000 times larger than anything it learned from. 
+  The notebook's accuracy couldn't show this, because its test data never goes through `precompute_nm1-5.py`. 
+  On one tournament map from each of NM1 to NM5, the old predictions got 2 of 5 categories right (mostly guessing NM1); with the fix, all 5 are right. 
+  The scaling constants are now saved next to the model, and `tests/test_classifier_features.py` checks that training and prediction build identical inputs.
+- A crash when a player had no matching plays.
+- NC scores being dropped instead of counted as DT.
+- The frontend's filter labels not being linked to their number boxes in the HTML (so clicking a label didn't select its box, and screen readers couldn't tell the 16 boxes apart).
 
 # Docker Commands
 

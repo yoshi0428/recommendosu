@@ -15,6 +15,8 @@ from beatmap_classifier.classifier.augment_faster import (
 from beatmap_classifier.classifier.cnn_model import CNNModel
 from beatmap_classifier.classifier.utils_training import (
     load_pytorch_models,
+    load_vector_normalization,
+    normalize_beatmap_vectors,
     pad_sequences_pt,
 )
 from beatmap_classifier.classifier_db_setup.beatmap_mods import (
@@ -31,6 +33,7 @@ MODEL_FOLDER = PROJECT_ROOT / "models/full/bagged_models"
 LABEL_ENCODER_PATH = PROJECT_ROOT / "models/full/label_encoder.pkl"
 META_SCALER_PATH = PROJECT_ROOT / "models/full/meta_scaler.pkl"
 META_MODEL_PATH = PROJECT_ROOT / "models/full/meta_model.pkl"
+VECTOR_NORMALIZATION_PATH = PROJECT_ROOT / "models/full/vector_normalization.json"
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -198,6 +201,7 @@ def test_model_on_beatmap_id(
     label_encoder,
     meta_model,
     star_calculator,
+    vector_normalization,
 ):
     print("\n" + "=" * 70)
     print(f"Testing beatmap ID: {beatmap_id}")
@@ -231,6 +235,9 @@ def test_model_on_beatmap_id(
             print("Beatmap contains no usable vectors.")
             return
 
+        # Scale like the training data (see get_data()).
+        beatmap_vectors = normalize_beatmap_vectors(beatmap_vectors, vector_normalization)
+
         difficulty_result = calculate_difficulty(
             temp_file_path,
             mods=[],
@@ -243,9 +250,7 @@ def test_model_on_beatmap_id(
         cnn_probs = predict_cnn(beatmap_vectors, bagged_models)
 
         # Combine metadata + movement features
-        movement_features = extract_movement_features_from_X(
-            np.asarray(beatmap_vectors, dtype=np.float32)
-        )
+        movement_features = extract_movement_features_from_X(beatmap_vectors)
         movement_features = np.asarray(movement_features, dtype=np.float32)
         metadata_features = get_metadata(beatmap_data, difficulty_result)
 
@@ -320,6 +325,7 @@ def main():
     )
 
     star_calculator = VersionAwareOsuCalculator()
+    vector_normalization = load_vector_normalization(VECTOR_NORMALIZATION_PATH)
     elapsed = time.perf_counter() - start
 
     print(f"\nLoaded models in {elapsed:.2f}s")
@@ -344,6 +350,7 @@ def main():
             label_encoder=label_encoder,
             meta_model=meta_model,
             star_calculator=star_calculator,
+            vector_normalization=vector_normalization,
         )
 
 
