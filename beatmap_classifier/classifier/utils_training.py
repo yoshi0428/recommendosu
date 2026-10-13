@@ -1,9 +1,11 @@
 import copy
+import json
 import os
 import sqlite3
 from collections import defaultdict
 
 import matplotlib.pyplot as plt
+import numpy as np
 import torch
 from torch import nn, optim
 from torch.optim.lr_scheduler import CosineAnnealingLR
@@ -339,6 +341,53 @@ def get_tournament_labels(cursor):
     return labels
 
 
+def get_vector_normalization(cursor):
+    """
+    The scales get_data() divides the time_diff and length vector channels by.
+
+    The model learns on these scaled values, so anything that feeds it later
+    (precompute_nm1-5.py, test_model.py) must apply the same scaling. Save
+    them next to the model with save_vector_normalization().
+    """
+    cursor.execute("SELECT MAX(v.time_diff), MAX(v.length) FROM beatmap_vectors v")
+    max_time_diff, max_vector_length = cursor.fetchone()
+
+    return {
+        "max_time_diff": float(max_time_diff),
+        "max_vector_length": float(max_vector_length),
+    }
+
+
+def save_vector_normalization(db_path, output_path):
+    """Save get_data()'s vector scales next to the trained model."""
+    conn = sqlite3.connect(db_path)
+    try:
+        normalization = get_vector_normalization(conn.cursor())
+    finally:
+        conn.close()
+
+    with open(output_path, "w") as f:
+        json.dump(normalization, f, indent=4)
+
+    return normalization
+
+
+def load_vector_normalization(path):
+    with open(path) as f:
+        return json.load(f)
+
+
+def normalize_beatmap_vectors(vectors, normalization):
+    """
+    Scale parsed NM vectors (parse_osu_file()["vectors"]) the same way
+    get_data() scales training vectors. Returns a new float32 array.
+    """
+    vectors = np.array(vectors, dtype=np.float32)
+    vectors[:, 2] /= normalization["max_time_diff"]
+    vectors[:, 3] /= normalization["max_vector_length"]
+    return vectors
+
+
 def get_data(db_path, chunk_size=50000):
     """
     Load beatmaps
@@ -346,13 +395,10 @@ def get_data(db_path, chunk_size=50000):
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
-    cursor.execute("SELECT MAX(v.length) FROM beatmap_vectors v")
-
-    (max_vector_length,) = cursor.fetchone()
+    normalization = get_vector_normalization(cursor)
+    max_vector_length = normalization["max_vector_length"]
+    max_time_diff = normalization["max_time_diff"]
     print(f"Max Vector Length: {max_vector_length}")
-
-    cursor.execute("SELECT MAX(v.time_diff) FROM beatmap_vectors v")
-    (max_time_diff,) = cursor.fetchone()
     print(f"Max Time Diff: {max_time_diff}")
 
     # ========================================================

@@ -159,6 +159,14 @@ def canonicalize_mods(mods):
         return "NM"
 
     # --------------------------------------------------------
+    # NC is DT with pitch-shifted audio, so it counts as DT.
+    # beatmap_variants only stores DT combinations.
+    # --------------------------------------------------------
+    if "NC" in parsed_mods:
+        parsed_mods.discard("NC")
+        parsed_mods.add("DT")
+
+    # --------------------------------------------------------
     # Canonical ordering
     # --------------------------------------------------------
     parsed_mods = sorted(parsed_mods, key=lambda mod: MOD_ORDER.index(mod))
