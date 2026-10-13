@@ -104,6 +104,8 @@ RECOMMENDATION_CONFIG = {
             "classifier": 0.10,
             "pp_potential": 0.25,
         },
+        # Only recommend maps whose pp falls inside the PP push range.
+        "pp_push_filter": True,
         "sort_keys": (
             "final_score",
             "content_similarity",

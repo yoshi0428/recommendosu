@@ -747,6 +747,18 @@ def rank_variants(
         if minimum is not None and maximum is not None and minimum > maximum:
             raise ValueError(f"{name} ({minimum}) cannot be greater than {name.replace('min_', 'max_')} ({maximum})")
 
+    # Goals with pp_push_filter only keep maps inside the PP push range,
+    # narrowed further by any explicit pp filters. Applied after validation
+    # so a user's own min_pp/max_pp are still checked against each other.
+    if config.get("pp_push_filter") and pp_potential_min is not None:
+        min_pp = pp_potential_min if min_pp is None else max(float(min_pp), pp_potential_min)
+        max_pp = pp_potential_max if max_pp is None else min(float(max_pp), pp_potential_max)
+
+        print(f"[rank_variants] PP push filter: {min_pp:.1f} - {max_pp:.1f} PP")
+
+        if min_pp > max_pp:
+            return []
+
     # build_seed_similarity_index() already keeps the best similarity per beatmap.
     candidate_similarity = similarity_index
 

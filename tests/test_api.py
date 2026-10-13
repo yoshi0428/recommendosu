@@ -325,7 +325,13 @@ def test_recommend_end_to_end_with_test_database(logged_in_client, seeded_db, mo
     monkeypatch.setattr(recommender, "connect_memory_db", lambda: sqlite3.connect(seeded_db.path))
     monkeypatch.setattr(recommender, "update_player_scores", lambda conn, api, player_id: None)
 
-    response = post_recommend(logged_in_client, {"goal": "pp_potential"})
+    # The pp_potential goal only keeps maps inside the PP push range. The
+    # default range (mean + 2.5..5 std) is above every seeded candidate, so
+    # widen it to leave something to rank.
+    response = post_recommend(
+        logged_in_client,
+        {"goal": "pp_potential", "pp_push_target_z": 0.0, "pp_push_max_z": 20.0},
+    )
 
     assert response.status_code == 200, response.text
     body = response.json()

@@ -50,6 +50,8 @@ export const DEFAULT_RECOMMENDATION_CONFIG = {
       classifier: 0.1,
       pp_potential: 0.25,
     },
+    // Only recommend maps whose pp falls inside the PP push range.
+    pp_push_filter: true,
     sort_keys: [
       "final_score",
       "content_similarity",

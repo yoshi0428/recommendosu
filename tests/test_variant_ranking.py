@@ -260,6 +260,33 @@ def test_ranking_without_difficulty_profile(seeded_db):
     assert {r["beatmap_id"] for r in ranked} == set(CANDIDATES)
 
 
+def test_pp_potential_goal_keeps_only_the_pp_push_range(seeded_db):
+    # Push range = 500 + [2.5, 5.0] * 20 = [550, 600] pp. Test variants have
+    # pp = 20 * stars**2, so that's roughly 5.24-5.48 stars; the star window
+    # [4.7, 5.7] alone would let more through.
+    profile = {
+        "star_rating_mean": 5.2, "star_rating_std": 0.5,
+        "ar_mean": 9.0, "ar_std": 0.5,
+        "pp_mean": 500.0, "pp_std": 20.0,
+    }
+    balanced = rank(seeded_db.conn, difficulty_profile=profile)
+    pushed = rank(seeded_db.conn, difficulty_profile=profile, recommendation_goal="pp_potential")
+
+    assert pushed, "expected some maps inside the push range"
+    assert len(pushed) < len(balanced)
+    assert all(550 <= r["pp"] <= 600 for r in pushed)
+
+
+def test_pp_push_range_intersects_explicit_pp_filters(seeded_db):
+    profile = {"star_rating_mean": 5.2, "star_rating_std": 0.5, "pp_mean": 500.0, "pp_std": 20.0}
+
+    narrowed = rank(seeded_db.conn, difficulty_profile=profile, recommendation_goal="pp_potential", max_pp=570)
+    assert narrowed and all(550 <= r["pp"] <= 570 for r in narrowed)
+
+    # A pp filter entirely outside the push range leaves nothing.
+    assert rank(seeded_db.conn, difficulty_profile=profile, recommendation_goal="pp_potential", max_pp=500) == []
+
+
 def test_top_k_truncates(seeded_db):
     assert len(rank(seeded_db.conn, top_k=3)) == 3
 
