@@ -78,7 +78,7 @@ function About() {
           </p>
         </div>
 
-        {/* MODS */}
+        {/* TIPS */}
         <div className={`p-4 mb-4 rounded border ${sectionClass}`}>
           <h3 className="mb-3">Tips</h3>
 
@@ -108,8 +108,21 @@ function About() {
             Setting a minimum star rating without setting a maximum star rating will set the maximum star rating to infinity.
           </p>
 
-          <p className="mb-0">
+          <p>
             Setting a maximum star rating without setting a minimum star rating will set the minimum star rating to 0.
+          </p>
+
+          <p>
+            Setting either star rating filter replaces the automatic difficulty
+            threshold based on your demonstrated Star Rating.
+          </p>
+
+          <p className="mb-0">
+            On the Balanced profile, setting a minimum PP without setting any
+            other filters will set the maximum star rating to infinity, so
+            harder maps that reach your PP target can still be recommended. The
+            minimum difficulty threshold still applies. Setting a maximum PP
+            keeps this behavior, but setting any other filter will not.
           </p>
         </div>
 
@@ -251,7 +264,8 @@ function About() {
             <strong>minimum/maximum difficulty threshold</strong> based on your
             demonstrated Star Rating. This prevents content similarity from
             causing recommendations to fall substantially below/above your
-            demonstrated difficulty level.
+            demonstrated difficulty level. Star rating and PP filters can change
+            this threshold (see Tips).
           </p>
         </div>
 

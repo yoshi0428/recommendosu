@@ -252,6 +252,33 @@ def test_explicit_star_filter_overrides_window(seeded_db):
     assert {r["beatmap_id"] for r in ranked} == {"13"}
 
 
+def test_min_pp_alone_on_balanced_lifts_star_ceiling(seeded_db):
+    # Map 13 (9*) sits above the [4.7, 5.7] window. A lone min_pp on the
+    # balanced goal removes the ceiling but keeps the floor, so 14 (1.5*) stays out.
+    ranked = rank(seeded_db.conn, min_pp=100)
+    beatmap_ids = {r["beatmap_id"] for r in ranked}
+
+    assert "13" in beatmap_ids
+    assert "14" not in beatmap_ids
+    assert all(r["star_rating"] >= 4.7 and r["pp"] >= 100 for r in ranked)
+
+
+def test_min_pp_with_max_pp_still_lifts_star_ceiling(seeded_db):
+    # Map 13's 9* variants are worth 20 * 9**2 = 1620 pp.
+    ranked = rank(seeded_db.conn, min_pp=100, max_pp=2000)
+
+    assert "13" in {r["beatmap_id"] for r in ranked}
+    assert all(100 <= r["pp"] <= 2000 for r in ranked)
+
+
+def test_min_pp_with_other_filters_keeps_star_ceiling(seeded_db):
+    with_bpm = rank(seeded_db.conn, min_pp=100, min_bpm=1)
+    assert with_bpm
+    other_goal = rank(seeded_db.conn, min_pp=100, recommendation_goal="pp_potential")
+
+    assert all(r["star_rating"] <= 5.7 for r in with_bpm + other_goal)
+
+
 def test_ranking_without_difficulty_profile(seeded_db):
     # What the ranker receives for a player with no matching plays (see the
     # regression test above). It must still rank, just without a star window.
