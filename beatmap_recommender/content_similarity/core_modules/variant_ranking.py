@@ -700,15 +700,10 @@ def rank_variants(
             min_difficulty_stars = float(min_stars) if min_stars is not None else 0.0
             max_difficulty_stars = float(max_stars) if max_stars is not None else float("inf")
 
-        # A min_pp with almost every other filter left at its default on the balanced
-        # goal means the player is trying to push, so the automatic star
-        # ceiling would hide exactly the maps they're asking for. Lift it and keep the lower bound.
-        other_filters = (
-            min_stars, max_stars,
-            min_bpm, max_bpm, min_ar, max_ar, min_od, max_od,
-            min_length, max_length, min_combo, max_combo,
-            min_cs, max_cs, min_year, max_year,
-        )
+        # A min_pp without star filters on the balanced goal means the player
+        # is trying to push, so the automatic star ceiling would hide exactly
+        # the maps they're asking for. Lift it and keep the lower bound.
+        other_filters = (min_stars, max_stars)
 
         if (
             recommendation_goal == "balanced"

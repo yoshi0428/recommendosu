@@ -118,11 +118,10 @@ function About() {
           </p>
 
           <p className="mb-0">
-            On the Balanced profile, setting a minimum PP without setting any
-            other filters will set the maximum star rating to infinity, so
+            On the Balanced profile, setting a minimum PP without setting a
+            star rating filter will set the maximum star rating to infinity, so
             harder maps that reach your PP target can still be recommended. The
-            minimum difficulty threshold still applies. Setting a maximum PP
-            keeps this behavior, but setting any other filter will not.
+            minimum difficulty threshold still applies.
           </p>
         </div>
 

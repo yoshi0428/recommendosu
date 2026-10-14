@@ -271,12 +271,25 @@ def test_min_pp_with_max_pp_still_lifts_star_ceiling(seeded_db):
     assert all(100 <= r["pp"] <= 2000 for r in ranked)
 
 
-def test_min_pp_with_other_filters_keeps_star_ceiling(seeded_db):
-    with_bpm = rank(seeded_db.conn, min_pp=100, min_bpm=1)
-    assert with_bpm
-    other_goal = rank(seeded_db.conn, min_pp=100, recommendation_goal="pp_potential")
+def test_min_pp_with_non_star_filters_still_lifts_star_ceiling(seeded_db):
+    ranked = rank(seeded_db.conn, min_pp=100, min_bpm=1)
 
-    assert all(r["star_rating"] <= 5.7 for r in with_bpm + other_goal)
+    assert "13" in {r["beatmap_id"] for r in ranked}
+
+
+def test_explicit_max_stars_wins_over_min_pp(seeded_db):
+    stars = [r["star_rating"] for r in rank(seeded_db.conn, min_pp=100, max_stars=7.0)]
+
+    assert stars and max(stars) <= 7.0
+    assert max(stars) > 5.7, "the user's max_stars replaces the automatic ceiling"
+
+
+def test_min_pp_on_other_goal_keeps_star_ceiling(seeded_db):
+    # Same weights as balanced under another name, so only the goal check differs.
+    config = {**RECOMMENDATION_CONFIG, "other": RECOMMENDATION_CONFIG["balanced"]}
+    ranked = rank(seeded_db.conn, min_pp=100, recommendation_goal="other", recommendation_config=config)
+
+    assert ranked and all(r["star_rating"] <= 5.7 for r in ranked)
 
 
 def test_ranking_without_difficulty_profile(seeded_db):
