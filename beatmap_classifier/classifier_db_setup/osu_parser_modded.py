@@ -2,6 +2,7 @@ import hashlib
 import os
 import sqlite3
 from concurrent.futures import ProcessPoolExecutor
+from pathlib import Path
 
 from beatmap_mods import calculate_difficulty
 from db_insertion import (
@@ -21,8 +22,9 @@ from beatmap_recommender.recommender_db_setup.star_calculator import VersionAwar
 # Configuration
 # ============================================================
 
-DATABASE_PATH = "../beatmaps.db"
-ROOT_DIR = "../data"
+CLASSIFIER_DIR = Path(__file__).resolve().parents[1]
+DATABASE_PATH = CLASSIFIER_DIR / "unexpanded_beatmaps.db"
+ROOT_DIR = CLASSIFIER_DIR / "data"
 
 NUM_WORKERS = 8
 BATCH_SIZE = 2500
