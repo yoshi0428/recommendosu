@@ -11,7 +11,7 @@ from torch import nn, optim
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader, TensorDataset
 
-from beatmap_classifier.classifier.cnn_model import CNNModel
+from beatmap_classifier.classifier.cnn_model import CNNModel, compute_input_scale
 
 TOURNAMENT_LABELS = {
     "nm1": {
@@ -138,12 +138,29 @@ def train_and_evaluate(
     batch_size=16,
     epochs=50,
     patience=5,
+    random_flips=True,
 ):
+    """
+    X_train / X_val: [batch, channels, sequence], unaugmented.
+
+    With random_flips, each training batch gets a random horizontal and/or
+    vertical flip (x_diff / y_diff negated). This replaces the 4x copies
+    augment_dataset() made: same augmentations, a quarter of the memory, and
+    a fresh mix every epoch.
+    """
 
     # Determine the device (GPU if available, otherwise CPU)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    model = CNNModel(input_channels, num_classes, max_length, dropout_rate)
+    X_train = torch.as_tensor(X_train, dtype=torch.float32)
+
+    model = CNNModel(
+        input_channels,
+        num_classes,
+        max_length,
+        dropout_rate,
+        input_scale=compute_input_scale(X_train),
+    )
     model.to(device)
 
     # AdamW + Label Smoothing for smooth, regularized optimization
@@ -152,7 +169,7 @@ def train_and_evaluate(
     criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
 
     train_dataset = TensorDataset(
-        torch.as_tensor(X_train, dtype=torch.float32),
+        X_train,
         torch.as_tensor(y_train, dtype=torch.long),
     )
 
@@ -183,7 +200,10 @@ def train_and_evaluate(
         train_loss, train_correct, train_total = 0.0, 0, 0
 
         for inputs, targets in train_loader:
-            inputs, targets = inputs.to(device), targets.to(device)
+            inputs, targets = trim_padding(inputs.to(device)), targets.to(device)
+
+            if random_flips:
+                inputs = random_flip(inputs)
 
             optimizer.zero_grad()
             outputs = model(inputs)
@@ -214,7 +234,7 @@ def train_and_evaluate(
             torch.no_grad()
         ):  # Turn off gradient calculations for speed/memory efficiency
             for inputs, targets in val_loader:
-                inputs, targets = inputs.to(device), targets.to(device)
+                inputs, targets = trim_padding(inputs.to(device)), targets.to(device)
 
                 outputs = model(inputs)
                 loss = criterion(outputs, targets)
@@ -252,6 +272,46 @@ def train_and_evaluate(
         print(f"Restored best model weights with validation loss: {best_val_loss:.4f}")
 
     return model, history
+
+
+def trim_padding(inputs):
+    """
+    Drop trailing all-zero positions shared by the whole batch.
+
+    CNNModel masks padding, so this doesn't change its output; it only skips
+    computing on padding (most maps are ~1000 objects padded to 4096).
+    """
+    nonzero = inputs.abs().sum(dim=(0, 1)) > 0
+    if not nonzero.any():
+        return inputs
+    length = int(nonzero.nonzero().max()) + 1
+    return inputs[:, :, :length]
+
+
+def predict_proba(model, X, device, batch_size=256):
+    """Softmax probabilities for X ([batch, channels, sequence]), in batches."""
+    X = torch.as_tensor(X, dtype=torch.float32)
+    model.eval()
+    probs = []
+
+    with torch.no_grad():
+        for start in range(0, len(X), batch_size):
+            logits = model(trim_padding(X[start : start + batch_size].to(device)))
+            probs.append(torch.softmax(logits, dim=1).cpu())
+
+    return torch.cat(probs).numpy()
+
+
+def random_flip(inputs):
+    """Negate x_diff and/or y_diff per sample. inputs: [batch, channels, sequence]."""
+    batch_size = inputs.shape[0]
+    flip_x = torch.randint(0, 2, (batch_size, 1), device=inputs.device) * 2 - 1
+    flip_y = torch.randint(0, 2, (batch_size, 1), device=inputs.device) * 2 - 1
+
+    inputs = inputs.clone()
+    inputs[:, 0] *= flip_x
+    inputs[:, 1] *= flip_y
+    return inputs
 
 
 def plot_training_history(history):
@@ -377,6 +437,23 @@ def load_vector_normalization(path):
         return json.load(f)
 
 
+def recompute_change_channels(vectors):
+    """
+    Rebuild speed_change (6) and time_diff_change (7) from speed (5) and
+    time_diff (2), in place.
+
+    beatmaps.db stores them as all zeros (parser.py never updated
+    previous_speed / previous_time_diff), so both training and inference
+    derive them here instead of trusting the stored columns. Run it after
+    mod timing and time_diff scaling, so the changes are in those units.
+    """
+    vectors[0, 6] = 0.0
+    vectors[0, 7] = 0.0
+    vectors[1:, 6] = vectors[1:, 5] - vectors[:-1, 5]
+    vectors[1:, 7] = vectors[1:, 2] - vectors[:-1, 2]
+    return vectors
+
+
 def normalize_beatmap_vectors(vectors, normalization):
     """
     Scale parsed NM vectors (parse_osu_file()["vectors"]) the same way
@@ -385,7 +462,7 @@ def normalize_beatmap_vectors(vectors, normalization):
     vectors = np.array(vectors, dtype=np.float32)
     vectors[:, 2] /= normalization["max_time_diff"]
     vectors[:, 3] /= normalization["max_vector_length"]
-    return vectors
+    return recompute_change_channels(vectors)
 
 
 def get_data(db_path, chunk_size=50000):
@@ -500,7 +577,10 @@ def get_data(db_path, chunk_size=50000):
 
     # Convert to aligned lists
     beatmap_ids = list(X.keys())
-    original_X = [X[beatmap_id] for beatmap_id in beatmap_ids]
+    original_X = [
+        recompute_change_channels(np.array(X[beatmap_id], dtype=np.float32))
+        for beatmap_id in beatmap_ids
+    ]
     original_y = [labels[beatmap_id] for beatmap_id in beatmap_ids]
 
     print(f"Original beatmaps: {len(original_X)}")

@@ -1,0 +1,15 @@
+{
+    "group1": {
+        "macro_f1": 0.9005586130004547,
+        "params": {
+            "n_estimators": 550,
+            "learning_rate": 0.024212751874552654,
+            "max_depth": 8,
+            "min_child_weight": 1,
+            "subsample": 0.6614111126885445,
+            "colsample_bytree": 0.655874821874246,
+            "reg_alpha": 0.00017035293119079662,
+            "reg_lambda": 0.18925084496368116
+        }
+    }
+}

@@ -338,6 +338,9 @@ def parse_osu_file(
                 speed_change = speed - previous_speed
                 time_diff_change = time_diff - previous_time_diff
 
+            previous_speed = speed
+            previous_time_diff = time_diff
+
             vectors.append(
                 (
                     x_diff,

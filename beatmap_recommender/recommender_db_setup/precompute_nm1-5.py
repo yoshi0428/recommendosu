@@ -25,7 +25,7 @@ from beatmap_recommender.recommender_db_setup.star_calculator import VersionAwar
 # Configuration
 # ============================================================
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DB_PATH = PROJECT_ROOT / "beatmap_recommender/dummy.db"
+DB_PATH = PROJECT_ROOT / "beatmap_recommender/recommender.db"
 DATA_ROOT = PROJECT_ROOT / "beatmap_recommender/data"
 MODEL_FOLDER = PROJECT_ROOT / "beatmap_classifier/models/full/bagged_models"
 LABEL_ENCODER_PATH = PROJECT_ROOT / "beatmap_classifier/models/full/label_encoder.pkl"
