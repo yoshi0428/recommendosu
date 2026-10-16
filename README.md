@@ -78,13 +78,13 @@ The entry points will be listed below:
 ### Beatmap Classifier
 
 - `/beatmap_classifier/dot_osu_extract/downloader_backoff.py`: Given .txt file of beatmap IDs, downloads .osu files with exponential backoff, via the osu! API v2
-- `/beatmap_classifier/classifier_db_setup/osu_parser_modded.py`: Populates `/beatmap_classifier/beatmaps.db` for the CNN-XGBoost model.
+- `/beatmap_classifier/classifier_db_setup/osu_parser_modded.py`: Populates `/beatmap_classifier/unexpanded_beatmaps.db` for the CNN-XGBoost model.
 - `/beatmap_classifier/train_and_eval.ipynb`: Trains and evaluates the CNN-XGBoost model using a train/val/test split.
 - `/beatmap_classifier/train_full.ipynb`: Trains the CNN-XGBoost model on the full dataset.
 - `/beatmap_classifier/test_model.py`: Can input beatmap IDs and see the prediction probabilities.
 - `/beatmap_classifier/data/extract_osu.py`: Extracts .osu files from directories of .osz archives.
 
-If you do populate `/beatmap_classifier/beatmaps.db` by yourself, 
+If you do populate `/beatmap_classifier/unexpanded_beatmaps.db` by yourself, 
 please run `/beatmap_classifer/view_multicategory_maps.sql` and `/beatmap_classifier/clean_multicategory_maps.sql` in the database browser of your choice.
 I used DB Browser for SQLite while making this project.
 

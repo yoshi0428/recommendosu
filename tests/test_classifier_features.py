@@ -16,14 +16,14 @@ catch it.
 
 How the test works:
   * Training side: run the real get_data() / get_additional_features() on
-    beatmap_classifier/beatmaps.db, exactly like the notebook does.
+    beatmap_classifier/unexpanded_beatmaps.db, exactly like the notebook does.
   * Prediction side: run the real predict_beatmap() from precompute on the
     same map's .osu file, but with fake models that *record* the inputs they
     receive instead of predicting. That captures precisely what the real
     models would be fed.
   * Compare the two, for one tournament map from each of NM1-NM5.
 
-Needs beatmap_classifier/beatmaps.db, beatmap_recommender/dummy.db, the .osu
+Needs beatmap_classifier/unexpanded_beatmaps.db, beatmap_recommender/dummy.db, the .osu
 files in beatmap_recommender/data, torch and osu-tools-py. Marked slow
 (loading the classifier database takes ~6s); run with `pytest -m slow`.
 """
@@ -51,7 +51,7 @@ from beatmap_classifier.classifier.utils_training import (  # noqa: E402
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-CLASSIFIER_DB = PROJECT_ROOT / "beatmap_classifier" / "beatmaps.db"
+CLASSIFIER_DB = PROJECT_ROOT / "beatmap_classifier" / "unexpanded_beatmaps.db"
 RECOMMENDER_DB = PROJECT_ROOT / "beatmap_recommender" / "dummy.db"
 PRECOMPUTE = PROJECT_ROOT / "beatmap_recommender" / "recommender_db_setup" / "precompute_nm1-5.py"
 DATA = PROJECT_ROOT / "beatmap_recommender" / "data"
@@ -60,7 +60,7 @@ pytestmark = [
     pytest.mark.slow,
     pytest.mark.skipif(
         not (CLASSIFIER_DB.exists() and RECOMMENDER_DB.exists()),
-        reason="beatmap_classifier/beatmaps.db or beatmap_recommender/dummy.db not found",
+        reason="beatmap_classifier/unexpanded_beatmaps.db or beatmap_recommender/dummy.db not found",
     ),
 ]
 
@@ -208,10 +208,10 @@ def describe(names, train, pred, mismatched):
 # Tests
 # ---------------------------------------------------------------------------
 def test_saved_vector_normalization_matches_training(precompute):
-    # get_data() computes its scales from beatmaps.db at training time.
+    # get_data() computes its scales from unexpanded_beatmaps.db at training time.
     # The copy saved next to the model must be the same, or precompute
     # scales differently from the data the model learned on. (It would
-    # drift if beatmaps.db changed without retraining and re-saving.)
+    # drift if unexpanded_beatmaps.db changed without retraining and re-saving.)
     with sqlite3.connect(f"{CLASSIFIER_DB.as_uri()}?mode=ro", uri=True) as conn:
         expected = get_vector_normalization(conn.cursor())
 
