@@ -5,6 +5,7 @@ services:
       - .env.production
     volumes:
       - ./beatmap_recommender:/app/beatmap_recommender
+      - ./logs:/app/logs
 
   frontend:
     volumes:

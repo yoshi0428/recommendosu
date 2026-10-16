@@ -4,6 +4,7 @@ import mimetypes
 import os
 import uuid
 from contextlib import asynccontextmanager
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 import httpx
@@ -54,10 +55,38 @@ from beatmap_recommender.database import connect_memory_db, load_memory_db
 from beatmap_recommender.recommender import recommend_player
 from beatmap_recommender.result_cache import get_result_page, store_result
 
+# Logs always go to stdout (`docker compose logs`). Set LOG_FILE to also
+# write them to a file, which rotates at LOG_FILE_MAX_BYTES and keeps
+# LOG_FILE_BACKUPS old files (backend.log.1, backend.log.2, ...).
+LOG_FILE = os.getenv("LOG_FILE")
+LOG_FILE_MAX_BYTES = 10 * 1024 * 1024
+LOG_FILE_BACKUPS = 5
+
+log_handlers = [logging.StreamHandler()]
+
+if LOG_FILE:
+    Path(LOG_FILE).parent.mkdir(parents=True, exist_ok=True)
+    log_handlers.append(
+        RotatingFileHandler(
+            LOG_FILE,
+            maxBytes=LOG_FILE_MAX_BYTES,
+            backupCount=LOG_FILE_BACKUPS,
+            encoding="utf-8",
+        )
+    )
+
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO").upper(),
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    handlers=log_handlers,
 )
+
+# uvicorn's loggers (startup messages, one line per request) don't pass their
+# records on to the root logger, so they need the file handler added directly.
+if LOG_FILE:
+    for name in ("uvicorn", "uvicorn.access"):
+        logging.getLogger(name).addHandler(log_handlers[-1])
+
 logger = logging.getLogger(__name__)
 
 API_PREFIX = "/api/v1"

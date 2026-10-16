@@ -7,6 +7,10 @@ FROM debian:trixie-slim
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PYTHON_JIT=1
+
+# DEBUG also logs the recommendation config and each request's top 10.
+ENV LOG_LEVEL=INFO
+
 ENV UV_PYTHON_INSTALL_DIR=/opt/python
 ENV PATH=/opt/venv/bin:$PATH
 

@@ -236,6 +236,9 @@ Request times are the mean of 3 worst-case runs or 5 typical runs, with the prod
 
 The backend logs through Python's `logging` module. Set `LOG_LEVEL` (default `INFO`) to change how much is logged; `LOG_LEVEL=DEBUG` adds the full recommendation config and the top 10 results of each request.
 
+With Docker compose, the logs (including uvicorn's startup messages and one line per request) are also written to `logs/backend.log` in the repository folder. 
+The file rotates at 10MB and keeps 5 old files (`backend.log.1` to `backend.log.5`). Outside compose, set `LOG_FILE` to a path to get the same file.
+
 # Docker Commands
 
 Some Docker commands to get you started...

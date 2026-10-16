@@ -4,6 +4,7 @@
 .idea
 .vscode
 *.log
+logs/
 
 # large recommender datasets
 beatmap_recommender/data/
