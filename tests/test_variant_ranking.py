@@ -6,6 +6,7 @@ and small *integration tests*, which check that several pieces work together
 (SQL filters + scoring + sorting) against a real, if tiny, SQLite database.
 """
 
+import sqlite3
 import threading
 
 import pytest
@@ -24,6 +25,7 @@ from beatmap_recommender.content_similarity.core_modules.variant_ranking import 
     rank_variants,
     score_variant,
 )
+from beatmap_recommender.content_similarity.core_modules.variant_table import sql_like
 
 # The player created by the `seeded_db` fixture in conftest.py. (Don't import
 # from conftest.py directly; pytest loads it specially, and importing it a
@@ -120,19 +122,59 @@ def test_year_filter(seeded_db):
     assert variant_mods(variants) == {("12", "NM")}
 
 
-def test_full_scan_path_matches_chunked_path(seeded_db, monkeypatch):
-    # Above FULL_SCAN_MIN_CANDIDATES the function switches to a different
-    # query strategy. Production has ~150k maps, so we'd never reach that
-    # branch with test data... unless we lower the threshold. monkeypatch
-    # changes the module constant for this test only.
-    from beatmap_recommender.content_similarity.core_modules import variant_ranking
+# The columns get_candidate_variants returns, as the SQL it replaced selected them.
+CANDIDATE_SELECT = """
+    SELECT variant_id, CAST(beatmap_id AS TEXT), beatmapset_id, mods, hp_drain,
+           circle_size, od, ar, star_rating, max_combo, bpm, length_seconds,
+           object_count, pp, pp_aim, pp_speed, pp_acc, pp_flashlight, status
+    FROM beatmap_variants
+"""
 
-    chunked = get_candidate_variants(seeded_db.conn, CANDIDATES, min_stars=4.0)
-    monkeypatch.setattr(variant_ranking, "FULL_SCAN_MIN_CANDIDATES", 1)
-    full_scan = get_candidate_variants(seeded_db.conn, CANDIDATES, min_stars=4.0)
 
-    assert variant_mods(full_scan) == variant_mods(chunked)
-    assert len(full_scan) > 0
+@pytest.mark.parametrize(
+    "filters, where",
+    [
+        ({}, "1"),
+        ({"min_stars": 4.0, "max_stars": 6.0}, "star_rating >= 4.0 AND star_rating <= 6.0"),
+        ({"requested_mods": {"HD", "DT"}}, "mods IN ('HD', 'DT', 'HDDT')"),
+        ({"excluded_mods": {"DT", "NM"}}, "mods NOT LIKE '%DT%' AND mods != 'NM'"),
+        ({"excluded_mods": {"h_"}}, "mods NOT LIKE '%h_%'"),
+        ({"beatmap_status": "loved", "min_bpm": 1}, "status = 'loved' AND bpm >= 1"),
+        ({"max_pp": 600, "min_year": 2016}, "pp <= 600 AND year >= 2016"),
+        ({"max_combo": 10**9, "min_od": 0}, "max_combo <= 1000000000 AND od >= 0"),
+    ],
+)
+def test_filters_match_sqlite(seeded_db, filters, where):
+    # get_candidate_variants filters numpy columns instead of running SQL.
+    # Compare it against the SQL it replaced: same rows, same order, same
+    # Python types, including NULLs, which never pass a comparison in SQL.
+    conn = seeded_db.conn
+    conn.execute("UPDATE beatmap_variants SET bpm = NULL, pp = NULL, max_combo = NULL WHERE mods = 'HD'")
+
+    expected = conn.execute(
+        f"{CANDIDATE_SELECT} WHERE beatmap_id IN ({', '.join('?' * len(CANDIDATES))}) AND {where} ORDER BY rowid",
+        CANDIDATES,
+    ).fetchall()
+
+    actual = [tuple(variant.values()) for variant in get_candidate_variants(conn, CANDIDATES, **filters)]
+
+    assert actual == expected
+    assert [[type(value) for value in row] for row in actual] == [[type(value) for value in row] for row in expected]
+
+
+@pytest.mark.parametrize("pattern", ["%DT%", "%dt%", "%H_%", "%_%", "%%", "%.%", "%[%"])
+@pytest.mark.parametrize("value", ["NM", "HD", "HDDT", "HDHR", "EZHT", ".", "["])
+def test_sql_like_matches_sqlite(pattern, value):
+    expected = sqlite3.connect(":memory:").execute("SELECT ? LIKE ?", (value, pattern)).fetchone()[0]
+    assert sql_like(pattern, value) == bool(expected)
+
+
+def test_ranked_rows_are_built_the_same_however_they_are_read(seeded_db):
+    ranked = rank(seeded_db.conn)
+
+    assert ranked[:] == list(ranked) == [ranked[i] for i in range(len(ranked))]
+    assert ranked[-1] == ranked[len(ranked) - 1]
+    assert ranked[2:4] == ranked[:][2:4]
 
 
 # ---------------------------------------------------------------------------

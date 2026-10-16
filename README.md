@@ -7,11 +7,12 @@ I've created a Discord server [here!](https://discord.gg/Dh4TzKGGB7)
 This recommender fetches your top/recent plays via your osu! API token, 
 and compares every ranked and loved map (~151,000) against each top/recent play. 
 Each map keeps only its best similarity to any of your plays. 
-Every map is stored as NM plus 19 mod combinations (~3 million variants in total), but your difficulty range and any filters are applied in SQL first, 
+Every map is stored as NM plus 19 mod combinations (~3 million variants in total), but your difficulty range and any filters are applied first, 
 so a typical request scores around 150,000 variants to obtain the top recommendations. 
-The recommender database (~540MB) is loaded into memory at startup, and only newly fetched scores are written back to disk. 
-I have optimized this down to around 2-3 seconds for outputting the top 100,000 recommendations to the frontend (not counting the osu! API fetch). 
-Number of recommendations are currently uncapped in the deployed website, but expect the worst-case query (max_stars = inf, all mod combinations) to take around 1 minute to complete.
+The recommender database (~540MB) is loaded into memory at startup, along with a numpy copy of every variant for fast filtering, and only newly fetched scores are written back to disk. 
+I have optimized a typical request down to around 1 second on the server (not counting the osu! API fetch). 
+Number of recommendations are currently uncapped in the deployed website, and even the worst-case query (max_stars = inf, all mod combinations, ~3 million variants) takes around 3 seconds on the server, or just over 6 seconds in a real browser. 
+The frontend receives the first 1,000 recommendations right away and loads the rest as you scroll. See [Performance](#performance) for how this was measured.
 
 I opted with a content similarity approach, as I found that performing user-user/item-item collaborative filtering is difficult due to the time needed to gather per-country user play data.
 
@@ -185,39 +186,51 @@ The snapshot script freezes the clock, because scores lose weight with age and t
 
 ### Where the time goes
 
-Worst-case request on the PC above, timing `recommend_player_sync` (Python 3.13):
+Worst-case request on the PC above, timing `recommend_player_sync` (Python 3.13). 
+*Original* is the code before any optimization, *numpy scoring* the first round, and *columns* the current code:
 
-| Stage | Before | After |
-|---|---|---|
-| SQLite query | 6.3s | 6.3s |
-| Rows to dicts | 2.2s | 2.2s |
-| Difficulty scores | 1.7s | 1.7s |
-| Score variants | 7.5s | 0.9s |
-| Sort and truncate | 14.0s | 8.5s |
-| **Total** | **~37s** | **~21.5s** |
+| Stage | Original | Numpy scoring | Columns |
+|---|---|---|---|
+| Load and filter candidates (SQLite query, rows to dicts) | 8.5s | 8.5s | 0.05s |
+| Classifier predictions | 0.5s | 0.5s | 0.3s |
+| Difficulty scores | 1.7s | 1.7s | 0.24s |
+| Score variants | 7.5s | 0.9s | 0.3s |
+| Sort and truncate | 14.0s | 8.5s | 1.1s |
+| **Total** | **~37s** | **~21.5s** | **~2.8s** |
 
-Scoring and sorting now use numpy arrays, and the classifier score is calculated once per beatmap instead of once per mod variant. The output is unchanged (checked with `snapshot_recommender.py`). 
-The content similarity (nearest neighbors) step takes ~0.4s. 
-Most of what's left is turning ~3 million SQLite rows into dicts and building ~3 million result dicts, rather than the scoring math itself.
+A typical request (the default settings, ~146k variants) went from ~3.2s to ~1.2s.
+
+- **Scoring** uses numpy arrays, and values that only depend on the beatmap or the mods (content similarity, classifier score, mod preference) are calculated once per distinct value, not once per variant.
+- **Candidates** come from `beatmap_variants` held as numpy columns (`core_modules/variant_table.py`), and the filters are numpy masks instead of SQL. 
+  The table is built once when the server starts (~12s, ~1GB of memory), from the in-memory database; the recommender never writes to `beatmap_variants`. 
+  `tests/test_variant_ranking.py` checks the masks return the same rows, in the same order and with the same Python types, as the SQL they replaced.
+- **Results are only turned into dicts when they're read.** `rank_variants` returns a `VariantRows`, which holds the ranked row numbers and score arrays, and builds dicts for the slice being read. 
+  The result cache stores it as-is, so a page of 1,000 rows takes ~2ms to build, and a cached worst-case result takes ~0.12GB instead of ~6GB of 3 million dicts.
+
+The output is identical to the original code (checked with `snapshot_recommender.py`, including smaller `neighbors_k` values).
 
 ### Python version
 
-The backend runs on Python 3.13, installed with uv in the Dockerfile (see the last point below for why). 
-Python 3.15 was measured in Docker with the backend's Dockerfile, changing only the base image (Python 3.13.16 vs 3.15.0, numpy 2.5.4 in both), 3 worst-case runs each:
+The backend runs on Python 3.15 with the JIT on (`PYTHON_JIT=1`), installed with uv in the Dockerfile, since the official `python:3.15-slim` image doesn't include the JIT. 
+Measured in Docker with the backend's Dockerfile, changing only how Python is installed (Python 3.13.16 and 3.15.0, numpy 2.5.4 in all of them). 
+*Official* is the `python:3.x-slim` image; *uv* is python-build-standalone installed with uv, the only one of these with the 3.15 JIT compiled in. 
+Request times are the mean of 3 worst-case runs or 5 typical runs, with the production site running on the same PC, so differences of ~5% are noise:
 
-| | `python:3.13-slim` | `python:3.15-slim` |
-|---|---|---|
-| Each result freed before the next run | ~23.0s | ~24.3s |
-| Earlier results kept alive, as the result cache does | 23.2s, 23.6s, 23.6s | 25.8s, 31.1s, 34.0s |
-| Typical request (default settings) | 2.70s | 2.77s |
+| | 3.13 official | 3.13 uv | 3.15 official | 3.15 uv | 3.15 uv, JIT on |
+|---|---|---|---|---|---|
+| Worst case, each result freed | 3.07s | 3.11s | 3.09s | 2.93s | 2.97s |
+| Worst case, earlier results kept alive (as the result cache does) | 3.12s | 2.91s | 3.10s | 2.99s | 3.21s |
+| Typical request (default settings) | 1.35s | 1.27s | 1.34s | 1.29s | 1.26s |
+| Building the variant table at startup | 13.0s | 13.0s | 13.0s | 13.4s | 11.3s |
 
-- **3.15 runs Python code ~3% faster**, but its garbage collector takes more time than that saves, and the more objects are alive the longer each collection takes. 
-  The server's result cache keeps each player's latest result (up to millions of rows) for 30 minutes, so in production 3.15 gets slower as results pile up.
-- **The 3.15 JIT isn't available in the official image**: `python:3.15-slim` is built without `--enable-experimental-jit`, so `PYTHON_JIT=1` does nothing there. 
-  In a 3.15 build that has it (installed with uv), turning it on made no measurable difference, since the time is spent creating Python objects and in SQLite, not in Python loops.
-- For the same reason, other compilers (Numba, Cython, PyPy) and rewriting parts in another language won't help much while results are returned as Python dicts.
-- **How Python is built matters more than the version.** The uv builds (python-build-standalone, compiled with Clang) were ~10% faster than the official images for both 3.13 and 3.15 (3.13: ~20.1s vs ~23.0s), 
-  so the Dockerfile installs Python 3.13 with uv on `debian:trixie-slim` instead of using `python:3.13-slim`.
+- **The Python version and the JIT don't change request times** anymore: the remaining work is numpy, which runs the same compiled code under every interpreter. 
+  Garbage collection takes ~0.1s per worst-case request on every version.
+- **The JIT only helps the startup table build** (~13% faster), the one remaining Python-heavy loop, and only once per restart. 
+  It isn't available in the official image either: `python:3.15-slim` is built without `--enable-experimental-jit`, so `PYTHON_JIT=1` does nothing there.
+- **Earlier, 3.15 was slower.** Before the variant table, every request created millions of Python objects and every cached result kept them alive. 
+  3.15's garbage collector took longer the more objects were alive (worst case 23s on 3.13 vs 26s, 31s, then 34s on 3.15 as results piled up), and uv's Clang builds were ~10% faster than the official images. 
+  Neither difference shows up now that results are numpy arrays.
+- Other compilers (Numba, Cython, PyPy) or rewriting parts in another language wouldn't help much either, for the same reason as the JIT.
 
 # Logging
 

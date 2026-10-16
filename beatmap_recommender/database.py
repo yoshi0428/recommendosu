@@ -75,12 +75,25 @@ def load_memory_db(db_path: Path | None = None) -> None:
         logger.info("Loaded %s into memory.", db_path)
 
 
+class SharedMemoryConnection(sqlite3.Connection):
+    """
+    A connection to the shared in-memory database. PRAGMA database_list
+    reports an empty filename for every in-memory database, so the class is
+    what tells this one apart (see is_shared_memory_db).
+    """
+
+
 def connect_memory_db() -> sqlite3.Connection:
     # Falls back to DB_PATH if nothing has been loaded yet.
     if _memory_anchor is None:
         load_memory_db()
 
-    conn = sqlite3.connect(MEMORY_DB_URI, uri=True, timeout=CONNECTION_TIMEOUT)
+    conn = sqlite3.connect(
+        MEMORY_DB_URI,
+        uri=True,
+        timeout=CONNECTION_TIMEOUT,
+        factory=SharedMemoryConnection,
+    )
     conn.execute("PRAGMA foreign_keys=ON")
     return conn
 
@@ -94,6 +107,10 @@ def connect_disk_db() -> sqlite3.Connection:
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
     return conn
+
+
+def is_shared_memory_db(conn: sqlite3.Connection) -> bool:
+    return isinstance(conn, SharedMemoryConnection)
 
 
 def is_memory_db(conn: sqlite3.Connection) -> bool:

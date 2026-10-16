@@ -34,6 +34,7 @@ for name in ("OSU_CLIENT_ID", "OSU_CLIENT_SECRET", "OSU_REDIRECT_URI"):
     os.environ.setdefault(name, "unused")
 
 from beatmap_recommender.api.model import RecommendationSettings
+from beatmap_recommender.content_similarity.core_modules.variant_table import load_variant_table
 from beatmap_recommender.database import load_memory_db
 from beatmap_recommender.recommender import recommend_player_sync
 
@@ -71,6 +72,11 @@ def main():
     start = time.perf_counter()
     load_memory_db(args.db)
     print(f"load_memory_db: {time.perf_counter() - start:.2f}s")
+
+    # The server builds this at startup, so it isn't part of a request.
+    start = time.perf_counter()
+    load_variant_table()
+    print(f"load_variant_table: {time.perf_counter() - start:.2f}s")
 
     settings = RecommendationSettings(
         player_id=args.player_id,

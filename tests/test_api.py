@@ -225,12 +225,6 @@ def test_settings_are_validated(logged_in_client, fake_recommender):
     assert response.status_code == 422
 
 
-def test_rows_without_beatmapset_id_are_dropped(logged_in_client, fake_recommender):
-    fake_recommender["rows"] = [fake_recommendation(1), fake_recommendation(2, beatmapset_id=None)]
-    body = post_recommend(logged_in_client).json()
-    assert [r["beatmap_id"] for r in body["recommendations"]] == ["1"]
-
-
 def test_paging_through_a_result(logged_in_client, fake_recommender):
     post_recommend(logged_in_client)
 

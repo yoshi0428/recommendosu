@@ -48,6 +48,7 @@ from beatmap_recommender.cancellation import (
 from beatmap_recommender.content_similarity.core_modules.score_collector import (
     PlayerNotFoundError,
 )
+from beatmap_recommender.content_similarity.core_modules.variant_table import load_variant_table
 from beatmap_recommender.data_audio.extract_audio import sanitize_filename
 from beatmap_recommender.database import connect_memory_db, load_memory_db
 from beatmap_recommender.recommender import recommend_player
@@ -81,6 +82,7 @@ async def lifespan(app: FastAPI):
     initialize_session_store()
     initialize_state_store()
     load_memory_db()
+    load_variant_table()
 
     if AUDIO_DIR.is_dir():
         for audio_path in AUDIO_DIR.rglob("*"):
@@ -411,21 +413,14 @@ async def recommend_get(
             detail=str(exc),
         )
 
-    # SAFEGUARD
-    # Drop recommendations that do not have a valid beatmapset ID.
-    recommendations = [
-        recommendation
-        for recommendation in recommendations
-        if recommendation.get("beatmapset_id") is not None
-    ]
-
     return {
         "recommendation_id": uuid.uuid4().hex,
         "player_id": settings.player_id,
         "recommendation_goal": settings.goal,
         "total_count": len(recommendations),
         "offset": 0,
-        "recommendations": recommendations,
+        # The recommender builds row dicts on demand; list() builds them all.
+        "recommendations": list(recommendations),
     }
 
 
@@ -498,14 +493,6 @@ async def recommend_post(
 
     finally:
         remove_cancellation_event(recommendation_id)
-
-    # SAFEGUARD
-    # Drop recommendations that do not have a valid beatmapset ID.
-    recommendations = [
-        recommendation
-        for recommendation in recommendations
-        if recommendation.get("beatmapset_id") is not None
-    ]
 
     # The full result stays on the server; the client pages through it.
     await asyncio.to_thread(

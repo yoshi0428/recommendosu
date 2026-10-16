@@ -1,5 +1,6 @@
 import threading
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 # Ranked results can hold millions of variants, so each player keeps at most
@@ -10,10 +11,10 @@ RESULT_TTL_SECONDS = 30 * 60
 @dataclass
 class CachedResult:
     player_id: int
-    columns: list[str]
-    # Rows are stored as tuples instead of dicts; at millions of rows the
-    # per-dict overhead alone would be several GB.
-    rows: list[tuple]
+    # Usually a VariantRows from rank_variants, which only builds the dicts
+    # of the page being read; a result of millions of rows is then a few
+    # numpy arrays rather than millions of dicts.
+    rows: Sequence[dict]
     last_access: float
 
 
@@ -35,14 +36,9 @@ def _evict_expired(now: float) -> None:
 def store_result(
     recommendation_id: str,
     player_id: int,
-    recommendations: list[dict],
+    recommendations: Sequence[dict],
 ) -> None:
     """Cache a ranked result, replacing any earlier result for the player."""
-    columns = list(recommendations[0]) if recommendations else []
-
-    # Every recommendation dict is built the same way, so values() follows columns.
-    rows = [tuple(recommendation.values()) for recommendation in recommendations]
-
     now = time.monotonic()
 
     with _results_lock:
@@ -59,8 +55,7 @@ def store_result(
 
         _results[recommendation_id] = CachedResult(
             player_id=player_id,
-            columns=columns,
-            rows=rows,
+            rows=recommendations,
             last_access=now,
         )
 
@@ -88,8 +83,6 @@ def get_result_page(
             return None
 
         result.last_access = now
-        columns = result.columns
-        total_count = len(result.rows)
-        page_rows = result.rows[offset : offset + limit]
+        rows = result.rows
 
-    return total_count, [dict(zip(columns, row)) for row in page_rows]
+    return len(rows), list(rows[offset : offset + limit])

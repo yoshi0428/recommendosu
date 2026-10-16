@@ -18,14 +18,15 @@ from beatmap_recommender.content_similarity.core_modules.pp_potential import (
     calculate_pp_potential,
     weighted_mean_and_std,
 )
+from beatmap_recommender.content_similarity.core_modules.variant_table import (
+    VariantRows,
+    get_variant_table,
+    sql_like,
+)
 
 logger = logging.getLogger(__name__)
 
 MOD_ORDER = ["EZ", "NF", "HT", "HD", "HR", "DT", "NC", "FL"]
-
-# Above this many candidate beatmaps, get_candidate_variants() scans the
-# whole table instead of looking candidates up in chunks.
-FULL_SCAN_MIN_CANDIDATES = 50_000
 
 # Per-variant scores stored alongside each variant in rank_variants().
 SCORE_FIELDS = (
@@ -306,40 +307,22 @@ def get_candidate_variants(
     max_year=None,
     cancel_event=None,
 ):
-    """Fetch candidate variants and apply SQL-level filters."""
+    """
+    Select candidate variants and apply the request's filters.
+
+    Returns a VariantRows in table (rowid) order. The filters behave like the
+    SQL they replace: NULLs never match, and excluded mods use LIKE '%mod%'.
+    """
     if not beatmap_ids:
         return []
 
-    beatmap_ids = list(beatmap_ids)
-    all_rows = []
-    chunk_size = 900
+    start = time.perf_counter()
+    table = get_variant_table(conn)
+    check_cancelled(cancel_event)
 
-    start_query_time = time.perf_counter()
-
-    columns = [
-        "variant_id",
-        "beatmap_id",
-        "beatmapset_id",
-        "mods",
-        "hp_drain",
-        "circle_size",
-        "od",
-        "ar",
-        "star_rating",
-        "max_combo",
-        "bpm",
-        "length_seconds",
-        "object_count",
-        "pp",
-        "pp_aim",
-        "pp_speed",
-        "pp_acc",
-        "pp_flashlight",
-        "status",
-    ]
-
-    conditions = []
-    params = []
+    allowed_beatmaps = np.zeros(len(table.categories["beatmap_id"]), dtype=bool)
+    allowed_beatmaps[table.codes_of("beatmap_id", beatmap_ids)] = True
+    mask = allowed_beatmaps[table.columns["beatmap_id"]]
 
     # ── Mod filters ────────────────────────────────────────────
     if requested_mods:
@@ -357,145 +340,89 @@ def get_candidate_variants(
 
             valid_variants = ["NM"] if "NM" in requested_mods_set else []
 
-            for mask in range(1, 1 << len(gameplay_mods)):
+            for bits in range(1, 1 << len(gameplay_mods)):
                 combination = [
                     gameplay_mods[index]
                     for index in range(len(gameplay_mods))
-                    if mask & (1 << index)
+                    if bits & (1 << index)
                 ]
                 valid_variants.append("".join(combination))
 
-        mod_placeholders = ",".join("?" for _ in valid_variants)
-        conditions.append(f"bv.mods IN ({mod_placeholders})")
-        params.extend(valid_variants)
+        valid_variants = set(valid_variants)
+    else:
+        valid_variants = None
 
-    if excluded_mods:
+    excluded_mods = list(excluded_mods or [])
+
+    def mods_allowed(mods):
+        if mods is None:
+            return False
+
+        if valid_variants is not None and mods not in valid_variants:
+            return False
+
         for mod in excluded_mods:
-            if mod == "NM":
-                conditions.append("bv.mods != 'NM'")
-            else:
-                conditions.append("bv.mods NOT LIKE ?")
-                params.append(f"%{mod}%")
+            if mod == "NM" and mods == "NM":
+                return False
+
+            if mod != "NM" and sql_like(f"%{mod}%", mods):
+                return False
+
+        return True
+
+    if valid_variants is not None or excluded_mods:
+        mask &= table.category_mask("mods", mods_allowed)[table.columns["mods"]]
 
     # ── Status filter ──────────────────────────────────────────
     if beatmap_status != "all":
-        conditions.append("bv.status = ?")
-        params.append(beatmap_status)
+        mask &= table.category_mask("status", lambda status: status == beatmap_status)[
+            table.columns["status"]
+        ]
 
     # ── Numeric filters ────────────────────────────────────────
     numeric_filters = (
         (
-            "bv.star_rating",
+            "star_rating",
             difficulty_min_stars if difficulty_min_stars is not None else min_stars,
             difficulty_max_stars if difficulty_max_stars is not None else max_stars,
         ),
-        ("bv.bpm", min_bpm, max_bpm),
-        ("bv.pp", min_pp, max_pp),
-        ("bv.ar", min_ar, max_ar),
-        ("bv.od", min_od, max_od),
-        ("bv.length_seconds", min_length, max_length),
-        ("bv.max_combo", min_combo, max_combo),
-        ("bv.circle_size", min_cs, max_cs),
-        ("bv.year", min_year, max_year),
+        ("bpm", min_bpm, max_bpm),
+        ("pp", min_pp, max_pp),
+        ("ar", min_ar, max_ar),
+        ("od", min_od, max_od),
+        ("length_seconds", min_length, max_length),
+        ("max_combo", min_combo, max_combo),
+        ("circle_size", min_cs, max_cs),
+        ("year", min_year, max_year),
     )
 
     for column, minimum, maximum in numeric_filters:
+        values = table.float_columns[column]
+
         if minimum is not None:
-            conditions.append(f"{column} >= ?")
-            params.append(minimum)
+            mask &= values >= minimum
 
         if maximum is not None:
-            conditions.append(f"{column} <= ?")
-            params.append(maximum)
-
-    select_sql = """
-        SELECT
-            bv.variant_id,
-            CAST(bv.beatmap_id AS TEXT),
-            bv.beatmapset_id,
-            bv.mods,
-            bv.hp_drain,
-            bv.circle_size,
-            bv.od,
-            bv.ar,
-            bv.star_rating,
-            bv.max_combo,
-            bv.bpm,
-            bv.length_seconds,
-            bv.object_count,
-            bv.pp,
-            bv.pp_aim,
-            bv.pp_speed,
-            bv.pp_acc,
-            bv.pp_flashlight,
-            bv.status
-        FROM beatmap_variants AS bv
-    """
-
-    if len(beatmap_ids) >= FULL_SCAN_MIN_CANDIDATES:
-        # One table scan is faster than a primary key lookup per beatmap
-        # once the candidates cover a large part of the table.
-        candidate_ids = set(beatmap_ids)
-        where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-        cursor = conn.execute(f"{select_sql} {where}", params)
-
-        while rows := cursor.fetchmany(65536):
-            check_cancelled(cancel_event)
-            all_rows.extend(row for row in rows if row[1] in candidate_ids)
-    else:
-        for i in range(0, len(beatmap_ids), chunk_size):
-            check_cancelled(cancel_event)
-            chunk = beatmap_ids[i : i + chunk_size]
-            placeholders = ",".join("?" for _ in chunk)
-            chunk_conditions = [f"bv.beatmap_id IN ({placeholders})", *conditions]
-
-            rows = conn.execute(
-                f"{select_sql} WHERE {' AND '.join(chunk_conditions)}",
-                [*chunk, *params],
-            ).fetchall()
-            all_rows.extend(rows)
+            mask &= values <= maximum
 
     check_cancelled(cancel_event)
-    logger.info("SQLite query: %.4fs (%d rows)", time.perf_counter() - start_query_time, len(all_rows))
-
-    start_conv_time = time.perf_counter()
-
-    variants = [dict(zip(columns, row)) for row in all_rows]
-
-    check_cancelled(cancel_event)
-    logger.info("Python conversion: %.4fs (%d variants)", time.perf_counter() - start_conv_time, len(variants))
+    variants = VariantRows(table, np.flatnonzero(mask))
+    logger.info("Candidate filters: %.4fs (%d variants)", time.perf_counter() - start, len(variants))
     return variants
 
 
-def fetch_beatmap_metadata(conn, beatmap_ids):
-    """Fetch beatmap string metadata for final selected candidates."""
-    if not beatmap_ids:
-        return {}
+def _feature_values(variants, feature):
+    """One feature of every variant as float32, NaN where it's missing."""
+    if isinstance(variants, VariantRows):
+        return variants.float_column(feature).astype(np.float32)
 
-    metadata = {}
-    chunk_size = 900
-    beatmap_ids = list(beatmap_ids)
-
-    for i in range(0, len(beatmap_ids), chunk_size):
-        chunk = beatmap_ids[i : i + chunk_size]
-        placeholders = ",".join("?" for _ in chunk)
-        rows = conn.execute(
-            f"""
-            SELECT CAST(beatmap_id AS TEXT), title, artist, creator, version
-            FROM beatmaps
-            WHERE beatmap_id IN ({placeholders})
-            """,
-            chunk,
-        ).fetchall()
-        for b_id, title, artist, creator, version in rows:
-            metadata[b_id] = {
-                "title": title,
-                "artist": artist,
-                "creator": creator,
-                "version": version,
-            }
-
-    return metadata
+    return np.asarray(
+        [
+            float(variant[feature]) if variant.get(feature) is not None else np.nan
+            for variant in variants
+        ],
+        dtype=np.float32,
+    )
 
 
 def calculate_difficulty_scores(
@@ -545,13 +472,7 @@ def calculate_difficulty_scores(
 
         std = max(std, difficulty_std_floors[feature])
 
-        values = np.asarray(
-            [
-                float(variant[feature]) if variant.get(feature) is not None else np.nan
-                for variant in variants
-            ],
-            dtype=np.float32,
-        )
+        values = _feature_values(variants, feature)
 
         check_cancelled(cancel_event)
 
@@ -820,7 +741,7 @@ def rank_variants(
     if not variants:
         return []
 
-    # get_candidate_variants() now applies the hard difficulty range directly in SQL, so no Python-side star filtering is necessary.
+    # get_candidate_variants() already applies the hard difficulty range, so no further star filtering is necessary.
     eligible_count = len(variants)
 
     if min_difficulty_stars is not None:
@@ -843,7 +764,10 @@ def rank_variants(
 
     if classifier_weight > 0 and category_preferences:
         # Deduplicate because a beatmap can have multiple candidate variants.
-        classifier_beatmap_ids = list({variant["beatmap_id"] for variant in variants})
+        beatmap_categories = variants.table.categories["beatmap_id"]
+        classifier_beatmap_ids = [
+            beatmap_categories[code] for code in np.unique(variants.codes("beatmap_id")).tolist()
+        ]
 
         classifier_predictions = get_candidate_classifier_predictions(
             conn, classifier_beatmap_ids
@@ -870,18 +794,20 @@ def rank_variants(
     # ── Score variants ─────────────────────────────────────────
     # Scores are numpy arrays rather than per-variant Python floats, since
     # the worst case (no star bounds, every mod) scores ~3 million variants.
+    # Per-beatmap and per-mods values are looked up once per distinct value,
+    # then spread to the variants through their codes.
     start = time.perf_counter()
+    categories = variants.table.categories
+    beatmap_codes = variants.codes("beatmap_id")
 
-    content_scores = np.fromiter(
-        (candidate_similarity[variant["beatmap_id"]] for variant in variants),
+    content_scores = np.array(
+        [candidate_similarity.get(beatmap_id, np.nan) for beatmap_id in categories["beatmap_id"]],
         dtype=np.float64,
-        count=eligible_count,
-    )
-    mod_scores = np.fromiter(
-        (mod_preferences.get(variant["mods"], 0.0) for variant in variants),
+    )[beatmap_codes]
+    mod_scores = np.array(
+        [mod_preferences.get(mods, 0.0) for mods in categories["mods"]],
         dtype=np.float64,
-        count=eligible_count,
-    )
+    )[variants.codes("mods")]
     difficulty_scores = difficulty_scores.astype(np.float64)
 
     check_cancelled(cancel_event)
@@ -893,11 +819,10 @@ def rank_variants(
             beatmap_id: calculate_classifier_score(probabilities, category_preferences)
             for beatmap_id, probabilities in classifier_predictions.items()
         }
-        classifier_scores = np.fromiter(
-            (beatmap_classifier_scores.get(variant["beatmap_id"], 0.0) for variant in variants),
+        classifier_scores = np.array(
+            [beatmap_classifier_scores.get(beatmap_id, 0.0) for beatmap_id in categories["beatmap_id"]],
             dtype=np.float64,
-            count=eligible_count,
-        )
+        )[beatmap_codes]
     else:
         classifier_scores = np.zeros(eligible_count)
 
@@ -957,7 +882,7 @@ def rank_variants(
     sort_arrays = [
         score_arrays[key]
         if key in score_arrays
-        else np.asarray([variant[key] for variant in variants], dtype=np.float64)
+        else variants.float_column(key)
         for key in config["sort_keys"]
     ]
 
@@ -971,22 +896,14 @@ def rank_variants(
 
     check_cancelled(cancel_event)
 
-    winners = [variants[index] for index in order.tolist()]
-    winner_scores = [score_arrays[field][order].tolist() for field in SCORE_FIELDS]
-
-    # Fetch beatmap string metadata only for top_k maps
-    winning_beatmap_ids = {variant["beatmap_id"] for variant in winners}
-    metadata_map = fetch_beatmap_metadata(conn, winning_beatmap_ids)
-
-    # Each variant dict is only referenced once, so it is extended in place
-    # instead of copied; key order matches {**variant, scores, metadata}.
-    for variant, *scores in zip(winners, *winner_scores):
-        b_meta = metadata_map.get(variant["beatmap_id"], {})
-        variant.update(zip(SCORE_FIELDS, scores))
-        variant["title"] = b_meta.get("title")
-        variant["artist"] = b_meta.get("artist")
-        variant["creator"] = b_meta.get("creator")
-        variant["version"] = b_meta.get("version")
+    # Rows only become dicts (variant columns, then SCORE_FIELDS, then
+    # title/artist/creator/version) when a page of them is read.
+    winners = VariantRows(
+        variants.table,
+        variants.rows[order],
+        extra_columns={field: score_arrays[field][order] for field in SCORE_FIELDS},
+        with_metadata=True,
+    )
 
     logger.info("Sort and truncate: %.4fs (%d results)", time.perf_counter() - start, len(winners))
     logger.info("TOTAL: %.4fs", time.perf_counter() - total_start)

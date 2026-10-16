@@ -66,11 +66,18 @@ class FrozenDatetime(datetime):
 
 
 def hash_rows(rows):
-    normalized = [
-        tuple((key, float(value) if isinstance(value, float) else value) for key, value in row.items())
-        for row in rows
-    ]
-    return hashlib.sha256(pickle.dumps(normalized)).hexdigest()
+    # repr rather than pickle: pickle encodes a repeated object (such as one
+    # shared "HDDT" string) differently from equal copies of it. repr of a
+    # float is exact, so equal hashes still mean identical values.
+    digest = hashlib.sha256()
+
+    for row in rows:
+        normalized = tuple(
+            (key, float(value) if isinstance(value, float) else value) for key, value in row.items()
+        )
+        digest.update(repr(normalized).encode())
+
+    return digest.hexdigest()
 
 
 def save(path, db_path, player_id):
