@@ -1,5 +1,9 @@
+import logging
+
 import numpy as np
 from tqdm import tqdm
+
+logger = logging.getLogger(__name__)
 
 # Upper bound on seed x candidate distances held in memory per batch
 # (float64, so 8_000_000 is about 64MB).
@@ -157,6 +161,8 @@ def calculate_seed_similarity(
         range(0, n_seeds, batch_size),
         desc="Calculating seed similarities",
         unit="batch",
+        # Hidden when stderr isn't a terminal, e.g. in the server container.
+        disable=None,
     ):
         batch_seeds = seed_matrix[start : start + batch_size]
 
@@ -197,10 +203,10 @@ def build_seed_similarity_index(
 ):
     seed_beatmap_ids, seed_matrix = get_player_seed_maps(conn, player_id)
     if len(seed_beatmap_ids) == 0:
-        print(f"Player {player_id}: no NM seed maps found.")
+        logger.info("Player %s: no NM seed maps found.", player_id)
         return {}
 
-    print(f"Player {player_id}: {len(seed_beatmap_ids):,} seed maps.")
+    logger.info("Player %s: %s seed maps.", player_id, f"{len(seed_beatmap_ids):,}")
 
     # excludes already played beatmaps within your scores, if True
     if exclude_already_played:
@@ -213,10 +219,10 @@ def build_seed_similarity_index(
         )
 
     if len(candidate_beatmap_ids) == 0:
-        print("No unplayed NM candidate maps remain.")
+        logger.info("No unplayed NM candidate maps remain.")
         return {}
 
-    print(f"\nNM candidate pool ({status or 'all'}): {len(candidate_beatmap_ids):,} maps.\n")
+    logger.info("NM candidate pool (%s): %s maps.", status or "all", f"{len(candidate_beatmap_ids):,}")
 
     return calculate_seed_similarity(
         seed_beatmap_ids=seed_beatmap_ids,

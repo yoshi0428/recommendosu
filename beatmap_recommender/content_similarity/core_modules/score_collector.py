@@ -1,6 +1,10 @@
+import logging
+
 from beatmap_recommender.api.osu_api_client import OsuAPINotFoundError
 from beatmap_recommender.database import connect_disk_db, is_memory_db
 from beatmap_recommender.recommender_db_setup.db_insertion import insert_score
+
+logger = logging.getLogger(__name__)
 
 # The most scores osu! returns from one /users/{id}/scores/* request.
 API_PAGE_SIZE = 100
@@ -138,8 +142,10 @@ def store_player_scores(conn, top_scores, recent_scores):
         ).fetchone()
 
         if exists is None:
-            print(
-                f"Skipping score {normalized['score_id']}: beatmap {normalized['beatmap_id']} not found in beatmaps.db"
+            logger.debug(
+                "Skipping score %s: beatmap %s not found in beatmaps",
+                normalized["score_id"],
+                normalized["beatmap_id"],
             )
             skipped += 1
             continue
@@ -160,7 +166,7 @@ def store_player_scores(conn, top_scores, recent_scores):
         for normalized in to_insert:
             insert_score(conn, normalized)
 
-    print(f"Stored: {stored}, Skipped: {skipped}")
+    logger.info("Stored: %d, Skipped: %d", stored, skipped)
     return stored
 
 
@@ -177,7 +183,11 @@ def update_player_scores(conn, api, player_id, limit=200):
 
     top_scores, recent_scores = fetch_player_scores(api, player_id, limit=limit)
     stored = store_player_scores(conn, top_scores, recent_scores)
-    print(
-        f"Player {player_id}: {len(top_scores)} top scores, {len(recent_scores)} recent scores, {stored} records processed."
+    logger.info(
+        "Player %s: %d top scores, %d recent scores, %d records processed.",
+        player_id,
+        len(top_scores),
+        len(recent_scores),
+        stored,
     )
     return stored

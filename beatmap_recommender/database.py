@@ -1,7 +1,10 @@
+import logging
 import os
 import sqlite3
 import threading
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -69,7 +72,7 @@ def load_memory_db(db_path: Path | None = None) -> None:
 
         _memory_anchor = anchor
         _memory_source_path = db_path
-        print(f"Loaded {db_path} into memory.")
+        logger.info("Loaded %s into memory.", db_path)
 
 
 def connect_memory_db() -> sqlite3.Connection:

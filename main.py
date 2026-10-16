@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import mimetypes
 import os
 import uuid
@@ -25,6 +26,8 @@ from beatmap_recommender.auth.oauth_state import (
     store_state,
 )
 from beatmap_recommender.auth.osu_oauth import (
+    OSU_CLIENT_ID,
+    OSU_REDIRECT_URI,
     build_authorization_url,
     exchange_code_for_token,
     generate_state,
@@ -50,6 +53,12 @@ from beatmap_recommender.database import connect_memory_db, load_memory_db
 from beatmap_recommender.recommender import recommend_player
 from beatmap_recommender.result_cache import get_result_page, store_result
 
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logger = logging.getLogger(__name__)
+
 API_PREFIX = "/api/v1"
 
 # Rows returned per request by POST /recommend and the page endpoint; full
@@ -67,6 +76,7 @@ AUDIO_INDEX = {}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger.info("OAuth client ID: %r, redirect URI: %r", OSU_CLIENT_ID, OSU_REDIRECT_URI)
     initialize_token_store()
     initialize_session_store()
     initialize_state_store()
@@ -694,35 +704,34 @@ async def osu_callback(
     error: str | None = None,
 ):
     if error:
-        print("OAUTH CALLBACK ERROR:", repr(error))
+        logger.warning("OAuth callback error: %r", error)
         raise HTTPException(
             status_code=400,
             detail=f"osu! authorization failed: {error}",
         )
 
     if not code:
-        print("OAUTH CALLBACK: missing code")
+        logger.warning("OAuth callback: missing code")
         raise HTTPException(
             status_code=400,
             detail="Missing authorization code.",
         )
 
     if not state:
-        print("OAUTH CALLBACK: missing state")
+        logger.warning("OAuth callback: missing state")
         raise HTTPException(
             status_code=400,
             detail="Missing OAuth state.",
         )
 
     if not consume_state(state):
-        print("OAUTH CALLBACK: invalid or expired state")
+        logger.warning("OAuth callback: invalid or expired state")
         raise HTTPException(
             status_code=400,
             detail="Invalid or expired OAuth state.",
         )
 
-    print("OAUTH CALLBACK: state accepted")
-    print("OAUTH CALLBACK: exchanging authorization code")
+    logger.debug("OAuth callback: state accepted, exchanging authorization code")
 
     try:
         token_data = await exchange_code_for_token(code)

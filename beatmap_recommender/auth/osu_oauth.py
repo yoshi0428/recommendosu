@@ -1,3 +1,4 @@
+import logging
 import os
 import secrets
 import time
@@ -8,6 +9,8 @@ import httpx
 from dotenv import load_dotenv
 
 from beatmap_recommender.auth.token_store import get_tokens, update_tokens
+
+logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 load_dotenv(PROJECT_ROOT / ".env")
@@ -31,12 +34,6 @@ OSU_AUTHORIZE_URL = "https://osu.ppy.sh/oauth/authorize"
 OSU_TOKEN_URL = "https://osu.ppy.sh/oauth/token"
 
 OSU_SCOPES = "public identify"
-
-
-print("CLIENT ID:", repr(OSU_CLIENT_ID))
-print("CLIENT SECRET SET:", bool(OSU_CLIENT_SECRET))
-print("CLIENT SECRET LENGTH:", len(OSU_CLIENT_SECRET or ""))
-print("REDIRECT URI:", repr(OSU_REDIRECT_URI))
 
 
 def generate_state() -> str:
@@ -70,12 +67,12 @@ async def exchange_code_for_token(code: str) -> dict:
         "redirect_uri": OSU_REDIRECT_URI,
     }
 
-    print("TOKEN REQUEST:")
-    print("  client_id:", repr(OSU_CLIENT_ID))
-    print("  client_secret length:", len(OSU_CLIENT_SECRET or ""))
-    print("  code length:", len(code))
-    print("  grant_type:", repr(payload["grant_type"]))
-    print("  redirect_uri:", repr(OSU_REDIRECT_URI))
+    logger.debug(
+        "Token request: client_id=%r, code length=%d, redirect_uri=%r",
+        OSU_CLIENT_ID,
+        len(code),
+        OSU_REDIRECT_URI,
+    )
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(
@@ -87,8 +84,11 @@ async def exchange_code_for_token(code: str) -> dict:
             },
         )
 
-        print("TOKEN RESPONSE STATUS:", response.status_code)
-        print("TOKEN RESPONSE:", response.text)
+        # A successful response body holds the user's tokens, so only
+        # failed responses are logged.
+        if response.is_error:
+            logger.error("Token request failed (%d): %s", response.status_code, response.text)
+
         response.raise_for_status()
         return response.json()
 

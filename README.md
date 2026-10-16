@@ -95,6 +95,7 @@ I used DB Browser for SQLite while making this project.
 - `/beatmap_recommender/content_similarity/test_recommender.py`: You can run this to see what the recommendations would look like. If you're running this from the CLI, this is the command (`PYTHONPATH=. python beatmap_recommender/content_similarity/test_recommender.py
 `)
 - `/beatmap_recommender/recommender.py`: The recommender for the backend. You can tweak some of the global variables if desired.
+- `/beatmap_recommender/benchmarks/profile_recommender.py` and `/beatmap_recommender/benchmarks/snapshot_recommender.py`: Time/profile the recommender, and check that a change doesn't alter its output. See [Performance](#performance).
 
 If there is one file I would choose to really understand, it's `/beatmap_recommender/content_similarity/core_modules/variant_ranking.py`.
 
@@ -157,6 +158,70 @@ Writing the tests also turned up real bugs, which were then fixed:
 - A crash when a player had no matching plays.
 - NC scores being dropped instead of counted as DT.
 - The frontend's filter labels not being linked to their number boxes in the HTML (so clicking a label didn't select its box, and screen readers couldn't tell the 16 boxes apart).
+
+# Performance
+
+Two scripts in `/beatmap_recommender/benchmarks/` run the recommender offline, using the scores already stored for a player (no osu! API calls). 
+Both load `beatmap_recommender/recommender.local.db` into memory read-only by default (`--db` to change it, `--player-id` for another player).
+
+```
+### per-stage timings of the worst case (no star bounds, every mod combination: ~3 million variants)
+PYTHONPATH=. python beatmap_recommender/benchmarks/profile_recommender.py
+
+### the same request under cProfile, or a typical request (the default settings) instead
+PYTHONPATH=. python beatmap_recommender/benchmarks/profile_recommender.py --cprofile
+PYTHONPATH=. python beatmap_recommender/benchmarks/profile_recommender.py --typical
+
+### check that a change leaves every recommendation exactly the same
+git stash
+PYTHONPATH=. python beatmap_recommender/benchmarks/snapshot_recommender.py save before.pkl
+git stash pop
+PYTHONPATH=. python beatmap_recommender/benchmarks/snapshot_recommender.py save after.pkl
+PYTHONPATH=. python beatmap_recommender/benchmarks/snapshot_recommender.py compare before.pkl after.pkl
+```
+
+cProfile slows down code that makes millions of small calls, so use it to find where the time goes, and the plain timings to measure it. 
+The snapshot script freezes the clock, because scores lose weight with age and two runs minutes apart would otherwise score slightly differently.
+
+### Where the time goes
+
+Worst-case request on the PC above, timing `recommend_player_sync` (Python 3.13):
+
+| Stage | Before | After |
+|---|---|---|
+| SQLite query | 6.3s | 6.3s |
+| Rows to dicts | 2.2s | 2.2s |
+| Difficulty scores | 1.7s | 1.7s |
+| Score variants | 7.5s | 0.9s |
+| Sort and truncate | 14.0s | 8.5s |
+| **Total** | **~37s** | **~21.5s** |
+
+Scoring and sorting now use numpy arrays, and the classifier score is calculated once per beatmap instead of once per mod variant. The output is unchanged (checked with `snapshot_recommender.py`). 
+The content similarity (nearest neighbors) step takes ~0.4s. 
+Most of what's left is turning ~3 million SQLite rows into dicts and building ~3 million result dicts, rather than the scoring math itself.
+
+### Python version
+
+The backend runs on Python 3.13, installed with uv in the Dockerfile (see the last point below for why). 
+Python 3.15 was measured in Docker with the backend's Dockerfile, changing only the base image (Python 3.13.16 vs 3.15.0, numpy 2.5.4 in both), 3 worst-case runs each:
+
+| | `python:3.13-slim` | `python:3.15-slim` |
+|---|---|---|
+| Each result freed before the next run | ~23.0s | ~24.3s |
+| Earlier results kept alive, as the result cache does | 23.2s, 23.6s, 23.6s | 25.8s, 31.1s, 34.0s |
+| Typical request (default settings) | 2.70s | 2.77s |
+
+- **3.15 runs Python code ~3% faster**, but its garbage collector takes more time than that saves, and the more objects are alive the longer each collection takes. 
+  The server's result cache keeps each player's latest result (up to millions of rows) for 30 minutes, so in production 3.15 gets slower as results pile up.
+- **The 3.15 JIT isn't available in the official image**: `python:3.15-slim` is built without `--enable-experimental-jit`, so `PYTHON_JIT=1` does nothing there. 
+  In a 3.15 build that has it (installed with uv), turning it on made no measurable difference, since the time is spent creating Python objects and in SQLite, not in Python loops.
+- For the same reason, other compilers (Numba, Cython, PyPy) and rewriting parts in another language won't help much while results are returned as Python dicts.
+- **How Python is built matters more than the version.** The uv builds (python-build-standalone, compiled with Clang) were ~10% faster than the official images for both 3.13 and 3.15 (3.13: ~20.1s vs ~23.0s), 
+  so the Dockerfile installs Python 3.13 with uv on `debian:trixie-slim` instead of using `python:3.13-slim`.
+
+# Logging
+
+The backend logs through Python's `logging` module. Set `LOG_LEVEL` (default `INFO`) to change how much is logged; `LOG_LEVEL=DEBUG` adds the full recommendation config and the top 10 results of each request.
 
 # Docker Commands
 

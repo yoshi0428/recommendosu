@@ -7,24 +7,31 @@
 
 # large recommender datasets
 beatmap_recommender/data/
-beatmap_recommender/data_audio/
+beatmap_recommender/data_audio/Loved
+beatmap_recommender/data_audio/Ranked
 beatmap_recommender/item_item_filtering/
+**/*.osu
+
+# The classifier's predictions are precomputed into the recommender database;
+# only the offline precompute_nm1-5.py imports beatmap_classifier.
+beatmap_classifier/
 
 # unused directories
 osdb_parse
 _plans
 
-# local databases
-*.db
-*.db-shm
-*.db-wal
-*.sqlite
-*.sqlite3
+# local databases (they're mounted at runtime, and auth.db holds user tokens)
+# Patterns without **/ only match at the top level of the build context.
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/*.sqlite
+**/*.sqlite3
 
 # python caches / environments
-__pycache__/
-*.py[cod]
-.pytest_cache/
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
 .mypy_cache/
 .venv/
 venv/

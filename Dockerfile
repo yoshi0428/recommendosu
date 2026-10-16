@@ -1,13 +1,28 @@
-FROM python:3.13-slim
-
-WORKDIR /app
+# Python is installed with uv (python-build-standalone builds) rather than
+# using python:3.13-slim; the recommender runs ~10% faster on these builds.
+# See "Python version" in the README.
+FROM debian:trixie-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV UV_PYTHON_INSTALL_DIR=/opt/python
+ENV PATH=/opt/venv/bin:$PATH
+
+# python:3.13-slim includes these; osu! API requests need the CA certificates.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates tzdata \
+    && rm -rf /var/lib/apt/lists/*
+
+# uv is mounted only while these steps run, so it isn't kept in the image.
+RUN --mount=from=ghcr.io/astral-sh/uv:0.13.1,source=/uv,target=/usr/local/bin/uv \
+    uv python install 3.13 && uv venv --python 3.13 /opt/venv
+
+WORKDIR /app
 
 COPY requirements.txt .
 
-RUN pip install --no-cache-dir -r requirements.txt
+RUN --mount=from=ghcr.io/astral-sh/uv:0.13.1,source=/uv,target=/usr/local/bin/uv \
+    uv pip install --no-cache --python /opt/venv/bin/python -r requirements.txt
 
 COPY . .
 

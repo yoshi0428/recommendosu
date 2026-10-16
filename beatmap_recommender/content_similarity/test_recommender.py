@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 from beatmap_recommender.content_similarity.core_modules.cnn_xgboost_influence import (
@@ -400,4 +401,5 @@ def main():
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(name)s: %(message)s")
     main()

@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 import threading
 import time
@@ -26,6 +27,8 @@ from beatmap_recommender.content_similarity.core_modules.variant_ranking import 
     rank_variants,
 )
 from beatmap_recommender.database import connect_memory_db
+
+logger = logging.getLogger(__name__)
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
@@ -120,9 +123,9 @@ def recommend_player_sync(
     goal_config = recommendation_config[settings.goal]
     classifier_weight = goal_config["weights"]["classifier"]
 
-    print(f"[recommend_player_sync] Recommendation config: {recommendation_config}")
-    print(f"[recommend_player_sync] Goal config: {goal_config}")
-    print(f"[recommend_player_sync] Classifier weight: {classifier_weight}")
+    logger.debug("Recommendation config: %s", recommendation_config)
+    logger.debug("Goal config: %s", goal_config)
+    logger.debug("Classifier weight: %s", classifier_weight)
 
     requested_mods = (
         {mod.strip().upper() for mod in settings.mods} if settings.mods else None
@@ -150,8 +153,8 @@ def recommend_player_sync(
         check_cancelled(cancel_event)
 
         # ── Content similarity ────────────────────────────────
-        print(f"ALREADY PLAYED: {settings.exclude_already_played}")
-        print(settings.similarity_feature_weights)
+        logger.debug("Exclude already played: %s", settings.exclude_already_played)
+        logger.debug("Similarity feature weights: %s", settings.similarity_feature_weights)
 
         similarity_index = build_seed_similarity_index(
             conn,
@@ -180,13 +183,14 @@ def recommend_player_sync(
         mod_preferences = dict(preferred_mods)
         check_cancelled(cancel_event)
 
-        print(f"\nPlayer {settings.player_id} mod preferences:")
-
-        for mods, preference in preferred_mods:
-            print(f"  {mods}: {preference:.3f}")
+        logger.info(
+            "Player %s mod preferences: %s",
+            settings.player_id,
+            ", ".join(f"{mods}={preference:.3f}" for mods, preference in preferred_mods),
+        )
 
         # ── Difficulty profile ────────────────────────────────
-        print(f"\nEXCLUDE RECENT PLAYS: {settings.exclude_recent_plays}")
+        logger.debug("Exclude recent plays: %s", settings.exclude_recent_plays)
         difficulty_profile = get_player_difficulty_profiles(
             conn,
             player_id=settings.player_id,
@@ -199,14 +203,16 @@ def recommend_player_sync(
         )
 
         check_cancelled(cancel_event)
-        print(f"\nPlayer {settings.player_id} difficulty profile:")
-
-        for feature in ("star_rating", "ar", "od", "bpm", "pp"):
-            mean = difficulty_profile.get(f"{feature}_mean")
-            std = difficulty_profile.get(f"{feature}_std")
-
-            if mean is not None and std is not None:
-                print(f"  {feature}: mean={mean:.3f}, std={std:.3f}")
+        logger.info(
+            "Player %s difficulty profile: %s",
+            settings.player_id,
+            ", ".join(
+                f"{feature}={difficulty_profile[f'{feature}_mean']:.3f}±{difficulty_profile[f'{feature}_std']:.3f}"
+                for feature in ("star_rating", "ar", "od", "bpm", "pp")
+                if difficulty_profile.get(f"{feature}_mean") is not None
+                and difficulty_profile.get(f"{feature}_std") is not None
+            ),
+        )
 
         # ── Classifier preferences ─────────────────────────────
         category_preferences = get_player_category_preferences(
@@ -218,9 +224,14 @@ def recommend_player_sync(
             ability_pp_weight=settings.ability_pp_weight,
         )
 
-        print()
-        for label, probability in category_preferences.items():
-            print(f"{label}: {float(probability) * 100:.2f}%")
+        logger.info(
+            "Player %s category preferences: %s",
+            settings.player_id,
+            ", ".join(
+                f"{label}={float(probability) * 100:.2f}%"
+                for label, probability in category_preferences.items()
+            ),
+        )
 
         check_cancelled(cancel_event)
 
@@ -269,13 +280,17 @@ def recommend_player_sync(
         check_cancelled(cancel_event)
 
         # ── Output ─────────────────────────────────────────────
-        print(f"\nRecommendation goal: {settings.goal}")
-        print(f"\nTop {len(ranked_variants)} recommendations (cut to 10):")
+        logger.info(
+            "Player %s: %d recommendations (goal=%s)",
+            settings.player_id,
+            len(ranked_variants),
+            settings.goal,
+        )
 
         top_variants = ranked_variants[:10]
 
         for i, variant in enumerate(top_variants, 1):
-            print(
+            logger.debug(
                 f"{i:2d}. "
                 f"beatmap={variant['beatmap_id']}, "
                 f"set={variant['beatmapset_id']}, "

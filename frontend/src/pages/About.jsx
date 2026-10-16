@@ -407,6 +407,8 @@ function About() {
           <img
             src="GoT80k9H6Gd1x.gif"
             alt="quagsire"
+            // 2MB, at the bottom of the page: only load it when scrolled near.
+            loading="lazy"
             className="img-fluid d-block mx-auto"
             style={{ maxWidth: "400px" }}
           />

@@ -18,6 +18,9 @@ services:
       - --reload
 
   frontend:
+    # The final stage only serves the built files; the dev server needs Node.
+    build:
+      target: build
     volumes:
       - ./frontend:/app
       - /app/node_modules

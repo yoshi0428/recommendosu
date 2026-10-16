@@ -1,7 +1,10 @@
+import logging
 import random
 import time
 
 import requests
+
+logger = logging.getLogger(__name__)
 
 API_BASE = "https://osu.ppy.sh/api/v2"
 
@@ -76,7 +79,7 @@ class OsuAPIClient:
                     raise
 
                 delay = BACKOFF_BASE**attempt + random.uniform(0, 1)
-                print(f"Request error: {exc}. Retrying in {delay:.2f}s...")
+                logger.warning("Request error: %s. Retrying in %.2fs...", exc, delay)
                 time.sleep(delay)
                 continue
 
@@ -92,7 +95,7 @@ class OsuAPIClient:
                 else:
                     delay = BACKOFF_BASE**attempt + random.uniform(0, 1)
 
-                print(f"Rate limited. Waiting {delay:.2f}s...")
+                logger.warning("Rate limited. Waiting %.2fs...", delay)
                 time.sleep(delay)
                 continue
 
@@ -102,9 +105,7 @@ class OsuAPIClient:
                     response.raise_for_status()
 
                 delay = BACKOFF_BASE**attempt + random.uniform(0, 1)
-                print(
-                    f"Server error {response.status_code}. Retrying in {delay:.2f}s..."
-                )
+                logger.warning("Server error %d. Retrying in %.2fs...", response.status_code, delay)
                 time.sleep(delay)
                 continue
 

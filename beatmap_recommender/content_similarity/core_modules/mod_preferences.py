@@ -1,5 +1,8 @@
+import logging
 import math
 from collections import defaultdict
+
+logger = logging.getLogger(__name__)
 
 """
 
@@ -289,9 +292,7 @@ def get_player_mod_preferences(conn, player_id, top_weight, recent_weight, pp_we
         try:
             mods = canonicalize_mods(mods)
         except ValueError:
-            print(
-                f"Warning: ignoring unsupported mod combination {mods!r} for player {player_id}"
-            )
+            logger.warning("Ignoring unsupported mod combination %r for player %s", mods, player_id)
             continue
 
         weight = get_score_weight(source, pp, top_weight, recent_weight, pp_weight)

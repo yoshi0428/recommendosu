@@ -1,4 +1,4 @@
-import heapq
+import logging
 import time
 
 import numpy as np
@@ -18,6 +18,8 @@ from beatmap_recommender.content_similarity.core_modules.pp_potential import (
     calculate_pp_potential,
     weighted_mean_and_std,
 )
+
+logger = logging.getLogger(__name__)
 
 MOD_ORDER = ["EZ", "NF", "HT", "HD", "HR", "DT", "NC", "FL"]
 
@@ -263,7 +265,7 @@ def get_player_difficulty_profiles(
 
             mean, std = weighted_mean_and_std(values, weights)
             if feature == "pp":
-                print(f"[difficulty_profile] Global Profile --- PP: mean={mean:.2f}, std={std:.2f}")
+                logger.info("Global profile PP: mean=%.2f, std=%.2f", mean, std)
 
             profile[f"{feature}_mean"] = mean
             profile[f"{feature}_std"] = std
@@ -454,14 +456,14 @@ def get_candidate_variants(
             all_rows.extend(rows)
 
     check_cancelled(cancel_event)
-    print(f"[get_candidate_variants] SQLite query: {time.perf_counter() - start_query_time:.4f}s ({len(all_rows)} rows)")
+    logger.info("SQLite query: %.4fs (%d rows)", time.perf_counter() - start_query_time, len(all_rows))
 
     start_conv_time = time.perf_counter()
 
     variants = [dict(zip(columns, row)) for row in all_rows]
 
     check_cancelled(cancel_event)
-    print(f"[get_candidate_variants] Python conversion: {time.perf_counter() - start_conv_time:.4f}s ({len(variants)} variants)")
+    logger.info("Python conversion: %.4fs (%d variants)", time.perf_counter() - start_conv_time, len(variants))
     return variants
 
 
@@ -735,11 +737,14 @@ def rank_variants(
         pp_potential_min = pp_mean + pp_push_target_z * pp_std
         pp_potential_max = pp_mean + pp_push_max_z * pp_std
 
-        print(
-            f"\n[rank_variants] PP potential range: "
-            f"{pp_potential_min:.1f} - {pp_potential_max:.1f} PP "
-            f"(z={pp_push_target_z:.2f} to {pp_push_max_z:.2f}, "
-            f"mean={pp_mean:.1f}, std={pp_std:.1f})"
+        logger.info(
+            "PP potential range: %.1f - %.1f PP (z=%.2f to %.2f, mean=%.1f, std=%.1f)",
+            pp_potential_min,
+            pp_potential_max,
+            pp_push_target_z,
+            pp_push_max_z,
+            pp_mean,
+            pp_std,
         )
 
     # ── Validate filters ───────────────────────────────────────
@@ -766,7 +771,7 @@ def rank_variants(
         min_pp = pp_potential_min if min_pp is None else max(float(min_pp), pp_potential_min)
         max_pp = pp_potential_max if max_pp is None else min(float(max_pp), pp_potential_max)
 
-        print(f"[rank_variants] PP push filter: {min_pp:.1f} - {max_pp:.1f} PP")
+        logger.info("PP push filter: %.1f - %.1f PP", min_pp, max_pp)
 
         if min_pp > max_pp:
             return []
@@ -811,7 +816,7 @@ def rank_variants(
     )
 
     check_cancelled(cancel_event)
-    print(f"[rank_variants] Load candidate variants: {time.perf_counter() - start:.4f}s ({len(variants)} variants)")
+    logger.info("Load candidate variants: %.4fs (%d variants)", time.perf_counter() - start, len(variants))
     if not variants:
         return []
 
@@ -819,17 +824,17 @@ def rank_variants(
     eligible_count = len(variants)
 
     if min_difficulty_stars is not None:
-        print(
-            f"[rank_variants] Difficulty star range: "
-            f"{min_difficulty_stars:.2f}★ - "
-            f"{max_difficulty_stars:.2f}★ "
-            f"(mean={star_mean:.2f}★, "
-            f"std={star_std:.2f}, "
-            f"multiplier={difficulty_star_std_multiplier:.2f}) "
-            f"({eligible_count} variants)"
+        logger.info(
+            "Difficulty star range: %.2f★ - %.2f★ (mean=%.2f★, std=%.2f, multiplier=%.2f) (%d variants)",
+            min_difficulty_stars,
+            max_difficulty_stars,
+            star_mean,
+            star_std,
+            difficulty_star_std_multiplier,
+            eligible_count,
         )
     else:
-        print("[rank_variants] Difficulty star floor: disabled (no player star-rating profile)")
+        logger.info("Difficulty star floor: disabled (no player star-rating profile)")
 
     # ── Classifier predictions ─────────────────────────────────
     check_cancelled(cancel_event)
@@ -846,7 +851,7 @@ def rank_variants(
 
     check_cancelled(cancel_event)
 
-    print(f"[rank_variants] Classifier predictions: {time.perf_counter() - start:.4f}s ({len(classifier_predictions)} predictions)")
+    logger.info("Classifier predictions: %.4fs (%d predictions)", time.perf_counter() - start, len(classifier_predictions))
 
     # ── Difficulty scores ──────────────────────────────────────
     # The current ranker uses the global difficulty profile. Therefore, there is no reason to split variants by mod.
@@ -860,33 +865,52 @@ def rank_variants(
     )
 
     check_cancelled(cancel_event)
-    print(f"[rank_variants] Difficulty scores: {time.perf_counter() - start:.4f}s ({eligible_count} variants)")
+    logger.info("Difficulty scores: %.4fs (%d variants)", time.perf_counter() - start, eligible_count)
 
     # ── Score variants ─────────────────────────────────────────
+    # Scores are numpy arrays rather than per-variant Python floats, since
+    # the worst case (no star bounds, every mod) scores ~3 million variants.
     start = time.perf_counter()
-    scored_variants = []
 
-    for index, variant in enumerate(variants):
-        if index % 1024 == 0:
-            check_cancelled(cancel_event)
+    content_scores = np.fromiter(
+        (candidate_similarity[variant["beatmap_id"]] for variant in variants),
+        dtype=np.float64,
+        count=eligible_count,
+    )
+    mod_scores = np.fromiter(
+        (mod_preferences.get(variant["mods"], 0.0) for variant in variants),
+        dtype=np.float64,
+        count=eligible_count,
+    )
+    difficulty_scores = difficulty_scores.astype(np.float64)
 
-        beatmap_id = variant["beatmap_id"]
-        mods = variant["mods"]
+    check_cancelled(cancel_event)
 
-        content_similarity = candidate_similarity[beatmap_id]
-        mod_preference = mod_preferences.get(mods, 0.0)
-        difficulty_score = float(difficulty_scores[index])
+    if category_preferences:
+        # The classifier score only depends on the beatmap, so calculate it
+        # once per beatmap instead of once per mod variant.
+        beatmap_classifier_scores = {
+            beatmap_id: calculate_classifier_score(probabilities, category_preferences)
+            for beatmap_id, probabilities in classifier_predictions.items()
+        }
+        classifier_scores = np.fromiter(
+            (beatmap_classifier_scores.get(variant["beatmap_id"], 0.0) for variant in variants),
+            dtype=np.float64,
+            count=eligible_count,
+        )
+    else:
+        classifier_scores = np.zeros(eligible_count)
 
-        if category_preferences:
-            probabilities = classifier_predictions.get(beatmap_id)
-            classifier_score = calculate_classifier_score(
-                probabilities, category_preferences
-            )
-        else:
-            classifier_score = 0.0
+    check_cancelled(cancel_event)
 
-        if pp_potential_weight > 0:
-            pp_potential = calculate_pp_potential(
+    pp_potential_scores = np.zeros(eligible_count)
+
+    if pp_potential_weight > 0:
+        for index, variant in enumerate(variants):
+            if index % 1024 == 0:
+                check_cancelled(cancel_event)
+
+            pp_potential_scores[index] = calculate_pp_potential(
                 variant,
                 difficulty_profile,
                 difficulty_std_floors,
@@ -898,79 +922,72 @@ def rank_variants(
                 pp_min=pp_potential_min,
                 pp_max=pp_potential_max,
             )
-        else:
-            pp_potential = 0.0
 
-        final_score = (
-            w_content * content_similarity
-            + w_mod * mod_preference
-            + w_diff * difficulty_score
-            + w_class * classifier_score
-            + w_pp * pp_potential
-        )
-
-        scored_variants.append(
-            (
-                variant,
-                content_similarity,
-                mod_preference,
-                difficulty_score,
-                classifier_score,
-                pp_potential,
-                final_score,
-            )
-        )
+    # Same left-to-right float64 arithmetic as score_variant().
+    final_scores = (
+        w_content * content_scores
+        + w_mod * mod_scores
+        + w_diff * difficulty_scores
+        + w_class * classifier_scores
+        + w_pp * pp_potential_scores
+    )
 
     check_cancelled(cancel_event)
 
-    print(f"[rank_variants] Score variants: {time.perf_counter() - start:.4f}s ({len(scored_variants)} variants)")
+    logger.info("Score variants: %.4fs (%d variants)", time.perf_counter() - start, eligible_count)
 
     # ── Sort and truncate ──────────────────────────────────────
     check_cancelled(cancel_event)
     start = time.perf_counter()
 
-    # scored_variants entries are (variant, *SCORE_FIELDS) tuples.
-    score_positions = {field: index for index, field in enumerate(SCORE_FIELDS, 1)}
-    sort_getters = [
-        (score_positions[key], None) if key in score_positions else (0, key)
+    score_arrays = dict(
+        zip(
+            SCORE_FIELDS,
+            (
+                content_scores,
+                mod_scores,
+                difficulty_scores,
+                classifier_scores,
+                pp_potential_scores,
+                final_scores,
+            ),
+        )
+    )
+
+    sort_arrays = [
+        score_arrays[key]
+        if key in score_arrays
+        else np.asarray([variant[key] for variant in variants], dtype=np.float64)
         for key in config["sort_keys"]
     ]
 
-    def sort_key(entry):
-        return tuple(
-            entry[position] if key is None else entry[0][key]
-            for position, key in sort_getters
-        )
+    # lexsort is stable and ascending with its last key as the primary key,
+    # so negated keys in reverse give the same order as
+    # sorted(..., key=sort_keys, reverse=True).
+    order = np.lexsort([-array for array in reversed(sort_arrays)])
 
-    if top_k is None:
-        winners = sorted(scored_variants, key=sort_key, reverse=True)
-    else:
-        # Same order as sorted(..., reverse=True)[:top_k], without sorting everything.
-        winners = heapq.nlargest(top_k, scored_variants, key=sort_key)
+    if top_k is not None:
+        order = order[:top_k]
 
     check_cancelled(cancel_event)
 
-    ranked_candidates = [
-        {**entry[0], **dict(zip(SCORE_FIELDS, entry[1:]))} for entry in winners
-    ]
+    winners = [variants[index] for index in order.tolist()]
+    winner_scores = [score_arrays[field][order].tolist() for field in SCORE_FIELDS]
 
     # Fetch beatmap string metadata only for top_k maps
-    winning_beatmap_ids = {v["beatmap_id"] for v in ranked_candidates}
+    winning_beatmap_ids = {variant["beatmap_id"] for variant in winners}
     metadata_map = fetch_beatmap_metadata(conn, winning_beatmap_ids)
 
-    ranked = []
-    for variant in ranked_candidates:
+    # Each variant dict is only referenced once, so it is extended in place
+    # instead of copied; key order matches {**variant, scores, metadata}.
+    for variant, *scores in zip(winners, *winner_scores):
         b_meta = metadata_map.get(variant["beatmap_id"], {})
-        ranked.append(
-            {
-                **variant,
-                "title": b_meta.get("title"),
-                "artist": b_meta.get("artist"),
-                "creator": b_meta.get("creator"),
-                "version": b_meta.get("version"),
-            }
-        )
+        variant.update(zip(SCORE_FIELDS, scores))
+        variant["title"] = b_meta.get("title")
+        variant["artist"] = b_meta.get("artist")
+        variant["creator"] = b_meta.get("creator")
+        variant["version"] = b_meta.get("version")
 
-    print(f"[rank_variants] Sort and truncate: {time.perf_counter() - start:.4f}s ({len(ranked)} results)")
-    print(f"[rank_variants] TOTAL: {time.perf_counter() - total_start:.4f}s")
-    return ranked
+    logger.info("Sort and truncate: %.4fs (%d results)", time.perf_counter() - start, len(winners))
+    logger.info("TOTAL: %.4fs", time.perf_counter() - total_start)
+    return winners
