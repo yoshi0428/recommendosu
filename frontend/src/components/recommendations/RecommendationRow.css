@@ -34,9 +34,10 @@
   display: none;
 }
 
-/* Phones: drop the stat columns and show the stats under the title instead,
-   so nothing sits off-screen to the right. */
-@media (max-width: 767.98px) {
+/* Phones and narrow windows (below ~900px, where the 850px-wide table
+   would scroll sideways): drop the stat columns and show the stats under
+   the title instead, so nothing sits off-screen to the right. */
+@media (max-width: 899.98px) {
   .recommendation-table {
     min-width: 0;
   }
