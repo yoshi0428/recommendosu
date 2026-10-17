@@ -5,9 +5,6 @@ services:
       dockerfile: Dockerfile
     env_file:
       - .env
-    environment:
-      # Also written to ./logs (see compose.local.yml / compose.production.yml).
-      LOG_FILE: /app/logs/backend.log
     expose:
       - "8000"
     restart: unless-stopped

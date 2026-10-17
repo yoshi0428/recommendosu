@@ -41,7 +41,14 @@ function RecommendationSettingsModal({
         Advanced
       </Button>
 
-      <Modal show={show} onHide={handleClose} size="xl" scrollable centered>
+      <Modal
+        show={show}
+        onHide={handleClose}
+        size="xl"
+        fullscreen="sm-down"
+        scrollable
+        centered
+      >
         <Modal.Header closeButton>
           <Modal.Title>Recommendation Settings</Modal.Title>
         </Modal.Header>
@@ -67,7 +74,7 @@ function RecommendationSettingsModal({
               <Button
                 variant="secondary"
                 onClick={handleClose}
-                style={{ minWidth: "160px" }}
+                style={{ minWidth: "min(160px, 40vw)" }}
               >
                 Close
               </Button>
@@ -75,7 +82,7 @@ function RecommendationSettingsModal({
               <Button
                 variant="outline-danger"
                 onClick={handleCancelLoading}
-                style={{ minWidth: "160px" }}
+                style={{ minWidth: "min(160px, 40vw)" }}
               >
                 Cancel Request
               </Button>
@@ -85,7 +92,7 @@ function RecommendationSettingsModal({
               <Button
                 variant="secondary"
                 onClick={handleClose}
-                style={{ minWidth: "160px" }}
+                style={{ minWidth: "min(160px, 40vw)" }}
               >
                 Close
               </Button>
@@ -93,7 +100,7 @@ function RecommendationSettingsModal({
               <Button
                 variant="primary"
                 onClick={handleRun}
-                style={{ minWidth: "160px" }}
+                style={{ minWidth: "min(160px, 40vw)" }}
               >
                 Run Recommender
               </Button>

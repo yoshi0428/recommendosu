@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { Form, Button } from "react-bootstrap";
 import { Link } from "react-router-dom";
+import { ChevronUp, Funnel } from "react-bootstrap-icons";
 import useTheme from "../hooks/useTheme";
 import "./SiteHeader.css";
 
@@ -38,6 +40,9 @@ function SiteHeader({
   logout,
 }) {
   const { theme, toggleTheme } = useTheme();
+  // Phones only: the quick filters and nav buttons are hidden behind a toggle
+  // so the results get most of the screen. Larger screens always show them.
+  const [controlsOpen, setControlsOpen] = useState(false);
   const currentMods = settings?.mods ?? [];
   const excludedMods = settings?.excluded_mods ?? [];
   const exactMods = settings?.exact_mods ?? false;
@@ -111,16 +116,21 @@ function SiteHeader({
     if (loading) {
       onCancelRecommendations?.();
     } else {
+      setControlsOpen(false);
       onRunRecommendations?.();
     }
   };
 
   return (
-    <header className="border-bottom py-2">
+    <header
+      className={`site-header border-bottom py-2${
+        controlsOpen ? " controls-open" : ""
+      }`}
+    >
       <div className="container-fluid px-3 px-md-4">
         <div className="row align-items-center g-2">
           {/* Left side: Coffee button */}
-          <div className="col-12 col-lg-2 d-flex justify-content-center justify-content-lg-start">
+          <div className="site-header-collapsible col-12 col-lg-2 order-last order-lg-first d-flex justify-content-center justify-content-lg-start">
             <a
               href="https://buymeacoffee.com/recommendosu"
               target="_blank"
@@ -138,7 +148,9 @@ function SiteHeader({
           {/* Center section */}
           <div className="col-12 col-lg-8">
             <div className="quick-mods d-flex flex-column align-items-center gap-2 text-center">
-              <h1 className="mb-0 fs-4">osu! Beatmap Recommender</h1>
+              <h1 className="mb-0 fs-4 site-header-title">
+                osu! Beatmap Recommender
+              </h1>
 
               <Form
                 onSubmit={handleSubmit}
@@ -154,7 +166,7 @@ function SiteHeader({
                 "
               >
                 {/* Stars Quick Filter */}
-                <div className="d-flex align-items-center gap-1">
+                <div className="site-header-collapsible d-flex align-items-center gap-1">
                   <span className="fw-semibold">Stars:</span>
 
                   <Form.Control
@@ -163,6 +175,7 @@ function SiteHeader({
                     placeholder="Min"
                     value={settings.min_stars ?? ""}
                     step="0.1"
+                    inputMode="decimal"
                     style={{ width: "60px" }}
                     onChange={(e) =>
                       handleNumberChange("min_stars", e.target.value)
@@ -177,6 +190,7 @@ function SiteHeader({
                     placeholder="Max"
                     value={settings.max_stars ?? ""}
                     step="0.1"
+                    inputMode="decimal"
                     style={{ width: "60px" }}
                     onChange={(e) =>
                       handleNumberChange("max_stars", e.target.value)
@@ -185,7 +199,7 @@ function SiteHeader({
                 </div>
 
                 {/* BPM Quick Filter */}
-                <div className="d-flex align-items-center gap-1">
+                <div className="site-header-collapsible d-flex align-items-center gap-1">
                   <span className="fw-semibold">BPM:</span>
 
                   <Form.Control
@@ -194,6 +208,7 @@ function SiteHeader({
                     placeholder="Min"
                     value={settings.min_bpm ?? ""}
                     step="1"
+                    inputMode="numeric"
                     style={{ width: "60px" }}
                     onChange={(e) =>
                       handleNumberChange("min_bpm", e.target.value)
@@ -208,6 +223,7 @@ function SiteHeader({
                     placeholder="Max"
                     value={settings.max_bpm ?? ""}
                     step="1"
+                    inputMode="numeric"
                     style={{ width: "60px" }}
                     onChange={(e) =>
                       handleNumberChange("max_bpm", e.target.value)
@@ -216,7 +232,7 @@ function SiteHeader({
                 </div>
 
                 {/* PP Quick Filter */}
-                <div className="d-flex align-items-center gap-1">
+                <div className="site-header-collapsible d-flex align-items-center gap-1">
                   <span className="fw-semibold">PP:</span>
 
                   <Form.Control
@@ -225,6 +241,7 @@ function SiteHeader({
                     placeholder="Min"
                     value={settings.min_pp ?? ""}
                     step="1"
+                    inputMode="numeric"
                     style={{ width: "65px" }}
                     onChange={(e) =>
                       handleNumberChange("min_pp", e.target.value)
@@ -239,6 +256,7 @@ function SiteHeader({
                     placeholder="Max"
                     value={settings.max_pp ?? ""}
                     step="1"
+                    inputMode="numeric"
                     style={{ width: "65px" }}
                     onChange={(e) =>
                       handleNumberChange("max_pp", e.target.value)
@@ -247,7 +265,7 @@ function SiteHeader({
                 </div>
 
                 {/* Quick Mod Checkboxes */}
-                <div className="d-flex flex-wrap align-items-center gap-2 ps-3">
+                <div className="site-header-collapsible site-header-mods d-flex flex-wrap align-items-center gap-2 ps-3">
                   {INDIVIDUAL_MODS.map((mod) => {
                     const isRequired = currentMods.includes(mod);
                     const isExcluded = excludedMods.includes(mod);
@@ -278,7 +296,7 @@ function SiteHeader({
                 </div>
 
                 {/* Run / Advanced Settings */}
-                <div className="d-flex align-items-center gap-2 flex-nowrap">
+                <div className="site-header-actions d-flex align-items-center gap-2 flex-nowrap">
                   {loading ? (
                     <Button
                       type="button"
@@ -299,13 +317,25 @@ function SiteHeader({
                   )}
 
                   {advancedSettingsButton}
+
+                  <Button
+                    type="button"
+                    variant={controlsOpen ? "secondary" : "outline-secondary"}
+                    size="sm"
+                    className="site-header-toggle d-inline-flex align-items-center gap-1"
+                    onClick={() => setControlsOpen((open) => !open)}
+                    aria-expanded={controlsOpen}
+                  >
+                    {controlsOpen ? <ChevronUp /> : <Funnel />}
+                    Filters
+                  </Button>
                 </div>
               </Form>
             </div>
           </div>
 
           {/* Right side */}
-          <div className="col-12 col-lg-2">
+          <div className="site-header-collapsible col-12 col-lg-2">
             <div className="d-flex align-items-center justify-content-center justify-content-lg-end gap-2">
               {rightActions}
 

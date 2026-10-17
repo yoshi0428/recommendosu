@@ -4,6 +4,27 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/x-icon" href="/public/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      // iOS zooms in when focusing an input with text under 16px. maximum-scale
+      // stops that, and iOS still allows pinch-zoom. Android would block
+      // pinch-zoom entirely, so this is only applied on iOS (iPadOS reports
+      // itself as a Mac, hence the touch check).
+      //
+      // The "ios" class lets CSS hide controls iOS ignores, such as the
+      // audio preview volume (pages can't set volume there).
+      if (
+        /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+      ) {
+        document.documentElement.classList.add("ios");
+        document
+          .querySelector('meta[name="viewport"]')
+          .setAttribute(
+            "content",
+            "width=device-width, initial-scale=1.0, maximum-scale=1"
+          );
+      }
+    </script>
     <title>recommendosu</title>
     <meta property="og:site_name" content="recommendosu" />
     <meta property="og:title" content="recommendosu" />

@@ -1,21 +1,7 @@
-[data-bs-theme="light"] {
-  --audio-preview-bg-color: #e4e5f1;
-  --audio-preview-border-color: #4f46e5;
-  --audio-preview-text-color: #212529;
-  --audio-preview-secondary-color: #4b5563;
-}
-
-[data-bs-theme="dark"] {
-  --audio-preview-bg-color: #212529;
-  --audio-preview-border-color: #818cf8;
-  --audio-preview-text-color: #f8f9fa;
-  --audio-preview-secondary-color: #9ca3af;
-}
-
 /* Title colours follow osu!'s ranked (green) and loved (pink) statuses,
    tuned to stay readable (WCAG AA) on each theme's table background. */
 [data-bs-theme="light"] {
-  --status-ranked-color: #2e7d32;
+  --status-ranked-color: #276a2b;
   --status-loved-color: #c2185b;
 }
 
@@ -32,30 +18,52 @@
   color: var(--status-loved-color);
 }
 
-[data-bs-theme="light"] .audio-preview-range {
-  --audio-preview-range-border: #9ca3af;
+/* Wide enough for every stat column; the scroll container handles
+   horizontal scrolling when zoomed in. */
+.recommendation-table {
+  width: 100%;
+  min-width: 850px;
 }
 
-[data-bs-theme="dark"] .audio-preview-range {
-  --audio-preview-range-border: #6c757d;
+.recommendation-cover {
+  width: 104px;
+  height: 58px;
 }
 
-.audio-preview-range::-webkit-slider-runnable-track {
-  border-radius: 999px;
-  box-shadow: inset 0 0 0 1px var(--audio-preview-range-border);
+.recommendation-mobile-stats {
+  display: none;
 }
 
-.audio-preview-range::-moz-range-track {
-  border-radius: 999px;
-  box-shadow: inset 0 0 0 1px var(--audio-preview-range-border);
-}
-
-@media (max-width: 576px) {
-  .audio-preview-time {
-    width: 52px !important;
+/* Phones: drop the stat columns and show the stats under the title instead,
+   so nothing sits off-screen to the right. */
+@media (max-width: 767.98px) {
+  .recommendation-table {
+    min-width: 0;
   }
 
-  .audio-preview-duration {
+  .recommendation-table thead,
+  .recommendation-stat {
     display: none;
+  }
+
+  .recommendation-cover {
+    width: 88px;
+    height: 49px;
+  }
+
+  .recommendation-mobile-stats {
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: 0.6rem;
+    row-gap: 0.1rem;
+    margin-top: 0.15rem;
+    line-height: 1.3;
+  }
+}
+
+/* Touch screens can't hover, so always show the play button on covers. */
+@media (hover: none) {
+  .recommendation-cover-overlay {
+    opacity: 1 !important;
   }
 }

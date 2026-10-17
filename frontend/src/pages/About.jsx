@@ -9,14 +9,14 @@ function About() {
   const sectionClass =
     theme === "dark"
       ? "bg-secondary bg-opacity-10 border-secondary"
-      : "bg-white border-light-subtle";
+      : "app-surface";
 
   return (
     <div
       className={
         theme === "dark"
           ? "bg-dark text-light min-vh-100"
-          : "bg-light text-dark min-vh-100"
+          : "bg-body text-body min-vh-100"
       }
     >
       <Container className="py-5">
@@ -105,11 +105,13 @@ function About() {
           <hr className="my-4" />
 
           <p>
-            Setting a minimum star rating without setting a maximum star rating will set the maximum star rating to infinity.
+            Setting a minimum star rating without setting a maximum star rating
+            will set the maximum star rating to infinity.
           </p>
 
           <p>
-            Setting a maximum star rating without setting a minimum star rating will set the minimum star rating to 0.
+            Setting a maximum star rating without setting a minimum star rating
+            will set the minimum star rating to 0.
           </p>
 
           <p>
@@ -118,8 +120,8 @@ function About() {
           </p>
 
           <p className="mb-0">
-            On the Balanced profile, setting a minimum PP without setting a
-            star rating filter will set the maximum star rating to infinity, so
+            On the Balanced profile, setting a minimum PP without setting a star
+            rating filter will set the maximum star rating to infinity, so
             harder maps that reach your PP target can still be recommended. The
             minimum difficulty threshold still applies.
           </p>

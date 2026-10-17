@@ -42,7 +42,7 @@ describe("CandidateFilters", () => {
     const { user, latest } = renderFilters();
 
     await user.type(screen.getByLabelText("Minimum Stars"), "5.5");
-    await user.type(screen.getByLabelText("Max Length (s)"), "180");
+    await user.type(screen.getByLabelText("Max Length"), "180");
 
     expect(latest.settings.min_stars).toBe(5.5);
     expect(latest.settings.max_length).toBe(180);
@@ -76,8 +76,8 @@ describe("CandidateFilters", () => {
       "Maximum AR": "max_ar",
       "Minimum OD": "min_od",
       "Maximum OD": "max_od",
-      "Min Length (s)": "min_length",
-      "Max Length (s)": "max_length",
+      "Min Length": "min_length",
+      "Max Length": "max_length",
       "Min Combo": "min_combo",
       "Max Combo": "max_combo",
     };

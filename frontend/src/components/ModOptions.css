@@ -1,0 +1,23 @@
+/* The mods share the row evenly, wrapping when each would get less than
+   3.1rem (NM HD HR DT EZ / HT FL on phones). The row is capped at about 5rem
+   per mod, so on wide screens they're spread out a little, not across the
+   whole card. */
+.mod-options-checks {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(3.1rem, 1fr));
+  max-width: 38rem;
+  row-gap: 0.5rem !important;
+  column-gap: 0.5rem !important;
+}
+
+.mod-options-checks .form-check-inline {
+  margin-right: 0;
+}
+
+/* Smaller labels while the settings modal is at most 800px wide (below the
+   xl breakpoint the other settings sections switch layout at). */
+@media (max-width: 1199.98px) {
+  .mod-options-checks {
+    font-size: 0.875rem;
+  }
+}

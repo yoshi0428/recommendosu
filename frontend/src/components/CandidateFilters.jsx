@@ -1,5 +1,7 @@
 import { useId } from "react";
-import { Card, Col, Form, Row } from "react-bootstrap";
+import { Card, Form } from "react-bootstrap";
+
+import "./CandidateFilters.css";
 
 function NumberInput({ label, value, onChange, step = "any" }) {
   // controlId links the label to the input (clicking the label focuses it,
@@ -7,13 +9,12 @@ function NumberInput({ label, value, onChange, step = "any" }) {
   const id = useId();
 
   return (
-    <Form.Group controlId={id}>
+    <Form.Group controlId={id} className="flex-fill" style={{ minWidth: 0 }}>
       <Form.Label className="small mb-1">{label}</Form.Label>
       <Form.Control
         type="number"
         value={value ?? ""}
         step={step}
-        style={{ maxWidth: "110px" }}
         onChange={(e) =>
           onChange(e.target.value === "" ? null : Number(e.target.value))
         }
@@ -28,11 +29,11 @@ function CandidateFilters({ settings, updateSetting }) {
       <Card.Header>
         <strong>Candidate Filters</strong>
       </Card.Header>
-      <Card.Body>
-        <Row className="g-3 justify-content-start">
+      <Card.Body className="candidate-filters-body">
+        <div className="candidate-filters-grid">
           {/* Column 1: Stars */}
-          <Col xs={6} sm={4} md={3} lg="auto">
-            <div className="d-flex flex-column gap-3">
+          <div>
+            <div className="d-flex gap-3">
               <NumberInput
                 label="Minimum Stars"
                 value={settings.min_stars}
@@ -44,11 +45,11 @@ function CandidateFilters({ settings, updateSetting }) {
                 onChange={(value) => updateSetting("max_stars", value)}
               />
             </div>
-          </Col>
+          </div>
 
           {/* Column 2: BPM */}
-          <Col xs={6} sm={4} md={3} lg="auto">
-            <div className="d-flex flex-column gap-3">
+          <div>
+            <div className="d-flex gap-3">
               <NumberInput
                 label="Minimum BPM"
                 value={settings.min_bpm}
@@ -60,11 +61,11 @@ function CandidateFilters({ settings, updateSetting }) {
                 onChange={(value) => updateSetting("max_bpm", value)}
               />
             </div>
-          </Col>
+          </div>
 
           {/* Column 3: PP */}
-          <Col xs={6} sm={4} md={3} lg="auto">
-            <div className="d-flex flex-column gap-3">
+          <div>
+            <div className="d-flex gap-3">
               <NumberInput
                 label="Minimum PP"
                 value={settings.min_pp}
@@ -76,11 +77,11 @@ function CandidateFilters({ settings, updateSetting }) {
                 onChange={(value) => updateSetting("max_pp", value)}
               />
             </div>
-          </Col>
+          </div>
 
           {/* Column 4: Circle Size */}
-          <Col xs={6} sm={4} md={3} lg="auto">
-            <div className="d-flex flex-column gap-3">
+          <div>
+            <div className="d-flex gap-3">
               <NumberInput
                 label="Min CS"
                 value={settings.min_cs}
@@ -92,11 +93,11 @@ function CandidateFilters({ settings, updateSetting }) {
                 onChange={(value) => updateSetting("max_cs", value)}
               />
             </div>
-          </Col>
+          </div>
 
           {/* Column 5: AR */}
-          <Col xs={6} sm={4} md={3} lg="auto">
-            <div className="d-flex flex-column gap-3">
+          <div>
+            <div className="d-flex gap-3">
               <NumberInput
                 label="Minimum AR"
                 value={settings.min_ar}
@@ -108,11 +109,11 @@ function CandidateFilters({ settings, updateSetting }) {
                 onChange={(value) => updateSetting("max_ar", value)}
               />
             </div>
-          </Col>
+          </div>
 
           {/* Column 6: OD */}
-          <Col xs={6} sm={4} md={3} lg="auto">
-            <div className="d-flex flex-column gap-3">
+          <div>
+            <div className="d-flex gap-3">
               <NumberInput
                 label="Minimum OD"
                 value={settings.min_od}
@@ -124,27 +125,27 @@ function CandidateFilters({ settings, updateSetting }) {
                 onChange={(value) => updateSetting("max_od", value)}
               />
             </div>
-          </Col>
+          </div>
 
           {/* Column 7: Length (seconds) */}
-          <Col xs={6} sm={4} md={3} lg="auto">
-            <div className="d-flex flex-column gap-3">
+          <div>
+            <div className="d-flex gap-3">
               <NumberInput
-                label="Min Length (s)"
+                label="Min Length"
                 value={settings.min_length}
                 onChange={(value) => updateSetting("min_length", value)}
               />
               <NumberInput
-                label="Max Length (s)"
+                label="Max Length"
                 value={settings.max_length}
                 onChange={(value) => updateSetting("max_length", value)}
               />
             </div>
-          </Col>
+          </div>
 
           {/* Column 8: Combo */}
-          <Col xs={6} sm={4} md={3} lg="auto">
-            <div className="d-flex flex-column gap-3">
+          <div>
+            <div className="d-flex gap-3">
               <NumberInput
                 label="Min Combo"
                 value={settings.min_combo}
@@ -156,8 +157,8 @@ function CandidateFilters({ settings, updateSetting }) {
                 onChange={(value) => updateSetting("max_combo", value)}
               />
             </div>
-          </Col>
-        </Row>
+          </div>
+        </div>
       </Card.Body>
     </Card>
   );

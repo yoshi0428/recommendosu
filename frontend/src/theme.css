@@ -1,0 +1,97 @@
+/* Light theme: Bootstrap's defaults are pure white, which is harsh next to
+   the cover art. The page gets a soft grey and inputs a lighter grey, so
+   they still stand out without glaring.
+   Loaded after Bootstrap so these variables win. */
+[data-bs-theme="light"] {
+  --app-surface: #f3f4f6;
+
+  --bs-body-bg: #e9eaee;
+  --bs-body-bg-rgb: 233, 234, 238;
+  --bs-secondary-bg: #dcdee4;
+  --bs-secondary-bg-rgb: 220, 222, 228;
+  --bs-tertiary-bg: #e2e4e9;
+  --bs-tertiary-bg-rgb: 226, 228, 233;
+  --bs-border-color: #c4c7cf;
+}
+
+[data-bs-theme="light"] .form-control,
+[data-bs-theme="light"] .form-select {
+  background-color: var(--app-surface);
+}
+
+[data-bs-theme="light"] .form-check-input {
+  --bs-form-check-bg: var(--app-surface);
+}
+
+/* Settings modal: the same grey as the page for the background and section
+   cards (the cards stand out by their borders and headers), with inputs on
+   the light surface like the header's. */
+[data-bs-theme="light"] .modal-content {
+  --bs-modal-bg: var(--bs-body-bg);
+}
+
+[data-bs-theme="light"] .card {
+  --bs-card-bg: var(--bs-body-bg);
+}
+
+/* Bootstrap's grey (#6c757d) drops below WCAG AA on the darker page, so use
+   its hover shade for the outline buttons' text and border. */
+[data-bs-theme="light"] .btn-outline-secondary {
+  --bs-btn-color: #5c636a;
+  --bs-btn-border-color: #5c636a;
+}
+
+.app-surface {
+  background-color: var(--app-surface);
+}
+
+/* Thin, rounded scrollbars for the results list and the settings modal on
+   desktop. Phones keep their native overlay scrollbars. */
+[data-bs-theme="light"] {
+  --app-scrollbar-thumb: #b4b8c3;
+  --app-scrollbar-thumb-hover: #9097a3;
+}
+
+[data-bs-theme="dark"] {
+  --app-scrollbar-thumb: #4a5058;
+  --app-scrollbar-thumb-hover: #646b75;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .recommendation-scroll,
+  .modal-body {
+    scrollbar-width: thin;
+    scrollbar-color: var(--app-scrollbar-thumb) transparent;
+  }
+
+  .recommendation-scroll:hover,
+  .modal-body:hover {
+    scrollbar-color: var(--app-scrollbar-thumb-hover) transparent;
+  }
+
+  /* Safari, which doesn't support scrollbar-color. Browsers that do ignore
+     these once scrollbar-color is set. */
+  .recommendation-scroll::-webkit-scrollbar,
+  .modal-body::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  .recommendation-scroll::-webkit-scrollbar-track,
+  .modal-body::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .recommendation-scroll::-webkit-scrollbar-thumb,
+  .modal-body::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background-color: var(--app-scrollbar-thumb);
+    background-clip: padding-box;
+  }
+
+  .recommendation-scroll::-webkit-scrollbar-thumb:hover,
+  .modal-body::-webkit-scrollbar-thumb:hover {
+    background-color: var(--app-scrollbar-thumb-hover);
+  }
+}

@@ -1,5 +1,6 @@
 import { Card, Form } from "react-bootstrap";
 import { DEFAULT_EXCLUDED_MODS } from "../utils/recommendation";
+import "./ModOptions.css";
 
 const INDIVIDUAL_MODS = ["NM", "HD", "HR", "DT", "EZ", "HT", "FL"];
 
@@ -113,7 +114,7 @@ function ModOptions({ settings, updateSetting }) {
           className="mb-3"
         />
 
-        <div className="d-flex flex-wrap gap-4">
+        <div className="mod-options-checks d-flex flex-wrap gap-4">
           {INDIVIDUAL_MODS.map((mod) => {
             const isRequired = currentMods.includes(mod);
             const isExcluded = excludedMods.includes(mod);

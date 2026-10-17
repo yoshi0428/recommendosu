@@ -1,0 +1,25 @@
+/* One, two or four min/max pairs per line depending on the card's own width
+   (not the window's, since the settings modal is narrower than the window),
+   so the eight pairs always fill whole lines. The inputs stretch to fill
+   their pair, so no width is left unused on the right. */
+.candidate-filters-body {
+  container-type: inline-size;
+}
+
+.candidate-filters-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@container (min-width: 26rem) {
+  .candidate-filters-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@container (min-width: 52rem) {
+  .candidate-filters-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}

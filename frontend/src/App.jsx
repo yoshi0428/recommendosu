@@ -19,7 +19,7 @@ function App() {
         className={
           theme === "dark"
             ? "bg-dark text-light min-vh-100"
-            : "bg-light text-dark min-vh-100"
+            : "bg-body text-body min-vh-100"
         }
       >
         <Container className="py-5 text-center">

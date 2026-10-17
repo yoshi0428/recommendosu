@@ -3,6 +3,11 @@ services:
     env_file:
       - .env
       - .env.production
+    environment:
+      # Also written to ./logs. Production only: the local stack shares this
+      # checkout, so it would hit the same root-owned file, and two processes
+      # can't safely rotate one log file.
+      LOG_FILE: /app/logs/backend.log
     volumes:
       - ./beatmap_recommender:/app/beatmap_recommender
       - ./logs:/app/logs

@@ -40,7 +40,7 @@ function DifficultyProfile({ settings, updateNestedSetting }) {
 
         <Row className="g-3 mb-4">
           {DIFFICULTY_FEATURES.map(([key, label]) => (
-            <Col md={3} key={key}>
+            <Col xl={3} key={key}>
               <NumberInput
                 label={label}
                 value={settings.difficulty_std_floors[key]}
@@ -56,7 +56,7 @@ function DifficultyProfile({ settings, updateNestedSetting }) {
 
         <Row className="g-3">
           {DIFFICULTY_FEATURES.map(([key, label]) => (
-            <Col md={3} key={key}>
+            <Col xl={3} key={key}>
               <NumberInput
                 label={label}
                 value={settings.difficulty_feature_weights[key]}

@@ -70,7 +70,7 @@ function BasicOptions({settings, updateSetting}) {
 
       <Card.Body>
         <Row className="g-3">
-          <Col md={2}>
+          <Col xl={2}>
             <Form.Group>
               <Form.Label>Player ID</Form.Label>
 
@@ -96,7 +96,7 @@ function BasicOptions({settings, updateSetting}) {
             </Form.Group>
           </Col>
 
-          <Col md={2}>
+          <Col xl={2}>
             <Form.Group>
               <Form.Label>Goal</Form.Label>
 
@@ -113,7 +113,7 @@ function BasicOptions({settings, updateSetting}) {
             </Form.Group>
           </Col>
 
-          <Col md={2}>
+          <Col xl={2}>
             <Form.Group>
               <Form.Label>Already Played</Form.Label>
 
@@ -132,7 +132,7 @@ function BasicOptions({settings, updateSetting}) {
             </Form.Group>
           </Col>
 
-          <Col md={2}>
+          <Col xl={2}>
             <Form.Group>
               <Form.Label>Recent Plays</Form.Label>
 
@@ -151,7 +151,7 @@ function BasicOptions({settings, updateSetting}) {
             </Form.Group>
           </Col>
 
-          <Col md={2}>
+          <Col xl={2}>
             <Form.Group>
               <Form.Label>Map Status</Form.Label>
 
@@ -170,7 +170,7 @@ function BasicOptions({settings, updateSetting}) {
             </Form.Group>
           </Col>
 
-          <Col md={2}>
+          <Col xl={2}>
             <Form.Group>
               <Form.Label>Year range</Form.Label>
 

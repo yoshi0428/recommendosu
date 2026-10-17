@@ -13,7 +13,7 @@ function AuthScreen() {
       className={
         isDark
           ? "bg-dark text-light min-vh-100 d-flex align-items-center"
-          : "bg-light text-dark min-vh-100 d-flex align-items-center"
+          : "bg-body text-body min-vh-100 d-flex align-items-center"
       }
     >
       <Container className="py-5">

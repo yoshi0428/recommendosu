@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { Alert, Spinner } from "react-bootstrap";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import RecommendationRow from "./RecommendationRow";
+import { useAudioPreview } from "./AudioPreview";
 
 function RecommendationBody({
   recommendations,
@@ -10,8 +11,8 @@ function RecommendationBody({
   loading,
   onSelectRecommendation,
 }) {
-  const [audioVolume, setAudioVolume] = useState(0.01);
   const scrollRef = useRef(null);
+  const { playerOpen } = useAudioPreview();
 
   // TanStack Virtual can't be optimized by the React Compiler, which this
   // project doesn't use, so the warning doesn't apply.
@@ -72,17 +73,12 @@ function RecommendationBody({
     <div
       ref={scrollRef}
       className="recommendation-scroll flex-grow-1 overflow-auto position-relative"
-      style={{ minHeight: 0 }}
+      // Room to scroll the last rows out from under the audio player.
+      style={{ minHeight: 0, paddingBottom: playerOpen ? "5rem" : 0 }}
     >
       {/* table-responsive wrapper handles smooth horizontal scrolling when zoomed in */}
       <div className="w-100">
-        <table
-          className="table table-hover table-sm align-middle mb-0"
-          style={{
-            minWidth: "850px",
-            width: "100%",
-          }}
-        >
+        <table className="recommendation-table table table-hover table-sm align-middle mb-0">
           <thead className="sticky-top bg-body">
             <tr>
               <th className="text-center">Artist - Title</th>
@@ -142,8 +138,6 @@ function RecommendationBody({
                   }
                   recommendation={recommendation}
                   onSelectRecommendation={onSelectRecommendation}
-                  audioVolume={audioVolume}
-                  setAudioVolume={setAudioVolume}
                   virtualRow={virtualRow}
                   rowVirtualizer={rowVirtualizer}
                 />
