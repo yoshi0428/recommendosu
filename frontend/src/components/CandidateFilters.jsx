@@ -35,12 +35,12 @@ function CandidateFilters({ settings, updateSetting }) {
           <div>
             <div className="d-flex gap-3">
               <NumberInput
-                label="Minimum Stars"
+                label="Min Stars"
                 value={settings.min_stars}
                 onChange={(value) => updateSetting("min_stars", value)}
               />
               <NumberInput
-                label="Maximum Stars"
+                label="Max Stars"
                 value={settings.max_stars}
                 onChange={(value) => updateSetting("max_stars", value)}
               />
@@ -51,12 +51,12 @@ function CandidateFilters({ settings, updateSetting }) {
           <div>
             <div className="d-flex gap-3">
               <NumberInput
-                label="Minimum BPM"
+                label="Min BPM"
                 value={settings.min_bpm}
                 onChange={(value) => updateSetting("min_bpm", value)}
               />
               <NumberInput
-                label="Maximum BPM"
+                label="Max BPM"
                 value={settings.max_bpm}
                 onChange={(value) => updateSetting("max_bpm", value)}
               />
@@ -67,12 +67,12 @@ function CandidateFilters({ settings, updateSetting }) {
           <div>
             <div className="d-flex gap-3">
               <NumberInput
-                label="Minimum PP"
+                label="Min PP"
                 value={settings.min_pp}
                 onChange={(value) => updateSetting("min_pp", value)}
               />
               <NumberInput
-                label="Maximum PP"
+                label="Max PP"
                 value={settings.max_pp}
                 onChange={(value) => updateSetting("max_pp", value)}
               />
@@ -99,12 +99,12 @@ function CandidateFilters({ settings, updateSetting }) {
           <div>
             <div className="d-flex gap-3">
               <NumberInput
-                label="Minimum AR"
+                label="Min AR"
                 value={settings.min_ar}
                 onChange={(value) => updateSetting("min_ar", value)}
               />
               <NumberInput
-                label="Maximum AR"
+                label="Max AR"
                 value={settings.max_ar}
                 onChange={(value) => updateSetting("max_ar", value)}
               />
@@ -115,12 +115,12 @@ function CandidateFilters({ settings, updateSetting }) {
           <div>
             <div className="d-flex gap-3">
               <NumberInput
-                label="Minimum OD"
+                label="Min OD"
                 value={settings.min_od}
                 onChange={(value) => updateSetting("min_od", value)}
               />
               <NumberInput
-                label="Maximum OD"
+                label="Max OD"
                 value={settings.max_od}
                 onChange={(value) => updateSetting("max_od", value)}
               />

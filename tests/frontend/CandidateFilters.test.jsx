@@ -41,7 +41,7 @@ describe("CandidateFilters", () => {
   it("stores typed values as numbers", async () => {
     const { user, latest } = renderFilters();
 
-    await user.type(screen.getByLabelText("Minimum Stars"), "5.5");
+    await user.type(screen.getByLabelText("Min Stars"), "5.5");
     await user.type(screen.getByLabelText("Max Length"), "180");
 
     expect(latest.settings.min_stars).toBe(5.5);
@@ -50,7 +50,7 @@ describe("CandidateFilters", () => {
 
   it("clearing a box removes the filter (null, not 0)", async () => {
     const { user, latest } = renderFilters({ max_bpm: 220 });
-    const input = screen.getByLabelText("Maximum BPM");
+    const input = screen.getByLabelText("Max BPM");
     expect(input).toHaveValue(220);
 
     await user.clear(input);
@@ -64,18 +64,18 @@ describe("CandidateFilters", () => {
     // and checking every key catches it.
     const { user, latest } = renderFilters();
     const fields = {
-      "Minimum Stars": "min_stars",
-      "Maximum Stars": "max_stars",
-      "Minimum BPM": "min_bpm",
-      "Maximum BPM": "max_bpm",
-      "Minimum PP": "min_pp",
-      "Maximum PP": "max_pp",
+      "Min Stars": "min_stars",
+      "Max Stars": "max_stars",
+      "Min BPM": "min_bpm",
+      "Max BPM": "max_bpm",
+      "Min PP": "min_pp",
+      "Max PP": "max_pp",
       "Min CS": "min_cs",
       "Max CS": "max_cs",
-      "Minimum AR": "min_ar",
-      "Maximum AR": "max_ar",
-      "Minimum OD": "min_od",
-      "Maximum OD": "max_od",
+      "Min AR": "min_ar",
+      "Max AR": "max_ar",
+      "Min OD": "min_od",
+      "Max OD": "max_od",
       "Min Length": "min_length",
       "Max Length": "max_length",
       "Min Combo": "min_combo",
