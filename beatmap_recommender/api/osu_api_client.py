@@ -35,6 +35,13 @@ class OsuAPIClient:
         if wait_time > 0:
             time.sleep(wait_time)
 
+    def _on_unauthorized(self):
+        """
+        Called on a 401. Subclasses that can refresh their own token do so
+        here, and the request is retried.
+        """
+        raise RuntimeError("osu! access token is invalid or expired.")
+
     def get(
         self,
         endpoint: str,
@@ -85,7 +92,8 @@ class OsuAPIClient:
 
             # Unauthorized
             if response.status_code == 401:
-                raise RuntimeError("osu! access token is invalid or expired.")
+                self._on_unauthorized()
+                continue
 
             # Rate limited
             if response.status_code == 429:
@@ -105,7 +113,9 @@ class OsuAPIClient:
                     response.raise_for_status()
 
                 delay = BACKOFF_BASE**attempt + random.uniform(0, 1)
-                logger.warning("Server error %d. Retrying in %.2fs...", response.status_code, delay)
+                logger.warning(
+                    "Server error %d. Retrying in %.2fs...", response.status_code, delay
+                )
                 time.sleep(delay)
                 continue
 

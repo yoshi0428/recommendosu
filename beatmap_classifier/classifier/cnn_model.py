@@ -12,8 +12,9 @@ Notes:
     - Padding is masked out everywhere, and the sequence is summarized with
       masked mean / max / std pooling, so maps of different lengths are
       treated the same (fixed-size adaptive pooling mostly pooled padding).
-    - get_data() leaves the channels on very different scales (time_diff is
-      divided by the longest break, ~86s, so typical values are ~0.002).
+    - get_data() leaves the channels on very different scales (time_diff and
+      time_diff_change are divided by the longest break, ~86s, so typical
+      values are ~0.002).
       transform_inputs() log-scales the time channels and divides every
       channel by its RMS on the training set. The RMS lives in the
       `input_scale` buffer, so it is saved with the state_dict and inference

@@ -13,73 +13,30 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from beatmap_classifier.classifier.cnn_model import CNNModel, compute_input_scale
 
-TOURNAMENT_LABELS = {
-    "nm1": {
-        "column": "nm1",
-        "mods": [],
-    },
-    "nm2": {
-        "column": "nm2",
-        "mods": [],
-    },
-    "nm3": {
-        "column": "nm3",
-        "mods": [],
-    },
-    "nm4": {
-        "column": "nm4",
-        "mods": [],
-    },
-    "nm5": {
-        "column": "nm5",
-        "mods": [],
-    },
-    "nm6": {
-        "column": "nm6",
-        "mods": [],
-    },
-    "dt1": {
-        "column": "dt1",
-        "mods": ["DT"],
-    },
-    "dt2_and_dt3": {
-        "column": "dt2_and_dt3",
-        "mods": ["DT"],
-    },
-    "dt4": {
-        "column": "dt4",
-        "mods": ["DT"],
-    },
-    "hr1": {
-        "column": "hr1",
-        "mods": ["HR"],
-    },
-    "hr2": {
-        "column": "hr2",
-        "mods": ["HR"],
-    },
-    "hr3": {
-        "column": "hr3",
-        "mods": ["HR"],
-    },
-    "hd1": {
-        "column": "hd1",
-        "mods": ["HD"],
-    },
-    "hd2": {
-        "column": "hd2",
-        "mods": ["HD"],
-    },
-    "hd3": {
-        "column": "hd3",
-        "mods": ["HD"],
-    },
-    "tiebreaker": {
-        "column": "tiebreaker",
-        "mods": [],
-    },
-    # Freemod intentionally omitted for now.
+# Tournament label (a tournament_predictions column) -> the mod it's played
+# with. Order matters: get_tournament_labels() keeps the first label set.
+# Freemod intentionally omitted for now.
+TOURNAMENT_MODS = {
+    "nm1": "NM",
+    "nm2": "NM",
+    "nm3": "NM",
+    "nm4": "NM",
+    "nm5": "NM",
+    "nm6": "NM",
+    "dt1": "DT",
+    "dt2_and_dt3": "DT",
+    "dt4": "DT",
+    "hr1": "HR",
+    "hr2": "HR",
+    "hr3": "HR",
+    "hd1": "HD",
+    "hd2": "HD",
+    "hd3": "HD",
+    "tiebreaker": "NM",
 }
+
+# DT plays 1.5x faster: time_diff shrinks, speed grows.
+DT_RATE = 1.5
 
 
 def load_pytorch_models(model_folder, model_class, model_kwargs, device):
@@ -215,7 +172,6 @@ def train_and_evaluate(
             train_loss += loss.item() * inputs.size(0)
             predicted = outputs.argmax(dim=1)
 
-            # targets are one-hot encoded, get class index
             train_correct += (predicted == targets).sum().item()
             train_total += targets.size(0)
 
@@ -344,25 +300,11 @@ def get_tournament_labels(cursor):
         }
     """
 
-    cursor.execute("""
+    columns = list(TOURNAMENT_MODS)
+    cursor.execute(f"""
         SELECT
             bv.beatmap_id,
-            tp.nm1,
-            tp.nm2,
-            tp.nm3,
-            tp.nm4,
-            tp.nm5,
-            tp.nm6,
-            tp.dt1,
-            tp.dt2_and_dt3,
-            tp.dt4,
-            tp.hr1,
-            tp.hr2,
-            tp.hr3,
-            tp.hd1,
-            tp.hd2,
-            tp.hd3,
-            tp.tiebreaker
+            {", ".join(f"tp.{column}" for column in columns)}
         FROM beatmap_variants bv
         JOIN tournament_predictions tp
             ON tp.variant_id = bv.variant_id
@@ -370,29 +312,7 @@ def get_tournament_labels(cursor):
 
     labels = {}
 
-    columns = [
-        "nm1",
-        "nm2",
-        "nm3",
-        "nm4",
-        "nm5",
-        "nm6",
-        "dt1",
-        "dt2_and_dt3",
-        "dt4",
-        "hr1",
-        "hr2",
-        "hr3",
-        "hd1",
-        "hd2",
-        "hd3",
-        "tiebreaker",
-    ]
-
-    for row in cursor.fetchall():
-        beatmap_id = row[0]
-        predictions = row[1:]
-
+    for beatmap_id, *predictions in cursor.fetchall():
         for column, prediction in zip(columns, predictions):
             if prediction == 1:
                 labels[beatmap_id] = column
@@ -437,23 +357,6 @@ def load_vector_normalization(path):
         return json.load(f)
 
 
-def recompute_change_channels(vectors):
-    """
-    Rebuild speed_change (6) and time_diff_change (7) from speed (5) and
-    time_diff (2), in place.
-
-    beatmaps.db stores them as all zeros (parser.py never updated
-    previous_speed / previous_time_diff), so both training and inference
-    derive them here instead of trusting the stored columns. Run it after
-    mod timing and time_diff scaling, so the changes are in those units.
-    """
-    vectors[0, 6] = 0.0
-    vectors[0, 7] = 0.0
-    vectors[1:, 6] = vectors[1:, 5] - vectors[:-1, 5]
-    vectors[1:, 7] = vectors[1:, 2] - vectors[:-1, 2]
-    return vectors
-
-
 def normalize_beatmap_vectors(vectors, normalization):
     """
     Scale parsed NM vectors (parse_osu_file()["vectors"]) the same way
@@ -462,7 +365,8 @@ def normalize_beatmap_vectors(vectors, normalization):
     vectors = np.array(vectors, dtype=np.float32)
     vectors[:, 2] /= normalization["max_time_diff"]
     vectors[:, 3] /= normalization["max_vector_length"]
-    return recompute_change_channels(vectors)
+    vectors[:, 7] /= normalization["max_time_diff"]
+    return vectors
 
 
 def get_data(db_path, chunk_size=50000):
@@ -537,39 +441,21 @@ def get_data(db_path, chunk_size=50000):
             if beatmap_id not in labels:
                 continue
 
-            label = labels[beatmap_id]
-            tournament_info = TOURNAMENT_LABELS[label]
-            mods = tournament_info["mods"]
-
-            # ------------------------------------------------
             # Apply mod timing transformation
-            # ------------------------------------------------
+            rate = DT_RATE if TOURNAMENT_MODS[labels[beatmap_id]] == "DT" else 1.0
 
-            if "DT" in mods:
-                effective_time_diff = time_diff / 1.5
-                effective_speed = speed * 1.5
-                effective_speed_change = speed_change * 1.5
-                effective_time_diff_change = time_diff_change / 1.5
-
-            else:
-                effective_time_diff = time_diff
-                effective_speed = speed
-                effective_speed_change = speed_change
-                effective_time_diff_change = time_diff_change
-
-            normalized_time_diff = effective_time_diff / max_time_diff
-            normalized_length = length / max_vector_length
-
+            # time_diff_change is scaled like time_diff, so the model sees
+            # both in the same units.
             X[beatmap_id].append(
                 (
                     x_diff,
                     y_diff,
-                    normalized_time_diff,
-                    normalized_length,
+                    time_diff / rate / max_time_diff,
+                    length / max_vector_length,
                     distance,
-                    effective_speed,
-                    effective_speed_change,
-                    effective_time_diff_change,
+                    speed * rate,
+                    speed_change * rate,
+                    time_diff_change / rate / max_time_diff,
                 )
             )
 
@@ -578,8 +464,7 @@ def get_data(db_path, chunk_size=50000):
     # Convert to aligned lists
     beatmap_ids = list(X.keys())
     original_X = [
-        recompute_change_channels(np.array(X[beatmap_id], dtype=np.float32))
-        for beatmap_id in beatmap_ids
+        np.array(X[beatmap_id], dtype=np.float32) for beatmap_id in beatmap_ids
     ]
     original_y = [labels[beatmap_id] for beatmap_id in beatmap_ids]
 
@@ -590,39 +475,25 @@ def get_data(db_path, chunk_size=50000):
 
 def get_additional_features(db_path, y, beatmap_ids):
     """
+    Per-map metadata for each (beatmap_id, label) from get_data(), looked up
+    on the variant with that label's mod.
+
+    Returns (raw, normalized), both keyed by (beatmap_id, mod).
+
     BPM should also be an additional feature
-
-    :param db_path:
-    :return:
     """
-    # Fixed normalization scales
-    # This was a scale for all mods, but we're just gonna go with NM1-5 for simplicity
-    # AR_SCALE = 11.0
-    # OD_SCALE = 11.0
-    # CS_SCALE = 10.0
-    # STAR_SCALE = 11.0
-    #
-    # BPM_SCALE = 400.0
-    # COMBO_SCALE = 10000.0
-    # LENGTH_SCALE = 1800.0
-    # OBJECT_COUNT_SCALE = 3000.0
-
-    AR_SCALE = 10.0
-    OD_SCALE = 10.0
-    CS_SCALE = 5.0
-    STAR_SCALE = 10.0
-
-    BPM_SCALE = 250.0
-    COMBO_SCALE = 3000.0
-    LENGTH_SCALE = 400.0
-    OBJECT_COUNT_SCALE = 2500.0
-
-    mods = []
-    mods_flattened = []
-    for i in range(len(y)):
-        mods.append(TOURNAMENT_LABELS[y[i]]["mods"])
-    for array in mods:
-        mods_flattened.append(array[0] if array else "")
+    # Fixed normalization scales, sized for NM1-5. The pp values that follow
+    # these eight features are left unscaled.
+    scales = (
+        10.0,  # ar
+        10.0,  # od
+        5.0,  # circle_size
+        10.0,  # star_rating
+        250.0,  # bpm
+        3000.0,  # max_combo
+        400.0,  # length_seconds
+        2500.0,  # object_count
+    )
 
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
@@ -648,38 +519,10 @@ def get_additional_features(db_path, y, beatmap_ids):
     """)
 
     # Store all DB variants by (beatmap_id, mods)
-    variants = {}
-
-    for (
-        beatmap_id,
-        mods,
-        ar,
-        od,
-        circle_size,
-        star_rating,
-        bpm,
-        max_combo,
-        length_seconds,
-        object_count,
-        pp,
-        pp_aim,
-        pp_speed,
-        pp_acc,
-    ) in cursor.fetchall():
-        variants[(beatmap_id, mods)] = (
-            ar,
-            od,
-            circle_size,
-            star_rating,
-            bpm,
-            max_combo,
-            length_seconds,
-            object_count,
-            pp,
-            pp_aim,
-            pp_speed,
-            pp_acc,
-        )
+    variants = {
+        (beatmap_id, mods): tuple(features)
+        for beatmap_id, mods, *features in cursor.fetchall()
+    }
 
     conn.close()
 
@@ -687,59 +530,20 @@ def get_additional_features(db_path, y, beatmap_ids):
     normalized_additional_features = {}
 
     # Match each beatmap_id with its required mod
-    for beatmap_id, mod in zip(beatmap_ids, mods_flattened):
-        mod = mod if mod else "NM"
-        key = (beatmap_id, mod)
+    for beatmap_id, label in zip(beatmap_ids, y):
+        key = (beatmap_id, TOURNAMENT_MODS[label])
 
         if key not in variants:
             print(
-                f"WARNING: No variant found for beatmap_id={beatmap_id}, mods='{mod}'"
+                f"WARNING: No variant found for beatmap_id={beatmap_id}, mods='{key[1]}'"
             )
             continue
 
-        (
-            ar,
-            od,
-            circle_size,
-            star_rating,
-            bpm,
-            max_combo,
-            length_seconds,
-            object_count,
-            pp,
-            pp_aim,
-            pp_speed,
-            pp_acc,
-        ) = variants[key]
-
-        raw_additional_features[key] = (
-            ar,
-            od,
-            circle_size,
-            star_rating,
-            bpm,
-            max_combo,
-            length_seconds,
-            object_count,
-            pp,
-            pp_aim,
-            pp_speed,
-            pp_acc,
-        )
-
+        features = variants[key]
+        raw_additional_features[key] = features
         normalized_additional_features[key] = (
-            ar / AR_SCALE,
-            od / OD_SCALE,
-            circle_size / CS_SCALE,
-            star_rating / STAR_SCALE,
-            bpm / BPM_SCALE,
-            max_combo / COMBO_SCALE,
-            length_seconds / LENGTH_SCALE,
-            object_count / OBJECT_COUNT_SCALE,
-            pp,
-            pp_aim,
-            pp_speed,
-            pp_acc,
+            tuple(value / scale for value, scale in zip(features, scales))
+            + features[len(scales) :]
         )
 
     return raw_additional_features, normalized_additional_features

@@ -7,7 +7,6 @@ from pathlib import Path
 import numpy as np
 import requests
 import torch
-from classifier_db_setup.parser import parse_osu_file
 
 from beatmap_classifier.classifier.augment_faster import (
     extract_movement_features_from_X,
@@ -23,7 +22,10 @@ from beatmap_classifier.classifier_db_setup.beatmap_mods import (
     calculate_difficulty,
     get_modded_stats,
 )
-from beatmap_recommender.recommender_db_setup.star_calculator import VersionAwareOsuCalculator
+from beatmap_classifier.classifier_db_setup.parser import parse_osu_file
+from beatmap_recommender.recommender_db_setup.star_calculator import (
+    VersionAwareOsuCalculator,
+)
 
 # ============================================================
 # Configuration
@@ -90,8 +92,7 @@ cnn_feature_names = [
 additional_feature_names = sql_feature_names + movement_feature_names
 
 # GROUP 1
-excluded_features = {
-}
+excluded_features = {}
 
 selected_features = [
     feature for feature in additional_feature_names if feature not in excluded_features
@@ -236,7 +237,9 @@ def test_model_on_beatmap_id(
             return
 
         # Scale like the training data (see get_data()).
-        beatmap_vectors = normalize_beatmap_vectors(beatmap_vectors, vector_normalization)
+        beatmap_vectors = normalize_beatmap_vectors(
+            beatmap_vectors, vector_normalization
+        )
 
         difficulty_result = calculate_difficulty(
             temp_file_path,
