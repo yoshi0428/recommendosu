@@ -1,4 +1,5 @@
 import logging
+import time
 
 import numpy as np
 from tqdm import tqdm
@@ -219,12 +220,17 @@ def build_seed_similarity_index(
     exclude_already_played=True,
     status=None,
 ):
+    start = time.perf_counter()
     seed_beatmap_ids, seed_matrix = get_player_seed_maps(conn, player_id)
     if len(seed_beatmap_ids) == 0:
         logger.info("Player %s: no NM seed maps found.", player_id)
         return {}
 
-    logger.info("Player %s: %s seed maps.", player_id, f"{len(seed_beatmap_ids):,}")
+    logger.info(
+        "Player %s: %s seed maps: %.4fs", player_id, f"{len(seed_beatmap_ids):,}", time.perf_counter() - start
+    )
+
+    start = time.perf_counter()
 
     # excludes already played beatmaps within your scores, if True
     if exclude_already_played:
@@ -240,9 +246,15 @@ def build_seed_similarity_index(
         logger.info("No unplayed NM candidate maps remain.")
         return {}
 
-    logger.info("NM candidate pool (%s): %s maps.", status or "all", f"{len(candidate_beatmap_ids):,}")
+    logger.info(
+        "NM candidate pool (%s): %s maps: %.4fs",
+        status or "all",
+        f"{len(candidate_beatmap_ids):,}",
+        time.perf_counter() - start,
+    )
 
-    return calculate_seed_similarity(
+    start = time.perf_counter()
+    similarity_index = calculate_seed_similarity(
         seed_beatmap_ids=seed_beatmap_ids,
         seed_matrix=seed_matrix,
         candidate_beatmap_ids=candidate_beatmap_ids,
@@ -251,3 +263,6 @@ def build_seed_similarity_index(
         batch_size=batch_size,
         similarity_feature_weights=similarity_feature_weights,
     )
+
+    logger.info("Seed similarity: %.4fs (%s matched)", time.perf_counter() - start, f"{len(similarity_index):,}")
+    return similarity_index

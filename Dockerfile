@@ -8,6 +8,13 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PYTHON_JIT=1
 
+# One malloc arena for every thread. Requests run in asyncio.to_thread worker
+# threads, and glibc's per-thread arenas hand the recommender's large numpy
+# temporaries back to the OS after each use, so every request page-faults
+# them in again: a typical request took ~1.2s in a worker thread vs ~0.5s on
+# the main thread. See "Python version" in the README.
+ENV MALLOC_ARENA_MAX=1
+
 # DEBUG also logs the recommendation config and each request's top 10.
 ENV LOG_LEVEL=INFO
 

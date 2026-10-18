@@ -248,6 +248,21 @@ These were measured before the *cached data* round above, so the request times a
   Neither difference shows up now that results are numpy arrays.
 - Other compilers (Numba, Cython, PyPy) or rewriting parts in another language wouldn't help much either, for the same reason as the JIT.
 
+### Memory allocator (`MALLOC_ARENA_MAX=1`)
+
+The server runs each request in an `asyncio.to_thread` worker thread, while the benchmark scripts run on the main thread, and that difference made production ~2-3x slower than the benchmarks. 
+glibc gives worker threads their own malloc arenas, which hand the recommender's large numpy temporaries (e.g. the 64MB seed × candidate distance batches) back to the OS after each use, so every request page-faults that memory in again. 
+The Dockerfile sets `MALLOC_ARENA_MAX=1`, so every thread uses the main arena. Measured in the backend container, through `asyncio.to_thread` like the server:
+
+| | Default | `MALLOC_ARENA_MAX=1` |
+|---|---|---|
+| Content similarity | 1.4-2.1s | 0.23s |
+| Typical request | ~1.17s | ~0.48s |
+| Worst case | ~2.5s | ~1.33s |
+
+`MALLOC_ARENA_MAX=2` only helps some requests. With one arena, threads share malloc's lock, which doesn't matter here: requests are limited by `RECOMMENDATION_CONCURRENCY` and spend their time in numpy, not in malloc. 
+On the host (outside Docker) the same slowdown is smaller (~0.5s instead of ~0.22s for content similarity), so measure in the container when timing the server.
+
 # osu! API usage
 
 The osu! API asks for [no more than 60 requests per minute](https://osu.ppy.sh/docs/), with some bursting allowed. 
