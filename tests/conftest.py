@@ -36,6 +36,26 @@ os.environ.setdefault("OSU_REDIRECT_URI", "http://testserver/api/v1/auth/osu/cal
 
 
 # ---------------------------------------------------------------------------
+# Process-wide osu! API state
+# ---------------------------------------------------------------------------
+@pytest.fixture(autouse=True)
+def reset_osu_api_state(monkeypatch):
+    """
+    Give every test a fresh shared rate limiter and no remembered score
+    refreshes, so one test's API calls can't slow down or skip another's.
+    """
+    from beatmap_recommender.api import osu_api_client
+    from beatmap_recommender.content_similarity.core_modules import score_collector
+
+    monkeypatch.setattr(
+        osu_api_client,
+        "rate_limiter",
+        osu_api_client.RateLimiter(osu_api_client.rate_limiter.burst, osu_api_client.rate_limiter.interval),
+    )
+    monkeypatch.setattr(score_collector, "_last_refreshed", {})
+
+
+# ---------------------------------------------------------------------------
 # Recommender database
 # ---------------------------------------------------------------------------
 # This schema is copied from beatmap_recommender/dummy.db (`sqlite3 dummy.db

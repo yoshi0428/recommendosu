@@ -20,6 +20,7 @@ from beatmap_recommender.content_similarity.core_modules.mod_preferences import 
     get_preferred_mods,
 )
 from beatmap_recommender.content_similarity.core_modules.score_collector import (
+    scores_refreshed_recently,
     update_player_scores,
 )
 from beatmap_recommender.content_similarity.core_modules.variant_ranking import (
@@ -323,6 +324,10 @@ async def recommend_player(
     async with _recommendation_semaphore:
         check_cancelled(cancel_event)
         access_token = None
+
+        if update_scores and scores_refreshed_recently(settings.player_id):
+            logger.info("Player %s: scores refreshed recently, not fetching them again.", settings.player_id)
+            update_scores = False
 
         if update_scores:
             access_token = (

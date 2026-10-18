@@ -3,6 +3,10 @@ import logging
 import numpy as np
 from tqdm import tqdm
 
+from beatmap_recommender.content_similarity.core_modules.variant_table import (
+    get_variant_table,
+)
+
 logger = logging.getLogger(__name__)
 
 # Upper bound on seed x candidate distances held in memory per batch
@@ -71,40 +75,52 @@ def get_player_seed_maps(conn, player_id):
 
 
 def get_maps(conn, mods="NM", player_id=None, status=None):
-    query = """
-        SELECT
-            bv.beatmap_id,
-            COALESCE(bv.star_rating, 0.0),
-            COALESCE(bv.bpm, 0.0),
-            COALESCE(bv.length_seconds, 0.0),
-            COALESCE(bv.object_count, 0.0),
-            COALESCE(bv.ar, 0.0),
-            COALESCE(bv.od, 0.0),
-            COALESCE(bv.circle_size, 0.0),
-            COALESCE(bv.pp_aim, 0.0),
-            COALESCE(bv.pp_speed, 0.0),
-            COALESCE(bv.pp_acc, 0.0)
-        FROM beatmap_variants AS bv
-        WHERE bv.mods = ?
     """
-    params = [mods]
+    Every variant with these mods (and status), minus the beatmaps player_id
+    has scores on, as (beatmap_ids, feature matrix) like get_player_seed_maps().
+
+    Read from the in-memory variant table, in rowid order (the order a scan
+    of beatmap_variants returns), instead of from SQLite on every request.
+    """
+    table = get_variant_table(conn)
+    beatmap_categories = table.categories["beatmap_id"]
+
+    mask = table.category_mask("mods", lambda value: value == mods)[table.columns["mods"]]
 
     if status is not None:
-        query += " AND bv.status = ?"
-        params.append(status)
+        mask &= table.category_mask("status", lambda value: value == status)[table.columns["status"]]
 
     if player_id is not None:
-        query += """
-            AND NOT EXISTS (
-                SELECT 1
-                FROM scores AS s
-                WHERE s.player_id = ?
-                  AND s.beatmap_id = bv.beatmap_id
+        played_beatmap_ids = [
+            beatmap_id
+            for (beatmap_id,) in conn.execute(
+                "SELECT DISTINCT beatmap_id FROM scores WHERE player_id = ?",
+                (player_id,),
             )
-        """
-        params.append(player_id)
+        ]
+        played = np.zeros(len(beatmap_categories), dtype=bool)
+        played[table.codes_of("beatmap_id", played_beatmap_ids)] = True
+        mask &= ~played[table.columns["beatmap_id"]]
 
-    return _fetch_maps_as_numpy(conn, query, params)
+    rows = np.flatnonzero(mask)
+
+    if len(rows) == 0:
+        return np.array([], dtype=object), np.empty((0, len(SIMILARITY_FEATURES)), dtype=np.float32)
+
+    beatmap_ids = np.array(beatmap_categories, dtype=object)[table.columns["beatmap_id"][rows]]
+
+    # NULL is NaN in float_columns; COALESCE(..., 0.0) made it 0.0. Values
+    # too large for float32 become inf, which is zeroed below.
+    with np.errstate(over="ignore"):
+        matrix = np.column_stack(
+            [np.nan_to_num(table.float_columns[feature][rows], nan=0.0) for feature in SIMILARITY_FEATURES]
+        ).astype(np.float32)
+
+    # Some loved gimmick maps store inf BPM; a single inf turns every
+    # mean/std into NaN and wipes out all similarities.
+    np.nan_to_num(matrix, copy=False, nan=0.0, posinf=0.0, neginf=0.0)
+
+    return beatmap_ids, matrix
 
 
 def calculate_seed_similarity(
@@ -173,14 +189,16 @@ def calculate_seed_similarity(
             - 2.0 * (batch_seeds @ candidate_matrix.T)
         )
         np.maximum(distances, 0.0, out=distances)
-        np.sqrt(distances, out=distances)
 
         if query_k < n_candidates:
+            np.sqrt(distances, out=distances)
             indices = np.argpartition(distances, query_k - 1, axis=1)[:, :query_k]
             sim_scores = 1.0 / (1.0 + np.take_along_axis(distances, indices, axis=1))
             np.maximum.at(best_similarity, indices.ravel(), sim_scores.ravel())
         else:
-            sim_scores = 1.0 / (1.0 + distances.min(axis=0))
+            # sqrt preserves order, so the square root of the smallest squared
+            # distance is the smallest distance, without a sqrt per pair.
+            sim_scores = 1.0 / (1.0 + np.sqrt(distances.min(axis=0)))
             np.maximum(best_similarity, sim_scores, out=best_similarity)
 
     matched = best_similarity >= 0.0

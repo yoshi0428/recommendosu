@@ -1,3 +1,5 @@
+import numpy as np
+
 from beatmap_recommender.content_similarity.core_modules.ability import (
     get_ability_score_weight,
 )
@@ -100,68 +102,27 @@ def get_player_category_preferences(
     return {label: value / total for label, value in totals.items()}
 
 
-def get_candidate_classifier_predictions(conn, beatmap_ids):
+def calculate_classifier_scores(probabilities, preferences):
     """
-    Fetch precomputed NM1-NM5 classifier probabilities for candidate variants.
+    calculate_classifier_score() for many beatmaps at once.
 
-    Returns:
-        {
-            beatmap_id: {
-                "NM1": probability,
-                "NM2": probability,
-                ...
-            }
-        }
+    probabilities: [beatmaps, 5] NM1-NM5 probabilities, in NM_LABELS order.
+    Returns a float64 array of scores in [0, 1].
     """
+    probabilities = np.asarray(probabilities, dtype=np.float64)
+    weights = [(preferences.get(label) or 0.0) if preferences else 0.0 for label in NM_LABELS]
+    max_preference = max(weights)
 
-    if not beatmap_ids:
-        return {}
+    if max_preference <= 0:
+        return np.zeros(len(probabilities))
 
-    chunk_size = 1000
-    beatmap_ids_list = list(beatmap_ids)
-    all_rows = []
+    # Summed one label at a time, like sum() over the labels would.
+    score = probabilities[:, 0] * weights[0]
 
-    for i in range(0, len(beatmap_ids_list), chunk_size):
-        chunk = beatmap_ids_list[i : i + chunk_size]
-        placeholders = ",".join("?" for _ in chunk)
+    for column, weight in enumerate(weights[1:], start=1):
+        score = score + probabilities[:, column] * weight
 
-        rows = conn.execute(
-            f"""
-            SELECT
-                bv.beatmap_id,
-                vp.nm1,
-                vp.nm2,
-                vp.nm3,
-                vp.nm4,
-                vp.nm5
-            FROM beatmap_variants bv
-            JOIN variant_predictions vp
-                ON vp.variant_id = bv.variant_id
-            WHERE bv.beatmap_id IN ({placeholders})
-              AND bv.mods = 'NM'
-            """,
-            chunk,
-        ).fetchall()
-
-        all_rows.extend(rows)
-
-    return {
-        beatmap_id: {
-            "NM1": nm1,
-            "NM2": nm2,
-            "NM3": nm3,
-            "NM4": nm4,
-            "NM5": nm5,
-        }
-        for (
-            beatmap_id,
-            nm1,
-            nm2,
-            nm3,
-            nm4,
-            nm5,
-        ) in all_rows
-    }
+    return np.clip(score / max_preference, 0.0, 1.0)
 
 
 def calculate_classifier_score(
@@ -182,14 +143,5 @@ def calculate_classifier_score(
     if not probabilities or not preferences:
         return 0.0
 
-    score = sum(
-        (probabilities.get(label) or 0.0) * (preferences.get(label) or 0.0)
-        for label in NM_LABELS
-    )
-
-    max_preference = max((preferences.get(label) or 0.0) for label in NM_LABELS)
-
-    if max_preference <= 0:
-        return 0.0
-
-    return min(max(score / max_preference, 0.0), 1.0)
+    row = [(probabilities.get(label) or 0.0) for label in NM_LABELS]
+    return float(calculate_classifier_scores([row], preferences)[0])

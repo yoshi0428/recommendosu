@@ -9,6 +9,7 @@ and small *integration tests*, which check that several pieces work together
 import sqlite3
 import threading
 
+import numpy as np
 import pytest
 
 from beatmap_recommender.api.model import (
@@ -18,6 +19,7 @@ from beatmap_recommender.api.model import (
 )
 from beatmap_recommender.cancellation import RecommendationCancelled
 from beatmap_recommender.content_similarity.core_modules.variant_ranking import (
+    _descending_order,
     calculate_difficulty_scores,
     get_candidate_variants,
     get_player_difficulty_profiles,
@@ -388,3 +390,29 @@ def test_cancelled_request_stops_ranking(seeded_db):
 
     with pytest.raises(RecommendationCancelled):
         rank(seeded_db.conn, cancel_event=cancel_event)
+
+
+# ---------------------------------------------------------------------------
+# _descending_order
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize("seed", range(5))
+def test_descending_order_matches_lexsort_with_ties(seed):
+    # Few distinct values, so most rows tie on the primary key (and many on
+    # every key), plus NaNs and signed zeros, which lexsort treats specially.
+    rng = np.random.default_rng(seed)
+    keys = [rng.integers(0, 4, 2000).astype(np.float64) / 4 for _ in range(4)]
+    keys[0][rng.choice(2000, 50)] = np.nan
+    keys[1][rng.choice(2000, 50)] = np.nan
+    keys[2][rng.choice(2000, 50)] = -0.0
+
+    expected = np.lexsort([-key for key in reversed(keys)])
+
+    np.testing.assert_array_equal(_descending_order(keys), expected)
+
+
+def test_descending_order_without_ties_or_extra_keys():
+    keys = [np.array([0.2, 0.9, 0.5]), np.array([1.0, 0.0, 0.0])]
+
+    np.testing.assert_array_equal(_descending_order(keys), [1, 2, 0])
+    np.testing.assert_array_equal(_descending_order(keys[:1]), [1, 2, 0])
+    assert len(_descending_order([np.array([])])) == 0

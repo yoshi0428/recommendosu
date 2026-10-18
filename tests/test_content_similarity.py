@@ -14,6 +14,7 @@ from beatmap_recommender.content_similarity.core_modules.content_similarity impo
     SIMILARITY_FEATURES,
     build_seed_similarity_index,
     calculate_seed_similarity,
+    get_maps,
 )
 
 N_FEATURES = len(SIMILARITY_FEATURES)
@@ -141,3 +142,32 @@ def test_build_index_status_filter(seeded_db):
 
 def test_player_without_scores_gets_empty_index(seeded_db):
     assert build_seed_similarity_index(seeded_db.conn, 424242) == {}
+
+
+@pytest.mark.parametrize(
+    ("player_id", "status"),
+    [(None, None), (100, None), (100, "loved"), (None, "ranked"), (424242, None)],
+)
+def test_get_maps_matches_sql(seeded_db, player_id, status):
+    # get_maps() reads the in-memory variant table; this is the SQL it replaced.
+    query = f"""
+        SELECT CAST(bv.beatmap_id AS TEXT), {", ".join(f"COALESCE(bv.{name}, 0.0)" for name in SIMILARITY_FEATURES)}
+        FROM beatmap_variants AS bv
+        WHERE bv.mods = 'NM'
+    """
+    params = []
+    if status is not None:
+        query += " AND bv.status = ?"
+        params.append(status)
+    if player_id is not None:
+        query += " AND NOT EXISTS (SELECT 1 FROM scores AS s WHERE s.player_id = ? AND s.beatmap_id = bv.beatmap_id)"
+        params.append(player_id)
+    query += " ORDER BY bv.rowid"
+
+    rows = seeded_db.conn.execute(query, params).fetchall()
+    expected = np.nan_to_num(np.array([row[1:] for row in rows], dtype=np.float32), posinf=0.0, neginf=0.0)
+
+    beatmap_ids, matrix = get_maps(seeded_db.conn, mods="NM", player_id=player_id, status=status)
+
+    assert beatmap_ids.tolist() == [row[0] for row in rows]
+    np.testing.assert_array_equal(matrix, expected.reshape(len(rows), N_FEATURES))

@@ -1,4 +1,7 @@
 import logging
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 
 from beatmap_recommender.api.osu_api_client import OsuAPINotFoundError
 from beatmap_recommender.database import connect_disk_db, is_memory_db
@@ -8,6 +11,32 @@ logger = logging.getLogger(__name__)
 
 # The most scores osu! returns from one /users/{id}/scores/* request.
 API_PAGE_SIZE = 100
+
+# A player whose scores were refreshed this recently isn't refreshed again,
+# e.g. when they change a setting and re-run. Saves 4 osu! API requests.
+SCORE_REFRESH_INTERVAL = 120.0
+
+# player_id -> time.monotonic() of their last successful refresh.
+_last_refreshed = {}
+_last_refreshed_lock = threading.Lock()
+
+
+def scores_refreshed_recently(player_id):
+    """Whether update_player_scores() succeeded for player_id in the last SCORE_REFRESH_INTERVAL."""
+    with _last_refreshed_lock:
+        refreshed_at = _last_refreshed.get(player_id)
+
+    return refreshed_at is not None and time.monotonic() - refreshed_at < SCORE_REFRESH_INTERVAL
+
+
+def _mark_refreshed(player_id):
+    with _last_refreshed_lock:
+        now = time.monotonic()
+        _last_refreshed[player_id] = now
+
+        # Drop expired entries so the dict doesn't grow with every player.
+        for stale in [key for key, value in _last_refreshed.items() if now - value >= SCORE_REFRESH_INTERVAL]:
+            del _last_refreshed[stale]
 
 
 class PlayerNotFoundError(LookupError):
@@ -39,10 +68,13 @@ def fetch_player_scores(api, player_id, limit=200):
 
 
 def _fetch_player_scores(api, player_id, limit):
-    top_scores = _fetch_paginated(api, f"/users/{player_id}/scores/best", limit)
-    recent_scores = _fetch_paginated(api, f"/users/{player_id}/scores/recent", limit)
+    # The two lists are independent, so fetch them at the same time. The
+    # client's shared rate limiter still paces the requests.
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        top = executor.submit(_fetch_paginated, api, f"/users/{player_id}/scores/best", limit)
+        recent = executor.submit(_fetch_paginated, api, f"/users/{player_id}/scores/recent", limit)
 
-    return top_scores, recent_scores
+        return top.result(), recent.result()
 
 
 def _fetch_paginated(api, endpoint, limit):
@@ -177,12 +209,15 @@ def update_player_scores(conn, api, player_id, limit=200):
     Previously collected scores remain in the database, so repeated
     API updates build up the player's score history over time.
 
+    A successful update is remembered, see scores_refreshed_recently().
+
     Returns:
         Number of score records processed.
     """
 
     top_scores, recent_scores = fetch_player_scores(api, player_id, limit=limit)
     stored = store_player_scores(conn, top_scores, recent_scores)
+    _mark_refreshed(player_id)
     logger.info(
         "Player %s: %d top scores, %d recent scores, %d records processed.",
         player_id,

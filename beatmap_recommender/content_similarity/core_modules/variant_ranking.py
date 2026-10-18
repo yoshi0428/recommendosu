@@ -8,17 +8,18 @@ from beatmap_recommender.content_similarity.core_modules.ability import (
     get_ability_score_weight,
 )
 from beatmap_recommender.content_similarity.core_modules.cnn_xgboost_influence import (
-    calculate_classifier_score,
-    get_candidate_classifier_predictions,
+    calculate_classifier_scores,
 )
 from beatmap_recommender.content_similarity.core_modules.mod_preferences import (
     canonicalize_mods,
 )
 from beatmap_recommender.content_similarity.core_modules.pp_potential import (
-    calculate_pp_potential,
+    calculate_pp_potentials,
     weighted_mean_and_std,
 )
 from beatmap_recommender.content_similarity.core_modules.variant_table import (
+    TEXT_COLUMNS,
+    VARIANT_COLUMNS,
     VariantRows,
     get_variant_table,
     sql_like,
@@ -536,6 +537,43 @@ def score_variant(
     )
 
 
+def _descending_order(sort_arrays):
+    """
+    Row order for sorted(..., key=sort_keys, reverse=True), where
+    sort_arrays[0] is the primary key.
+
+    Same order as np.lexsort([-array for array in reversed(sort_arrays)]),
+    but sorts the primary key alone and only lexsorts the rows that tie on
+    it: a lexsort makes one full pass per key, and ties are rare.
+    """
+    keys = [-array for array in sort_arrays]
+    order = np.argsort(keys[0], kind="stable")
+
+    if len(keys) == 1 or len(order) < 2:
+        return order
+
+    primary = keys[0][order]
+    # NaN sorts last, and NaNs tie with each other, like in a lexsort.
+    tied = (primary[1:] == primary[:-1]) | (np.isnan(primary[1:]) & np.isnan(primary[:-1]))
+
+    if not tied.any():
+        return order
+
+    # Positions in `order` that belong to a run of equal primary keys,
+    # labelled by run, then sorted by run and the remaining keys. The
+    # lexsort is stable, so rows still tied keep their original order.
+    in_run = np.zeros(len(order), dtype=bool)
+    in_run[1:] |= tied
+    in_run[:-1] |= tied
+    run_ids = np.cumsum(np.concatenate(([True], ~tied)))[in_run]
+    positions = np.flatnonzero(in_run)
+    rows = order[positions]
+
+    run_order = np.lexsort([key[rows] for key in reversed(keys[1:])] + [run_ids])
+    order[positions] = rows[run_order]
+    return order
+
+
 def rank_variants(
     conn,
     similarity_index,
@@ -760,22 +798,25 @@ def rank_variants(
     # ── Classifier predictions ─────────────────────────────────
     check_cancelled(cancel_event)
     start = time.perf_counter()
-    classifier_predictions = {}
+    table = variants.table
+    beatmap_codes = variants.codes("beatmap_id")
+    # Per beatmap_id code; beatmaps without a prediction score 0.0.
+    beatmap_classifier_scores = np.zeros(len(table.categories["beatmap_id"]))
+    prediction_count = 0
 
     if classifier_weight > 0 and category_preferences:
-        # Deduplicate because a beatmap can have multiple candidate variants.
-        beatmap_categories = variants.table.categories["beatmap_id"]
-        classifier_beatmap_ids = [
-            beatmap_categories[code] for code in np.unique(variants.codes("beatmap_id")).tolist()
-        ]
-
-        classifier_predictions = get_candidate_classifier_predictions(
-            conn, classifier_beatmap_ids
+        # The classifier score only depends on the beatmap, so calculate it
+        # once per beatmap instead of once per mod variant.
+        beatmap_classifier_scores = np.where(
+            table.has_nm_prediction,
+            calculate_classifier_scores(table.nm_predictions, category_preferences),
+            0.0,
         )
+        prediction_count = int(table.has_nm_prediction[np.unique(beatmap_codes)].sum())
 
     check_cancelled(cancel_event)
 
-    logger.info("Classifier predictions: %.4fs (%d predictions)", time.perf_counter() - start, len(classifier_predictions))
+    logger.info("Classifier predictions: %.4fs (%d predictions)", time.perf_counter() - start, prediction_count)
 
     # ── Difficulty scores ──────────────────────────────────────
     # The current ranker uses the global difficulty profile. Therefore, there is no reason to split variants by mod.
@@ -797,8 +838,7 @@ def rank_variants(
     # Per-beatmap and per-mods values are looked up once per distinct value,
     # then spread to the variants through their codes.
     start = time.perf_counter()
-    categories = variants.table.categories
-    beatmap_codes = variants.codes("beatmap_id")
+    categories = table.categories
 
     content_scores = np.array(
         [candidate_similarity.get(beatmap_id, np.nan) for beatmap_id in categories["beatmap_id"]],
@@ -813,16 +853,7 @@ def rank_variants(
     check_cancelled(cancel_event)
 
     if category_preferences:
-        # The classifier score only depends on the beatmap, so calculate it
-        # once per beatmap instead of once per mod variant.
-        beatmap_classifier_scores = {
-            beatmap_id: calculate_classifier_score(probabilities, category_preferences)
-            for beatmap_id, probabilities in classifier_predictions.items()
-        }
-        classifier_scores = np.array(
-            [beatmap_classifier_scores.get(beatmap_id, 0.0) for beatmap_id in categories["beatmap_id"]],
-            dtype=np.float64,
-        )[beatmap_codes]
+        classifier_scores = beatmap_classifier_scores[beatmap_codes]
     else:
         classifier_scores = np.zeros(eligible_count)
 
@@ -831,22 +862,24 @@ def rank_variants(
     pp_potential_scores = np.zeros(eligible_count)
 
     if pp_potential_weight > 0:
-        for index, variant in enumerate(variants):
-            if index % 1024 == 0:
-                check_cancelled(cancel_event)
-
-            pp_potential_scores[index] = calculate_pp_potential(
-                variant,
-                difficulty_profile,
-                difficulty_std_floors,
-                difficulty_feature_weights,
-                pp_push_target_z,
-                pp_push_max_z,
-                feature_target_z,
-                feature_max_z,
-                pp_min=pp_potential_min,
-                pp_max=pp_potential_max,
-            )
+        # Only the columns a variant dict has, as calculate_pp_potential() sees them.
+        pp_columns = {
+            name: variants.float_column(name)
+            for name in ("pp", *difficulty_feature_weights)
+            if name in VARIANT_COLUMNS and name not in TEXT_COLUMNS
+        }
+        pp_potential_scores = calculate_pp_potentials(
+            pp_columns,
+            difficulty_profile,
+            difficulty_std_floors,
+            difficulty_feature_weights,
+            pp_push_target_z,
+            pp_push_max_z,
+            feature_target_z,
+            feature_max_z,
+            pp_min=pp_potential_min,
+            pp_max=pp_potential_max,
+        )
 
     # Same left-to-right float64 arithmetic as score_variant().
     final_scores = (
@@ -886,10 +919,7 @@ def rank_variants(
         for key in config["sort_keys"]
     ]
 
-    # lexsort is stable and ascending with its last key as the primary key,
-    # so negated keys in reverse give the same order as
-    # sorted(..., key=sort_keys, reverse=True).
-    order = np.lexsort([-array for array in reversed(sort_arrays)])
+    order = _descending_order(sort_arrays)
 
     if top_k is not None:
         order = order[:top_k]

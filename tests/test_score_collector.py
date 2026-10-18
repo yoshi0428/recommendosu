@@ -290,6 +290,11 @@ class FakeOsuAPI:
         return self.responses[endpoint][offset : offset + limit]
 
 
+def by_endpoint(requests_made):
+    """Requests grouped by endpoint (best, then recent), each in the order it was made."""
+    return sorted(requests_made, key=lambda request: request[0])
+
+
 def test_update_player_scores_fetches_and_stores(recommender_db):
     recommender_db.add_beatmap(1)
     recommender_db.add_beatmap(2)
@@ -302,8 +307,9 @@ def test_update_player_scores_fetches_and_stores(recommender_db):
     assert rows["1"]["source"] == "top"
     assert rows["2"]["source"] == "recent"
 
-    # The request parameters are part of the contract with osu!.
-    assert api.requests == [
+    # The request parameters are part of the contract with osu!. The two
+    # endpoints are fetched concurrently, so only the order within each is fixed.
+    assert by_endpoint(api.requests) == [
         (f"/users/{PLAYER_ID}/scores/best", {"limit": 100, "offset": 0, "include_fails": 1}),
         (f"/users/{PLAYER_ID}/scores/recent", {"limit": 100, "offset": 0, "include_fails": 1}),
     ]
@@ -320,7 +326,7 @@ def test_fetch_pages_past_the_100_score_api_limit():
 
     assert [s["id"] for s in top_scores] == list(range(200))
     assert [s["id"] for s in recent_scores] == [1000 + i for i in range(150)]
-    assert [(endpoint.rsplit("/", 1)[1], params["offset"], params["limit"]) for endpoint, params in api.requests] == [
+    assert [(endpoint.rsplit("/", 1)[1], params["offset"], params["limit"]) for endpoint, params in by_endpoint(api.requests)] == [
         ("best", 0, 100),
         ("best", 100, 100),
         ("recent", 0, 100),
@@ -403,9 +409,8 @@ def fake_http(monkeypatch):
     * time.sleep is replaced with a function that records the delay instead
       of waiting, so retry tests take milliseconds instead of minutes.
     * random.uniform returns 0, so backoff delays are predictable.
-    * MIN_REQUEST_INTERVAL is 0, so the client's request pacing never sleeps
-      and `fake.sleeps` contains only retry delays. (The pacing test turns it
-      back on.)
+    * The shared rate limiter never waits, so `fake.sleeps` contains only
+      retry delays. (The rate limiter tests use their own.)
     * requests.Session.get returns the queued responses in order.
 
     Tests put responses (or exceptions) into `fake.queue`.
@@ -428,7 +433,7 @@ def fake_http(monkeypatch):
 
     monkeypatch.setattr(osu_api_client.time, "sleep", fake.sleeps.append)
     monkeypatch.setattr(osu_api_client.random, "uniform", lambda a, b: 0.0)
-    monkeypatch.setattr(osu_api_client, "MIN_REQUEST_INTERVAL", 0)
+    monkeypatch.setattr(osu_api_client, "rate_limiter", osu_api_client.RateLimiter(burst=1, interval=0))
     monkeypatch.setattr(requests.Session, "get", fake_get)
     return fake
 
@@ -486,15 +491,121 @@ def test_client_401_is_not_retried(fake_http):
     assert len(fake_http.calls) == 1
 
 
-def test_client_spaces_out_requests(fake_http, monkeypatch):
-    # Two requests back to back: the second must wait so they're at least
-    # MIN_REQUEST_INTERVAL apart. A frozen clock makes "elapsed" exactly 0.
-    monkeypatch.setattr(osu_api_client, "MIN_REQUEST_INTERVAL", 1.1)
-    monkeypatch.setattr(osu_api_client.time, "time", lambda: 1000.0)
+class FakeClock:
+    """time.monotonic and time.sleep for osu_api_client: sleeping advances the clock."""
+
+    def __init__(self):
+        self.now = 1000.0
+        self.sleeps = []
+
+    def monotonic(self):
+        return self.now
+
+    def sleep(self, seconds):
+        self.sleeps.append(seconds)
+        self.now += seconds
+
+
+@pytest.fixture
+def fake_clock(monkeypatch):
+    clock = FakeClock()
+    monkeypatch.setattr(osu_api_client.time, "monotonic", clock.monotonic)
+    monkeypatch.setattr(osu_api_client.time, "sleep", clock.sleep)
+    return clock
+
+
+def test_rate_limiter_allows_a_burst_then_paces(fake_clock):
+    limiter = osu_api_client.RateLimiter(burst=4, interval=1.5)
+
+    for _ in range(4):
+        limiter.acquire()
+    assert fake_clock.sleeps == []  # A score refresh's 4 requests go out at once.
+
+    limiter.acquire()
+    limiter.acquire()
+    assert fake_clock.sleeps == [pytest.approx(1.5), pytest.approx(1.5)]
+
+    # Idle time refills the bucket, up to the burst size.
+    fake_clock.now += 60
+    for _ in range(4):
+        limiter.acquire()
+    assert len(fake_clock.sleeps) == 2
+
+
+def test_default_rate_limiter_stays_under_60_requests_per_minute(fake_clock):
+    limiter = osu_api_client.RateLimiter(
+        burst=osu_api_client.REQUEST_BURST,
+        interval=60.0 / (osu_api_client.REQUESTS_PER_MINUTE - osu_api_client.REQUEST_BURST),
+    )
+    start = fake_clock.now
+    times = []
+
+    for _ in range(200):
+        limiter.acquire()
+        times.append(fake_clock.now - start)
+
+    for first in range(len(times)):
+        in_window = sum(1 for t in times[first:] if t - times[first] < 60.0)
+        assert in_window <= osu_api_client.REQUESTS_PER_MINUTE
+
+
+def test_rate_limit_is_shared_by_every_client(fake_http, fake_clock, monkeypatch):
+    # Each recommendation makes its own client, so per-client pacing would
+    # let concurrent users add up past the limit.
+    monkeypatch.setattr(osu_api_client, "rate_limiter", osu_api_client.RateLimiter(burst=1, interval=1.5))
     fake_http.queue += [http_response(200, []), http_response(200, [])]
-    client = OsuAPIClient("t")
 
-    client.get("/a")
-    client.get("/b")
+    OsuAPIClient("a").get("/a")
+    OsuAPIClient("b").get("/b")
 
-    assert fake_http.sleeps == [pytest.approx(1.1)]
+    assert fake_clock.sleeps == [pytest.approx(1.5)]
+
+
+# ---------------------------------------------------------------------------
+# Skipping a refresh that just happened
+# ---------------------------------------------------------------------------
+def test_successful_update_is_remembered(recommender_db, monkeypatch):
+    now = [5000.0]
+    monkeypatch.setattr(score_collector.time, "monotonic", lambda: now[0])
+
+    assert not score_collector.scores_refreshed_recently(PLAYER_ID)
+    update_player_scores(recommender_db.conn, FakeOsuAPI(), PLAYER_ID)
+    assert score_collector.scores_refreshed_recently(PLAYER_ID)
+    assert not score_collector.scores_refreshed_recently(PLAYER_ID + 1)
+
+    now[0] += score_collector.SCORE_REFRESH_INTERVAL
+    assert not score_collector.scores_refreshed_recently(PLAYER_ID)
+
+
+def test_failed_update_is_not_remembered(recommender_db):
+    with pytest.raises(PlayerNotFoundError):
+        update_player_scores(recommender_db.conn, FakeOsuAPI(error=OsuAPINotFoundError("404")), PLAYER_ID)
+
+    assert not score_collector.scores_refreshed_recently(PLAYER_ID)
+
+
+def test_recommend_player_skips_a_recent_refresh(recommender_db, monkeypatch):
+    import asyncio
+
+    from beatmap_recommender import recommender
+    from beatmap_recommender.api.model import RecommendationSettings
+
+    calls = []
+
+    async def fake_get_access_token(session_id):
+        calls.append("token")
+        return "token"
+
+    def fake_recommend_player_sync(settings, access_token, update_scores, cancel_event):
+        calls.append(("sync", access_token, update_scores))
+        return []
+
+    monkeypatch.setattr(recommender, "get_access_token", fake_get_access_token)
+    monkeypatch.setattr(recommender, "recommend_player_sync", fake_recommend_player_sync)
+    settings = RecommendationSettings(player_id=PLAYER_ID)
+
+    asyncio.run(recommender.recommend_player(settings, "session", PLAYER_ID))
+    update_player_scores(recommender_db.conn, FakeOsuAPI(), PLAYER_ID)
+    asyncio.run(recommender.recommend_player(settings, "session", PLAYER_ID))
+
+    assert calls == ["token", ("sync", "token", True), ("sync", None, False)]

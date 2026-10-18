@@ -56,6 +56,9 @@ TEXT_COLUMNS = ("beatmap_id", "beatmapset_id", "mods", "status")
 
 METADATA_FIELDS = ("title", "artist", "creator", "version")
 
+# variant_predictions columns: the classifier's NM1-NM5 probabilities.
+PREDICTION_COLUMNS = ("nm1", "nm2", "nm3", "nm4", "nm5")
+
 # Rows read from SQLite per fetchmany() while loading the table.
 LOAD_CHUNK_SIZE = 65_536
 
@@ -143,15 +146,21 @@ class VariantTable:
     so values come back as the same Python ints and floats SQLite returned.
     Text columns are stored as codes into a list of distinct values.
     Anything else (NULLs, mixed types) falls back to an object array.
+
+    nm_predictions holds each beatmap's NM variant classifier probabilities,
+    indexed by beatmap_id code: a [beatmaps, 5] float64 array with 0.0 for
+    NULL, and has_nm_prediction marks the beatmaps that have a row.
     """
 
-    def __init__(self, columns, categories, float_columns, metadata):
+    def __init__(self, columns, categories, float_columns, metadata, nm_predictions, has_nm_prediction):
         self.columns = columns
         self.categories = categories
         # Numeric columns as float64 with NaN for NULL, for filtering.
         self.float_columns = float_columns
         # Metadata arrays indexed by beatmap_id code.
         self.metadata = metadata
+        self.nm_predictions = nm_predictions
+        self.has_nm_prediction = has_nm_prediction
         self.row_count = len(columns["variant_id"])
 
     @classmethod
@@ -203,7 +212,27 @@ class VariantTable:
                 for field, value in zip(METADATA_FIELDS, fields):
                     metadata[field][code] = value
 
-        table = cls(columns, categories, float_columns, metadata)
+        nm_predictions = np.zeros((len(beatmap_codes), len(PREDICTION_COLUMNS)), dtype=np.float64)
+        has_nm_prediction = np.zeros(len(beatmap_codes), dtype=bool)
+
+        rows = conn.execute(
+            f"""
+            SELECT CAST(bv.beatmap_id AS TEXT), {", ".join(f"vp.{name}" for name in PREDICTION_COLUMNS)}
+            FROM beatmap_variants bv
+            JOIN variant_predictions vp
+                ON vp.variant_id = bv.variant_id
+            WHERE bv.mods = 'NM'
+            """
+        )
+
+        for beatmap_id, *probabilities in rows:
+            code = beatmap_codes.get(beatmap_id)
+
+            if code is not None:
+                nm_predictions[code] = [0.0 if value is None else value for value in probabilities]
+                has_nm_prediction[code] = True
+
+        table = cls(columns, categories, float_columns, metadata, nm_predictions, has_nm_prediction)
         logger.info("Loaded %d variants into columns: %.2fs", table.row_count, time.perf_counter() - start)
         return table
 
