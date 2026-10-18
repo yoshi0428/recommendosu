@@ -41,6 +41,12 @@
   --bs-btn-border-color: #5c636a;
 }
 
+/* Same problem on the dark page (3.3:1), so lighten it there (5.2:1). */
+[data-bs-theme="dark"] .btn-outline-secondary {
+  --bs-btn-color: #8f969d;
+  --bs-btn-border-color: #8f969d;
+}
+
 .app-surface {
   background-color: var(--app-surface);
 }

@@ -1,0 +1,7 @@
+# recommendosu
+
+> A recommender for ranked and loved osu!std beatmaps. Sign in with osu! to get beatmap recommendations filtered by star rating, BPM, pp and mods.
+
+- [Home](https://recommendosu.com/): the recommender (requires osu! sign-in)
+- [About](https://recommendosu.com/about): what the site is and how it works
+- [API docs](https://recommendosu.com/docs): the backend's OpenAPI documentation
