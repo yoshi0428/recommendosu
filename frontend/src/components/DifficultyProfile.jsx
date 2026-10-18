@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { Card, Col, Form, Row } from "react-bootstrap";
 
 const DIFFICULTY_FEATURES = [
@@ -8,8 +9,10 @@ const DIFFICULTY_FEATURES = [
 ];
 
 function NumberInput({ label, value, onChange, step = "any" }) {
+  const id = useId();
+
   return (
-    <Form.Group>
+    <Form.Group controlId={id}>
       <Form.Label>{label}</Form.Label>
       <Form.Control
         type="number"

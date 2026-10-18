@@ -409,6 +409,8 @@ function About() {
           <img
             src="GoT80k9H6Gd1x.gif"
             alt="quagsire"
+            width="640"
+            height="542"
             // 2MB, at the bottom of the page: only load it when scrolled near.
             loading="lazy"
             className="img-fluid d-block mx-auto"

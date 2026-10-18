@@ -169,7 +169,11 @@ function SiteHeader({
                 <div className="site-header-collapsible d-flex align-items-center gap-1">
                   <span className="fw-semibold">Stars:</span>
 
+                  <Form.Label htmlFor="header-min-stars" visuallyHidden>
+                    Minimum stars
+                  </Form.Label>
                   <Form.Control
+                    id="header-min-stars"
                     type="number"
                     size="sm"
                     placeholder="Min"
@@ -184,7 +188,11 @@ function SiteHeader({
 
                   <span>-</span>
 
+                  <Form.Label htmlFor="header-max-stars" visuallyHidden>
+                    Maximum stars
+                  </Form.Label>
                   <Form.Control
+                    id="header-max-stars"
                     type="number"
                     size="sm"
                     placeholder="Max"
@@ -202,7 +210,11 @@ function SiteHeader({
                 <div className="site-header-collapsible d-flex align-items-center gap-1">
                   <span className="fw-semibold">BPM:</span>
 
+                  <Form.Label htmlFor="header-min-bpm" visuallyHidden>
+                    Minimum BPM
+                  </Form.Label>
                   <Form.Control
+                    id="header-min-bpm"
                     type="number"
                     size="sm"
                     placeholder="Min"
@@ -217,7 +229,11 @@ function SiteHeader({
 
                   <span>-</span>
 
+                  <Form.Label htmlFor="header-max-bpm" visuallyHidden>
+                    Maximum BPM
+                  </Form.Label>
                   <Form.Control
+                    id="header-max-bpm"
                     type="number"
                     size="sm"
                     placeholder="Max"
@@ -235,7 +251,11 @@ function SiteHeader({
                 <div className="site-header-collapsible d-flex align-items-center gap-1">
                   <span className="fw-semibold">PP:</span>
 
+                  <Form.Label htmlFor="header-min-pp" visuallyHidden>
+                    Minimum PP
+                  </Form.Label>
                   <Form.Control
+                    id="header-min-pp"
                     type="number"
                     size="sm"
                     placeholder="Min"
@@ -250,7 +270,11 @@ function SiteHeader({
 
                   <span>-</span>
 
+                  <Form.Label htmlFor="header-max-pp" visuallyHidden>
+                    Maximum PP
+                  </Form.Label>
                   <Form.Control
+                    id="header-max-pp"
                     type="number"
                     size="sm"
                     placeholder="Max"

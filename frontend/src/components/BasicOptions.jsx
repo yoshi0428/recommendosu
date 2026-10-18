@@ -71,7 +71,7 @@ function BasicOptions({settings, updateSetting}) {
       <Card.Body>
         <Row className="g-3">
           <Col xl={2}>
-            <Form.Group>
+            <Form.Group controlId="player-id">
               <Form.Label>Player ID</Form.Label>
 
               <Form.Control
@@ -97,7 +97,7 @@ function BasicOptions({settings, updateSetting}) {
           </Col>
 
           <Col xl={2}>
-            <Form.Group>
+            <Form.Group controlId="goal">
               <Form.Label>Goal</Form.Label>
 
               <Form.Select
@@ -114,7 +114,7 @@ function BasicOptions({settings, updateSetting}) {
           </Col>
 
           <Col xl={2}>
-            <Form.Group>
+            <Form.Group controlId="exclude-already-played">
               <Form.Label>Already Played</Form.Label>
 
               <Form.Select
@@ -133,7 +133,7 @@ function BasicOptions({settings, updateSetting}) {
           </Col>
 
           <Col xl={2}>
-            <Form.Group>
+            <Form.Group controlId="exclude-recent-plays">
               <Form.Label>Recent Plays</Form.Label>
 
               <Form.Select
@@ -152,7 +152,7 @@ function BasicOptions({settings, updateSetting}) {
           </Col>
 
           <Col xl={2}>
-            <Form.Group>
+            <Form.Group controlId="beatmap-status">
               <Form.Label>Map Status</Form.Label>
 
               <Form.Select
@@ -172,10 +172,14 @@ function BasicOptions({settings, updateSetting}) {
 
           <Col xl={2}>
             <Form.Group>
-              <Form.Label>Year range</Form.Label>
+              <Form.Label as="div">Year range</Form.Label>
 
               <div className="d-flex gap-2">
+                <Form.Label htmlFor="min-year" visuallyHidden>
+                  From year
+                </Form.Label>
                 <Form.Control
+                  id="min-year"
                   type="text"
                   inputMode="numeric"
                   maxLength={4}
@@ -189,7 +193,11 @@ function BasicOptions({settings, updateSetting}) {
                   onBlur={commitMinYear}
                 />
 
+                <Form.Label htmlFor="max-year" visuallyHidden>
+                  To year
+                </Form.Label>
                 <Form.Control
+                  id="max-year"
                   type="text"
                   inputMode="numeric"
                   maxLength={4}

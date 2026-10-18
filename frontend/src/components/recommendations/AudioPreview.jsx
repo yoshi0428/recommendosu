@@ -236,7 +236,11 @@ export function AudioPreviewProvider({ children }) {
             {formatAudioTime(currentTime)}
           </span>
 
+          <label htmlFor="audio-preview-seek" className="visually-hidden">
+            Audio progress
+          </label>
           <input
+            id="audio-preview-seek"
             type="range"
             className="form-range audio-preview-range audio-preview-seek flex-grow-1"
             style={{ "--fill": `${progress}%` }}
@@ -253,7 +257,6 @@ export function AudioPreviewProvider({ children }) {
                 audioRef.current.currentTime = newTime;
               }
             }}
-            aria-label="Audio progress"
             aria-valuetext={`${formatAudioTime(currentTime)} of ${formatAudioTime(duration)}`}
           />
 
@@ -271,7 +274,11 @@ export function AudioPreviewProvider({ children }) {
             {muted ? <VolumeMuteFill size={18} /> : <VolumeUpFill size={18} />}
           </button>
 
+          <label htmlFor="audio-preview-volume" className="visually-hidden">
+            Preview volume
+          </label>
           <input
+            id="audio-preview-volume"
             type="range"
             className="form-range audio-preview-range audio-preview-volume flex-shrink-0"
             style={{ "--fill": `${volumeFill}%` }}
@@ -280,7 +287,6 @@ export function AudioPreviewProvider({ children }) {
             step="0.001"
             value={muted ? 0 : volume}
             onChange={(e) => changeVolume(Number(e.target.value))}
-            aria-label="Preview volume"
           />
 
           <button
