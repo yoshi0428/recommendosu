@@ -461,8 +461,10 @@ def get_data(db_path, chunk_size=50000):
 
     conn.close()
 
-    # Convert to aligned lists
-    beatmap_ids = list(X.keys())
+    # Convert to aligned lists. Sorted so the order (and so train_test_split's
+    # split) doesn't depend on SQLite's row scan order, which changes when
+    # the DB is rebuilt.
+    beatmap_ids = sorted(X)
     original_X = [
         np.array(X[beatmap_id], dtype=np.float32) for beatmap_id in beatmap_ids
     ]

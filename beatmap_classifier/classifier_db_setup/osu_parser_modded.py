@@ -1,4 +1,3 @@
-import hashlib
 import os
 import sqlite3
 from concurrent.futures import ProcessPoolExecutor
@@ -15,7 +14,6 @@ from db_table_creation import create_tables
 from parser import parse_osu_file
 from tqdm import tqdm
 
-from beatmap_recommender.recommender_db_setup.osu_api_client import OsuAPIClient
 from beatmap_recommender.recommender_db_setup.star_calculator import VersionAwareOsuCalculator
 
 # ============================================================
@@ -25,6 +23,8 @@ from beatmap_recommender.recommender_db_setup.star_calculator import VersionAwar
 CLASSIFIER_DIR = Path(__file__).resolve().parents[1]
 DATABASE_PATH = CLASSIFIER_DIR / "unexpanded_beatmaps.db"
 ROOT_DIR = CLASSIFIER_DIR / "data"
+VIEW_MULTICATEGORY_SQL = CLASSIFIER_DIR / "view_multicategory_maps.sql"
+CLEAN_MULTICATEGORY_SQL = CLASSIFIER_DIR / "clean_multicategory_maps.sql"
 
 NUM_WORKERS = 8
 BATCH_SIZE = 2500
@@ -149,14 +149,6 @@ def process_difficulty(file_path):
     }
 
 
-def get_file_content_md5(file_path):
-    hash_md5 = hashlib.md5()
-    with open(file_path, "rb") as f:
-        for chunk in iter(lambda: f.read(4096), b""):
-            hash_md5.update(chunk)
-    return hash_md5.hexdigest()
-
-
 def main():
 
     conn = sqlite3.connect(DATABASE_PATH)
@@ -168,16 +160,6 @@ def main():
     conn.execute("PRAGMA cache_size = -200000")
 
     create_tables(conn)
-
-    # Initialize the API client in the main process for legacy lookup
-    api_client = None
-    try:
-        api_client = OsuAPIClient()
-        api_client.authenticate()
-    except Exception as e:
-        print(
-            f"Warning: Failed to initialize OsuAPIClient: {e}. Will rely on fallback defaults."
-        )
 
     osu_files = []
     for dirpath, _, filenames in os.walk(ROOT_DIR):
@@ -220,34 +202,11 @@ def main():
                 skipped += 1
                 continue
 
-            # Compute the file content MD5 hash for lookup/fallback
-            file_hash = get_file_content_md5(file_path)
-
-            # If beatmap_id or essential difficulty attributes are missing, try querying the API via checksum
-            if (
-                beatmap_data["beatmap_id"] is None or beatmap_data["ar"] is None
-            ) and api_client is not None:
-                try:
-                    response_data = api_client.get(
-                        "/beatmaps/lookup", params={"checksum": file_hash}
-                    )
-                    if response_data and "id" in response_data:
-                        beatmap_data["beatmap_id"] = str(response_data["id"])
-                        if beatmap_data["ar"] is None:
-                            beatmap_data["ar"] = response_data.get("ar", 8.0)
-                except Exception:
-                    pass  # Fallback to local handling if API query fails or is rate-limited
-
-            # Fallbacks if still missing after API lookup
-            if beatmap_data["beatmap_id"] is None:
-                beatmap_data["beatmap_id"] = file_hash
-            else:
-                beatmap_data["beatmap_id"] = str(beatmap_data["beatmap_id"])
-
+            # downloader_backoff.py saves each map as <beatmap_id>.osu. Trust
+            # that over the file's BeatmapID, which old maps lack and some
+            # maps set to 0 (two NM5 maps once collided on beatmap_id "0").
+            beatmap_data["beatmap_id"] = Path(file_path).stem
             beatmap_id = beatmap_data["beatmap_id"]
-
-            if beatmap_data["ar"] is None:
-                beatmap_data["ar"] = 8.0
 
             # ------------------------------------------------
             # Tournament label
@@ -310,6 +269,13 @@ def main():
                 )
 
     conn.commit()
+
+    # Drop maps placed in more than one tournament slot (ambiguous labels)
+    view_sql = VIEW_MULTICATEGORY_SQL.read_text().strip().rstrip(";")
+    multicategory_count = conn.execute(
+        f"SELECT COUNT(*) FROM ({view_sql})"
+    ).fetchone()[0]
+    conn.executescript(CLEAN_MULTICATEGORY_SQL.read_text())
     conn.close()
 
     print()
@@ -320,6 +286,7 @@ def main():
     print(f"Successful:        {successful}")
     print(f"Skipped:            {skipped}")
     print(f"Failed variants:   {failed_variants}")
+    print(f"Multi-category:    {multicategory_count} (removed)")
 
 
 if __name__ == "__main__":

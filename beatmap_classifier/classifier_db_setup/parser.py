@@ -359,4 +359,8 @@ def parse_osu_file(
     else:
         data["vectors"] = []
 
+    # NOTE: Old maps have no ApproachRate line; osu! uses OD as AR for them.
+    if data["ar"] is None:
+        data["ar"] = data["od"]
+
     return data

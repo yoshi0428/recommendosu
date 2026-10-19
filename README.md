@@ -88,9 +88,8 @@ The entry points will be listed below:
 The parser stores every vector channel, including `speed_change` and `time_diff_change`, so training reads them straight from the database. 
 Training and prediction divide both `time_diff` and `time_diff_change` by the same saved `max_time_diff` (`vector_normalization.json`), so the two always build identical inputs.
 
-If you do populate `/beatmap_classifier/unexpanded_beatmaps.db` by yourself, 
-please run `/beatmap_classifer/view_multicategory_maps.sql` and `/beatmap_classifier/clean_multicategory_maps.sql` in the database browser of your choice.
-I used DB Browser for SQLite while making this project.
+`osu_parser_modded.py` runs `/beatmap_classifier/clean_multicategory_maps.sql` once it's done, which removes maps placed in more than one tournament slot.
+You can preview them with `/beatmap_classifier/view_multicategory_maps.sql` in the database browser of your choice (I used DB Browser for SQLite).
 
 ### Beatmap Recommender
 
