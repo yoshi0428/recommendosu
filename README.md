@@ -1,6 +1,6 @@
 # recommendosu
 
-I will slowly document all of this in my free time. This project is running on my PC at [recommendosu.com](https://recommendosu.com/).
+I will slowly document all of this in my free time. This project is running on my PC at [recommendosu.com](https://recommendosu.com/). You can also invite the Discord Bot to your server via this [link](https://discord.com/oauth2/authorize?client_id=1561877569727369296).
 
 I've created a Discord server [here!](https://discord.gg/Dh4TzKGGB7)
 
