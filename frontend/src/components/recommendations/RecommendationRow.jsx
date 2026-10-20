@@ -34,7 +34,6 @@ function RecommendationRow({
     artist,
     title,
     version,
-    creator,
     mods,
     status,
     star_rating,
@@ -83,7 +82,7 @@ function RecommendationRow({
             style={{ cursor: "pointer" }}
             onClick={(e) => {
               e.stopPropagation();
-              togglePreview(previewKey, { artist, title, creator });
+              togglePreview(previewKey, { beatmapsetId: beatmapset_id });
             }}
           >
             {coverUrl && (

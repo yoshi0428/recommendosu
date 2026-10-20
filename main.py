@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import mimetypes
 import os
 import secrets
 import uuid
@@ -18,7 +17,7 @@ from fastapi import (
     Query,
     Response,
 )
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
 from beatmap_recommender.api.model import RecommendationSettings
@@ -54,7 +53,6 @@ from beatmap_recommender.content_similarity.core_modules.score_collector import 
     PlayerNotFoundError,
 )
 from beatmap_recommender.content_similarity.core_modules.variant_table import load_variant_table
-from beatmap_recommender.data_audio.extract_audio import sanitize_filename
 from beatmap_recommender.database import connect_memory_db, load_memory_db
 from beatmap_recommender.recommender import get_application_access_token, recommend_player
 from beatmap_recommender.result_cache import get_result_page, store_result
@@ -111,11 +109,6 @@ BOT_API_KEY = os.getenv("BOT_API_KEY")
 BOT_RECOMMENDATION_PAGE_SIZE = 50
 MAX_BOT_RECOMMENDATION_PAGE_SIZE = 100
 
-PROJECT_ROOT = Path(__file__).resolve().parents[0]
-AUDIO_DIR = PROJECT_ROOT / "beatmap_recommender" / "data_audio"
-
-AUDIO_INDEX = {}
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -125,12 +118,6 @@ async def lifespan(app: FastAPI):
     initialize_state_store()
     load_memory_db()
     load_variant_table()
-
-    if AUDIO_DIR.is_dir():
-        for audio_path in AUDIO_DIR.rglob("*"):
-            if audio_path.is_file():
-                AUDIO_INDEX[audio_path.stem] = audio_path
-
     yield
 
 
@@ -856,81 +843,6 @@ async def bot_classify(
         **dict(zip(keys, info)),
         "predictions": dict(zip(NM_LABELS, predictions)),
     }
-
-
-########################################################################################################################
-########################################################################################################################
-########################################################################################################################
-#
-# MUSIC
-#
-########################################################################################################################
-########################################################################################################################
-########################################################################################################################
-
-
-@app.get(
-    f"{API_PREFIX}/music/preview",
-    summary="Get beatmap audio preview",
-    tags=["Music"],
-)
-async def music_preview(
-    artist: str = Query(...),
-    title: str = Query(...),
-    creator: str = Query(...),
-):
-    filename_stem = (
-        f"{sanitize_filename(artist)} - "
-        f"{sanitize_filename(title)} - "
-        f"{sanitize_filename(creator)}"
-    )
-
-    audio_path = AUDIO_INDEX.get(filename_stem)
-
-    if audio_path is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Audio preview not found.",
-        )
-
-    conn = connect_memory_db()
-
-    cursor = conn.execute(
-        """
-        SELECT preview_time, length_seconds
-        FROM beatmaps
-        WHERE artist = ?
-          AND title = ?
-          AND creator = ?
-        LIMIT 1
-        """,
-        (artist, title, creator),
-    )
-    row = cursor.fetchone()
-    conn.close()
-
-    if row is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Beatmap not found.",
-        )
-
-    preview_time, length_seconds = row
-
-    if preview_time == -1:
-        preview_time = int(length_seconds * 1000 * 0.40)
-
-    media_type, _ = mimetypes.guess_type(audio_path)
-    if media_type is None:
-        media_type = "application/octet-stream"
-
-    return FileResponse(
-        path=audio_path,
-        media_type=media_type,
-        headers={
-            "X-Preview-Time": str(preview_time),
-        },
-    )
 
 
 ########################################################################################################################

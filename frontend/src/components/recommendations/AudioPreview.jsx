@@ -2,7 +2,6 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useRef,
   useState,
@@ -19,6 +18,9 @@ import {
 import "./AudioPreview.css";
 
 const AudioPreviewContext = createContext(null);
+
+// osu!'s own ~10 second clips, which already start at the map's preview point.
+const previewUrl = (beatmapsetId) => `https://b.ppy.sh/preview/${beatmapsetId}.mp3`;
 
 const VOLUME_STORAGE_KEY = "audioPreviewVolume";
 const DEFAULT_VOLUME = 0.01;
@@ -60,7 +62,7 @@ const saveVolume = (volume) => {
 export function AudioPreviewProvider({ children }) {
   // Key of the row whose preview is loaded, or null when the player is closed.
   const [activeKey, setActiveKey] = useState(null);
-  // Key of the row whose preview is being fetched.
+  // Key of the row whose preview is loading.
   const [loadingKey, setLoadingKey] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -69,19 +71,11 @@ export function AudioPreviewProvider({ children }) {
   const [muted, setMuted] = useState(false);
 
   const audioRef = useRef(null);
-  const audioUrlRef = useRef(null);
   const activeKeyRef = useRef(null);
   const volumeRef = useRef(volume);
-  // Bumped on every new preview or close, so a slow fetch that finishes after
-  // the user moved on doesn't start playing.
+  // Bumped on every new preview or close, so a slow load that finishes after
+  // the user moved on doesn't open the player.
   const requestIdRef = useRef(0);
-
-  const revokeAudioUrl = () => {
-    if (audioUrlRef.current) {
-      URL.revokeObjectURL(audioUrlRef.current);
-      audioUrlRef.current = null;
-    }
-  };
 
   const closePreview = useCallback(() => {
     requestIdRef.current += 1;
@@ -93,7 +87,6 @@ export function AudioPreviewProvider({ children }) {
       audio.load();
     }
 
-    revokeAudioUrl();
     activeKeyRef.current = null;
     setActiveKey(null);
     setLoadingKey(null);
@@ -102,11 +95,11 @@ export function AudioPreviewProvider({ children }) {
     setDuration(0);
   }, []);
 
-  // Play/pause the given row's preview, fetching it first if another
+  // Play/pause the given row's preview, loading it first if another
   // preview (or none) is loaded.
-  const togglePreview = useCallback(async (key, { artist, title, creator }) => {
+  const togglePreview = useCallback(async (key, { beatmapsetId }) => {
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio || !beatmapsetId) return;
 
     if (activeKeyRef.current === key) {
       if (audio.paused) {
@@ -120,36 +113,27 @@ export function AudioPreviewProvider({ children }) {
     const requestId = ++requestIdRef.current;
     setLoadingKey(key);
 
+    setDuration(0);
+    setCurrentTime(0);
+    audio.src = previewUrl(beatmapsetId);
+    audio.volume = volumeRef.current;
+
     try {
-      const params = new URLSearchParams({ artist, title, creator });
-      const response = await fetch(
-        `/api/v1/music/preview?${params.toString()}`
-      );
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch audio preview");
-      }
-
-      const previewTime = Number(response.headers.get("X-Preview-Time") ?? 0);
-      const blob = await response.blob();
+      // Resolves once playback starts; rejects if the preview can't be
+      // loaded (e.g. osu! has none for this set).
+      await audio.play();
 
       if (requestId !== requestIdRef.current) return;
 
-      revokeAudioUrl();
-      const url = URL.createObjectURL(blob);
-      audioUrlRef.current = url;
-
       activeKeyRef.current = key;
       setActiveKey(key);
-      setDuration(0);
-      setCurrentTime(previewTime / 1000);
-
-      audio.src = url;
-      audio.volume = volumeRef.current;
-      audio.currentTime = previewTime / 1000;
-      audio.play().catch(() => {});
     } catch (error) {
+      // A newer preview or a close replaced this one; nothing to report.
+      if (requestId !== requestIdRef.current) return;
+
       console.error("Failed to play audio preview:", error);
+      audio.removeAttribute("src");
+      audio.load();
     } finally {
       if (requestId === requestIdRef.current) {
         setLoadingKey(null);
@@ -182,9 +166,6 @@ export function AudioPreviewProvider({ children }) {
       setMuted(false);
     }
   };
-
-  // Release the last preview when leaving the page.
-  useEffect(() => revokeAudioUrl, []);
 
   const value = useMemo(
     () => ({

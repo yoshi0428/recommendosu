@@ -38,17 +38,7 @@ function Results({ showRow }) {
 }
 
 beforeEach(() => {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async () => ({
-      ok: true,
-      headers: new Headers({ "X-Preview-Time": "1000" }),
-      blob: async () => new Blob(),
-    }))
-  );
-  // jsdom has no object URLs or media playback.
-  URL.createObjectURL = vi.fn(() => "blob:preview");
-  URL.revokeObjectURL = vi.fn();
+  // jsdom has no media playback.
   vi.spyOn(HTMLMediaElement.prototype, "play").mockImplementation(function () {
     this.dispatchEvent(new Event("play"));
     return Promise.resolve();
@@ -60,6 +50,37 @@ beforeEach(() => {
 });
 
 describe("AudioPreviewProvider", () => {
+  it("plays osu!'s preview for the row's beatmapset", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<Results showRow />);
+
+    await user.click(container.querySelector(".recommendation-cover"));
+
+    expect(
+      await screen.findByRole("button", { name: "Pause preview" })
+    ).toBeInTheDocument();
+    expect(container.querySelector("audio").getAttribute("src")).toBe(
+      "https://b.ppy.sh/preview/2.mp3"
+    );
+  });
+
+  it("doesn't open the player when the preview fails to load", async () => {
+    HTMLMediaElement.prototype.play.mockImplementation(() =>
+      Promise.reject(new Error("no preview"))
+    );
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const user = userEvent.setup();
+    const { container } = render(<Results showRow />);
+
+    await user.click(container.querySelector(".recommendation-cover"));
+
+    await waitFor(() => expect(console.error).toHaveBeenCalled());
+    expect(
+      screen.queryByRole("button", { name: "Close audio preview" })
+    ).not.toBeInTheDocument();
+    expect(container.querySelector("audio").hasAttribute("src")).toBe(false);
+  });
+
   it("keeps playing after the row that started it unmounts", async () => {
     const user = userEvent.setup();
     const { container, rerender } = render(<Results showRow />);
@@ -79,7 +100,7 @@ describe("AudioPreviewProvider", () => {
     expect(HTMLMediaElement.prototype.pause).not.toHaveBeenCalled();
   });
 
-  it("closes the player and releases the audio", async () => {
+  it("closes the player and unloads the audio", async () => {
     const user = userEvent.setup();
     const { container } = render(<Results showRow />);
 
@@ -93,6 +114,6 @@ describe("AudioPreviewProvider", () => {
         screen.queryByRole("button", { name: "Close audio preview" })
       ).not.toBeInTheDocument()
     );
-    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:preview");
+    expect(container.querySelector("audio").hasAttribute("src")).toBe(false);
   });
 });

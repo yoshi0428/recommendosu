@@ -290,17 +290,6 @@ def test_cancel_endpoint_for_unknown_request(logged_in_client):
 
 
 # ---------------------------------------------------------------------------
-# Music preview
-# ---------------------------------------------------------------------------
-def test_music_preview_unknown_song_is_404(client, monkeypatch):
-    monkeypatch.setattr(main, "AUDIO_INDEX", {})
-    response = client.get(
-        f"{API}/music/preview", params={"artist": "a", "title": "t", "creator": "c"}
-    )
-    assert response.status_code == 404
-
-
-# ---------------------------------------------------------------------------
 # End-to-end: real endpoint -> real recommender -> tiny test database
 # ---------------------------------------------------------------------------
 def test_recommend_end_to_end_with_test_database(logged_in_client, seeded_db, monkeypatch):
