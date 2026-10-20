@@ -55,7 +55,7 @@ def help_embed_parts():
             "Without plain mods, adjust the default instead:\n"
             "`-DT`: leave out anything with DT\n"
             "`~FL`: allow FL (also works for EZ and HT)\n"
-            "Combine them: `~FL -DT`. "
+            "Combine them: `~FL -DT`. \n"
             f"Mods: {' '.join(INDIVIDUAL_MODS)}.",
         ),
         (
