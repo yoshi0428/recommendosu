@@ -10,7 +10,9 @@ RESULT_TTL_SECONDS = 30 * 60
 
 @dataclass
 class CachedResult:
-    player_id: int
+    # Whoever may read the result: the logged-in osu! player ID for the
+    # website, or "discord:<user ID>" for the Discord bot.
+    player_id: int | str
     # Usually a VariantRows from rank_variants, which only builds the dicts
     # of the page being read; a result of millions of rows is then a few
     # numpy arrays rather than millions of dicts.
@@ -35,7 +37,7 @@ def _evict_expired(now: float) -> None:
 
 def store_result(
     recommendation_id: str,
-    player_id: int,
+    player_id: int | str,
     recommendations: Sequence[dict],
 ) -> None:
     """Cache a ranked result, replacing any earlier result for the player."""
@@ -62,7 +64,7 @@ def store_result(
 
 def get_result_page(
     recommendation_id: str,
-    player_id: int,
+    player_id: int | str,
     offset: int,
     limit: int,
 ) -> tuple[int, list[dict]] | None:

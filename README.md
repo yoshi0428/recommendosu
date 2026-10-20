@@ -66,6 +66,7 @@ torch
 tqdm
 optuna
 uvicorn[standard]
+discord.py
 ```
 
 # Running the code
@@ -335,6 +336,37 @@ docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml log
 
 ### full shutdown
 docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml down
+```
+
+### Discord bot
+
+The bot (`bot/`) is behind the `bot` compose profile, so the commands above leave it alone. It talks to the backend over the compose network, so it must run in the same project as the website (`-p recommendosu-prod`). Without `-p`, Compose starts a separate project with a second backend.
+
+It needs `DISCORD_TOKEN` and `BOT_API_KEY` in `.env` (see `.env.example`); the backend reads `BOT_API_KEY` too, so restart the backend after setting it. Set `BOT_DEV_GUILD_ID` to a server ID to update the commands there instantly instead of within about an hour. `/link` data is kept in `bot/data/`.
+
+Don't run it from the local stack with the production token: two bots logged in with one token both answer every command.
+
+```
+### start or rebuild the bot, without touching the website
+docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml --profile bot build bot && \
+docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml --profile bot up -d --no-deps bot
+
+### rebuild/recreate the backend and the bot (after changing the bot endpoints in main.py)
+docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml --profile bot build backend bot && \
+docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml --profile bot up -d --no-deps backend bot
+
+### everything, website and bot
+docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml --profile bot up --build -d
+
+### logs
+docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml --profile bot logs -f bot
+
+### stop and start the bot only
+docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml --profile bot stop bot
+docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml --profile bot start bot
+
+### full shutdown, website and bot
+docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml --profile bot down
 ```
 
 ### Clearing Cache

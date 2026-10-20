@@ -2,10 +2,12 @@ import asyncio
 import logging
 import mimetypes
 import os
+import secrets
 import uuid
 from contextlib import asynccontextmanager
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
+from urllib.parse import quote
 
 import httpx
 from fastapi import (
@@ -21,6 +23,7 @@ from pydantic import BaseModel, Field
 
 from beatmap_recommender.api.model import RecommendationSettings
 from beatmap_recommender.api.osu_api import get_authenticated_user
+from beatmap_recommender.api.osu_api_client import OsuAPIClient, OsuAPINotFoundError
 from beatmap_recommender.auth.oauth_state import (
     consume_state,
     initialize_state_store,
@@ -46,13 +49,14 @@ from beatmap_recommender.cancellation import (
     create_cancellation_event,
     remove_cancellation_event,
 )
+from beatmap_recommender.content_similarity.core_modules.cnn_xgboost_influence import NM_LABELS
 from beatmap_recommender.content_similarity.core_modules.score_collector import (
     PlayerNotFoundError,
 )
 from beatmap_recommender.content_similarity.core_modules.variant_table import load_variant_table
 from beatmap_recommender.data_audio.extract_audio import sanitize_filename
 from beatmap_recommender.database import connect_memory_db, load_memory_db
-from beatmap_recommender.recommender import recommend_player
+from beatmap_recommender.recommender import get_application_access_token, recommend_player
 from beatmap_recommender.result_cache import get_result_page, store_result
 
 # Logs always go to stdout (`docker compose logs`). Set LOG_FILE to also
@@ -97,6 +101,15 @@ RECOMMENDATION_PAGE_SIZE = 1000
 MAX_RECOMMENDATION_PAGE_SIZE = 5000
 
 SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "false").lower() == "true"
+
+# Shared secret for the Discord bot (bot/), sent in the X-Bot-Key header. The
+# bot endpoints are disabled when it's unset.
+BOT_API_KEY = os.getenv("BOT_API_KEY")
+
+# The bot shows a few recommendations per Discord page, so it fetches the
+# result in small chunks rather than RECOMMENDATION_PAGE_SIZE rows at a time.
+BOT_RECOMMENDATION_PAGE_SIZE = 50
+MAX_BOT_RECOMMENDATION_PAGE_SIZE = 100
 
 PROJECT_ROOT = Path(__file__).resolve().parents[0]
 AUDIO_DIR = PROJECT_ROOT / "beatmap_recommender" / "data_audio"
@@ -604,6 +617,244 @@ async def recommend_cancel(
     return {
         "recommendation_id": recommendation_id,
         "cancelled": cancelled,
+    }
+
+
+########################################################################################################################
+########################################################################################################################
+########################################################################################################################
+#
+# DISCORD BOT
+#
+########################################################################################################################
+########################################################################################################################
+########################################################################################################################
+
+
+def require_bot(bot_key: str | None) -> None:
+    if not BOT_API_KEY or not bot_key or not secrets.compare_digest(bot_key, BOT_API_KEY):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid bot API key.",
+        )
+
+
+def bot_result_owner(discord_user_id: int) -> str:
+    """The result cache owner for a Discord user, which can't equal an osu! player ID."""
+    return f"discord:{discord_user_id}"
+
+
+class BotPlayerResponse(BaseModel):
+    player_id: int
+    username: str
+
+
+@app.get(
+    f"{API_PREFIX}/bot/players/{{username}}",
+    response_model=BotPlayerResponse,
+    summary="Look up an osu! player by username",
+    tags=["Discord bot"],
+)
+async def bot_player(
+    username: str,
+    bot_key: str | None = Header(default=None, alias="X-Bot-Key"),
+):
+    require_bot(bot_key)
+    access_token = await get_application_access_token()
+
+    try:
+        user = await asyncio.to_thread(
+            OsuAPIClient(access_token).get,
+            f"/users/{quote(username, safe='')}/osu",
+            params={"key": "username"},
+        )
+    except OsuAPINotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail=f"osu! player {username!r} was not found.",
+        )
+
+    return {
+        "player_id": user["id"],
+        "username": user["username"],
+    }
+
+
+@app.post(
+    f"{API_PREFIX}/bot/recommend",
+    response_model=RecommendationResponse,
+    summary="Get recommendations for any player (Discord bot)",
+    description=(
+        "Same settings as POST /recommend, but player_id is required and "
+        "scores are fetched with the application token. Only the first "
+        f"{BOT_RECOMMENDATION_PAGE_SIZE} recommendations are returned; fetch "
+        f"the rest from {API_PREFIX}/bot/recommend/{{recommendation_id}}/page."
+    ),
+    tags=["Discord bot"],
+)
+async def bot_recommend(
+    settings: RecommendationSettings,
+    bot_key: str | None = Header(default=None, alias="X-Bot-Key"),
+    discord_user_id: int = Header(alias="X-Discord-User-Id"),
+):
+    require_bot(bot_key)
+
+    if settings.player_id is None:
+        raise HTTPException(
+            status_code=400,
+            detail="player_id is required.",
+        )
+
+    # No session: a session_player_id that never matches makes the
+    # recommender fetch scores with the application token.
+    try:
+        recommendations = await recommend_player(
+            settings,
+            session_id=None,
+            session_player_id=None,
+        )
+    except PlayerNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        )
+
+    # Cached for the Discord user who asked, like the website caches a
+    # result for its logged-in player, so each Discord user keeps their own
+    # latest result and can't replace a website user's.
+    recommendation_id = uuid.uuid4().hex
+    await asyncio.to_thread(
+        store_result,
+        recommendation_id,
+        bot_result_owner(discord_user_id),
+        recommendations,
+    )
+
+    return {
+        "recommendation_id": recommendation_id,
+        "player_id": settings.player_id,
+        "recommendation_goal": settings.goal,
+        "total_count": len(recommendations),
+        "offset": 0,
+        "recommendations": recommendations[:BOT_RECOMMENDATION_PAGE_SIZE],
+    }
+
+
+@app.get(
+    f"{API_PREFIX}/bot/recommend/{{recommendation_id}}/page",
+    response_model=RecommendationPageResponse,
+    summary="Get a page of a Discord user's recommendation result",
+    description=(
+        "Return a slice of a result previously generated by POST "
+        f"{API_PREFIX}/bot/recommend for the same Discord user. Results expire "
+        "after 30 minutes without access, and only each user's latest is kept."
+    ),
+    tags=["Discord bot"],
+)
+async def bot_recommend_page(
+    recommendation_id: str,
+    bot_key: str | None = Header(default=None, alias="X-Bot-Key"),
+    discord_user_id: int = Header(alias="X-Discord-User-Id"),
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(
+        default=BOT_RECOMMENDATION_PAGE_SIZE,
+        ge=1,
+        le=MAX_BOT_RECOMMENDATION_PAGE_SIZE,
+    ),
+):
+    require_bot(bot_key)
+    page = get_result_page(recommendation_id, bot_result_owner(discord_user_id), offset, limit)
+
+    if page is None:
+        raise HTTPException(
+            status_code=404,
+            detail="These recommendations expired. Run /rec again.",
+        )
+
+    total_count, recommendations = page
+
+    return {
+        "recommendation_id": recommendation_id,
+        "total_count": total_count,
+        "offset": offset,
+        "recommendations": recommendations,
+    }
+
+
+class BotClassifyResponse(BaseModel):
+    beatmap_id: str
+    beatmapset_id: str | None
+    title: str
+    artist: str
+    creator: str
+    version: str
+    status: str
+    star_rating: float
+    predictions: dict[str, float] = Field(
+        description="CNN-XGBoost probability for each NM tournament category.",
+        examples=[{"NM1": 0.05, "NM2": 0.8, "NM3": 0.1, "NM4": 0.03, "NM5": 0.02}],
+    )
+
+
+@app.get(
+    f"{API_PREFIX}/bot/classify/{{beatmap_id}}",
+    response_model=BotClassifyResponse,
+    summary="Get a beatmap's NM1-NM5 classifier predictions",
+    tags=["Discord bot"],
+)
+async def bot_classify(
+    beatmap_id: str,
+    bot_key: str | None = Header(default=None, alias="X-Bot-Key"),
+):
+    require_bot(bot_key)
+
+    # Predictions are only precomputed for NM variants.
+    conn = connect_memory_db()
+
+    try:
+        row = conn.execute(
+            """
+            SELECT
+                b.beatmap_id, b.beatmapset_id, b.title, b.artist, b.creator,
+                b.version, b.status, bv.star_rating,
+                vp.nm1, vp.nm2, vp.nm3, vp.nm4, vp.nm5
+            FROM beatmaps b
+            JOIN beatmap_variants bv
+                ON bv.beatmap_id = b.beatmap_id
+               AND bv.mods = 'NM'
+            LEFT JOIN variant_predictions vp
+                ON vp.variant_id = bv.variant_id
+            WHERE b.beatmap_id = ?
+            """,
+            (beatmap_id,),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    if row is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Beatmap not found. Only ranked and loved osu!standard maps are in the database.",
+        )
+
+    info, predictions = row[:8], row[8:]
+
+    if any(probability is None for probability in predictions):
+        raise HTTPException(
+            status_code=404,
+            detail="The classifier has no prediction for this beatmap.",
+        )
+
+    keys = ("beatmap_id", "beatmapset_id", "title", "artist", "creator", "version", "status", "star_rating")
+    return {
+        **dict(zip(keys, info)),
+        "predictions": dict(zip(NM_LABELS, predictions)),
     }
 
 

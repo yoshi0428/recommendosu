@@ -339,3 +339,153 @@ def test_recommend_end_to_end_with_test_database(logged_in_client, seeded_db, mo
 
     scores = [r["final_score"] for r in body["recommendations"]]
     assert scores == sorted(scores, reverse=True)
+
+
+# ---------------------------------------------------------------------------
+# Discord bot endpoints
+# ---------------------------------------------------------------------------
+BOT_KEY = "test-bot-key"
+DISCORD_USER_ID = 900000000000000001
+
+
+@pytest.fixture
+def bot_client(client, monkeypatch):
+    """A client sending a valid X-Bot-Key and no session cookie."""
+    monkeypatch.setattr(main, "BOT_API_KEY", BOT_KEY)
+    client.headers["X-Bot-Key"] = BOT_KEY
+    client.headers["X-Discord-User-Id"] = str(DISCORD_USER_ID)
+    return client
+
+
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [
+        ("get", f"{API}/bot/players/someone"),
+        ("post", f"{API}/bot/recommend"),
+        ("get", f"{API}/bot/recommend/abc/page"),
+        ("get", f"{API}/bot/classify/1"),
+    ],
+)
+@pytest.mark.parametrize("configured_key", [None, BOT_KEY])
+def test_bot_endpoints_require_the_bot_key(client, monkeypatch, method, path, configured_key):
+    # With no BOT_API_KEY configured, the endpoints are off entirely.
+    monkeypatch.setattr(main, "BOT_API_KEY", configured_key)
+    kwargs = {"json": {"player_id": 1}} if method == "post" else {}
+    client.headers["X-Discord-User-Id"] = "1"
+
+    assert getattr(client, method)(path, **kwargs).status_code == 401
+    assert getattr(client, method)(path, headers={"X-Bot-Key": "wrong"}, **kwargs).status_code == 401
+
+
+def test_bot_recommend_uses_any_player_without_a_session(bot_client, fake_recommender):
+    response = bot_client.post(f"{API}/bot/recommend", json={"player_id": 555, "min_stars": 5.0})
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["player_id"] == 555
+    assert body["total_count"] == 2500
+    assert len(body["recommendations"]) == main.BOT_RECOMMENDATION_PAGE_SIZE
+
+    call = fake_recommender["calls"][0]
+    assert call["settings"].min_stars == 5.0
+    # No session player, so the recommender uses the application token.
+    assert call["session_player_id"] is None
+
+
+def test_bot_recommend_requires_the_discord_user(bot_client, fake_recommender):
+    del bot_client.headers["X-Discord-User-Id"]
+    response = bot_client.post(f"{API}/bot/recommend", json={"player_id": 555})
+    assert response.status_code == 422
+
+
+def test_bot_pages_through_the_whole_result(bot_client, fake_recommender):
+    recommendation_id = bot_client.post(f"{API}/bot/recommend", json={"player_id": 555}).json()["recommendation_id"]
+
+    response = bot_client.get(
+        f"{API}/bot/recommend/{recommendation_id}/page", params={"offset": 2450, "limit": 100}
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["total_count"] == 2500
+    # The last rows of the result: nothing past the end.
+    assert [r["beatmap_id"] for r in body["recommendations"]] == [str(i) for i in range(2450, 2500)]
+
+
+def test_bot_page_size_limit(bot_client, fake_recommender):
+    recommendation_id = bot_client.post(f"{API}/bot/recommend", json={"player_id": 555}).json()["recommendation_id"]
+    response = bot_client.get(
+        f"{API}/bot/recommend/{recommendation_id}/page",
+        params={"limit": main.MAX_BOT_RECOMMENDATION_PAGE_SIZE + 1},
+    )
+    assert response.status_code == 422
+
+
+def test_bot_results_belong_to_one_discord_user(bot_client, fake_recommender):
+    recommendation_id = bot_client.post(f"{API}/bot/recommend", json={"player_id": 555}).json()["recommendation_id"]
+
+    response = bot_client.get(
+        f"{API}/bot/recommend/{recommendation_id}/page", headers={"X-Discord-User-Id": "42"}
+    )
+    assert response.status_code == 404
+
+
+def test_bot_results_do_not_replace_website_results(bot_client, logged_in_client, fake_recommender):
+    """
+    The result cache keeps one result per owner. A Discord user asking about
+    a player must not evict the result that player is paging on the website.
+    """
+    post_recommend(logged_in_client, recommendation_id="web-1")
+    bot_client.post(f"{API}/bot/recommend", json={"player_id": PLAYER_ID})
+
+    response = logged_in_client.get(f"{API}/recommend/web-1/page")
+    assert response.status_code == 200
+
+
+def test_bot_recommend_requires_player_id(bot_client, fake_recommender):
+    response = bot_client.post(f"{API}/bot/recommend", json={})
+    assert response.status_code == 400
+
+
+def test_bot_recommend_unknown_player_is_404(bot_client, fake_recommender):
+    fake_recommender["raise"] = PlayerNotFoundError(555)
+    response = bot_client.post(f"{API}/bot/recommend", json={"player_id": 555})
+    assert response.status_code == 404
+
+
+def test_bot_player_lookup(bot_client, monkeypatch):
+    requests_made = []
+
+    def fake_get(self, endpoint, params=None):
+        requests_made.append((endpoint, params))
+        if "nobody" in endpoint:
+            raise main.OsuAPINotFoundError("404")
+        return {"id": 42, "username": "Some One"}
+
+    async def fake_token():
+        return "app-token"
+
+    monkeypatch.setattr(main, "get_application_access_token", fake_token)
+    monkeypatch.setattr(main.OsuAPIClient, "get", fake_get)
+
+    response = bot_client.get(f"{API}/bot/players/some%20one")
+    assert response.json() == {"player_id": 42, "username": "Some One"}
+    # The username is looked up as a name, never as an ID, and re-encoded.
+    assert requests_made[0] == ("/users/some%20one/osu", {"key": "username"})
+
+    assert bot_client.get(f"{API}/bot/players/nobody").status_code == 404
+
+
+def test_bot_classify(bot_client, seeded_db, monkeypatch):
+    monkeypatch.setattr(main, "connect_memory_db", lambda: sqlite3.connect(seeded_db.path))
+    seeded_db.add_beatmap(20, predictions=None)
+
+    response = bot_client.get(f"{API}/bot/classify/10")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["beatmap_id"] == "10"
+    assert body["predictions"] == pytest.approx({"NM1": 0.1, "NM2": 0.1, "NM3": 0.6, "NM4": 0.1, "NM5": 0.1})
+
+    assert bot_client.get(f"{API}/bot/classify/999").status_code == 404
+    # In the database, but the classifier has no prediction for it.
+    assert bot_client.get(f"{API}/bot/classify/20").status_code == 404

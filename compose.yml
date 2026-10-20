@@ -23,3 +23,23 @@ services:
       - frontend
       - backend
     restart: unless-stopped
+
+  # Discord bot (bot/). Behind a profile so the local stack, which shares this
+  # checkout and .env, doesn't log in with the same token as production.
+  # Start it with: docker compose --profile bot ... up -d bot
+  bot:
+    profiles:
+      - bot
+    build:
+      context: .
+      dockerfile: bot/Dockerfile
+    env_file:
+      - .env
+    environment:
+      BOT_BACKEND_URL: http://backend:8000
+    volumes:
+      # /link's Discord user -> osu! player table.
+      - ./bot/data:/app/bot/data
+    depends_on:
+      - backend
+    restart: unless-stopped
