@@ -13,6 +13,7 @@ recommender never writes to beatmap_variants or beatmaps, only to scores.
 Any other connection, such as a test database, gets a fresh table per call.
 """
 
+import ctypes
 import logging
 import re
 import threading
@@ -92,6 +93,25 @@ def load_variant_table():
     finally:
         conn.close()
 
+    _release_freed_memory()
+
+
+def _release_freed_memory():
+    """
+    Hand the memory freed while building the table back to the OS (~440MB).
+
+    Loading reads every row as Python objects, which are freed once they're in
+    numpy arrays, but glibc keeps freed memory in its heap instead of returning
+    it. With MALLOC_ARENA_MAX=1 (see the Dockerfile) it stays there for the
+    life of the process. Not available outside glibc (e.g. macOS), where it's
+    skipped.
+    """
+    try:
+        libc = ctypes.CDLL("libc.so.6")
+        libc.malloc_trim(0)
+    except (OSError, AttributeError):
+        pass
+
 
 def _numeric_array(values):
     """int64 or float64 when every value is that Python type, otherwise object."""
@@ -155,7 +175,8 @@ class VariantTable:
     def __init__(self, columns, categories, float_columns, metadata, nm_predictions, has_nm_prediction):
         self.columns = columns
         self.categories = categories
-        # Numeric columns as float64 with NaN for NULL, for filtering.
+        # Numeric columns as float64 with NaN for NULL, for filtering. int64
+        # columns (which have no NULLs) stay int64; float_column() converts.
         self.float_columns = float_columns
         # Metadata arrays indexed by beatmap_id code.
         self.metadata = metadata
@@ -193,9 +214,13 @@ class VariantTable:
         columns = {name: _concatenate(chunks[name]) for name in names}
         categories = {name: list(text_indexes[name]) for name in TEXT_COLUMNS}
 
-        # Like SQLite, NULLs (and text) never pass a numeric filter.
+        # Like SQLite, NULLs (and text) never pass a numeric filter. int64
+        # columns have no NULLs, so they're used as-is instead of a float64
+        # copy (~23MB each); comparing them gives the same results.
         float_columns = {
-            name: _float_array(columns[name]) for name in names if name not in TEXT_COLUMNS
+            name: columns[name] if columns[name].dtype == np.int64 else _float_array(columns[name])
+            for name in names
+            if name not in TEXT_COLUMNS
         }
 
         beatmap_codes = {beatmap_id: code for code, beatmap_id in enumerate(categories["beatmap_id"])}
@@ -283,7 +308,7 @@ class VariantRows(Sequence):
         return self.table.columns[column][self.rows]
 
     def float_column(self, column):
-        return self.table.float_columns[column][self.rows]
+        return self.table.float_columns[column][self.rows].astype(np.float64, copy=False)
 
     def _build_dicts(self, selection):
         table = self.table

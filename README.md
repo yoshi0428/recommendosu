@@ -211,7 +211,8 @@ The `pp_potential` goal went from ~1.4s to ~0.5s for a typical request, and from
 
 - **Scoring** uses numpy arrays, and values that only depend on the beatmap or the mods (content similarity, classifier score, mod preference) are calculated once per distinct value, not once per variant.
 - **Candidates** come from `beatmap_variants` held as numpy columns (`core_modules/variant_table.py`), and the filters are numpy masks instead of SQL. 
-  The table is built once when the server starts (~12s, ~1GB of memory), from the in-memory database; the recommender never writes to `beatmap_variants`. 
+  The table is built once when the server starts (~12s, ~0.55GB of memory), from the in-memory database; the recommender never writes to `beatmap_variants`. 
+  Building it frees ~0.5GB of temporary Python objects, which glibc would otherwise keep for the life of the process, so `load_variant_table()` hands it back with `malloc_trim`. 
   `tests/test_variant_ranking.py` checks the masks return the same rows, in the same order and with the same Python types, as the SQL they replaced.
 - **Results are only turned into dicts when they're read.** `rank_variants` returns a `VariantRows`, which holds the ranked row numbers and score arrays, and builds dicts for the slice being read. 
   The result cache stores it as-is, so a page of 1,000 rows takes ~2ms to build, and a cached worst-case result takes ~0.12GB instead of ~6GB of 3 million dicts.
