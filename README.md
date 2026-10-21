@@ -333,8 +333,11 @@ docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml up 
 docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml stop frontend backend
 docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml start frontend backend
 
-### logs
+### frontend, backend, and nginx logs
 docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml logs -f
+
+### frontend, backend, nginx, and Discord bot logs
+docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml --profile bot logs -f
 
 ### full shutdown
 docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml down
@@ -360,7 +363,7 @@ docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml --p
 ### everything, website and bot
 docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml --profile bot up --build -d
 
-### logs
+### only Discord bot logs
 docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml --profile bot logs -f bot
 
 ### stop and start the bot only

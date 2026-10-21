@@ -256,3 +256,5 @@ node_modules
 
 # Discord bot's /link database
 bot/data/
+
+DEPLOYMENT.md
