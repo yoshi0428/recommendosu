@@ -96,34 +96,52 @@ You can preview them with `/beatmap_classifier/view_multicategory_maps.sql` in t
 ### Beatmap Recommender
 
 - `/beatmap_recommender/data/extract_osu.py`: Extracts .osu files from directories of .osz archives.
-- `/beatmap_recommender/recommender_db_setup/populate.py`: Populates `beatmap_recommender/recommender.local.db` for the recommender. We needed a separate population script for the beatmapset ids, and to prevent inserting the CNN vectors.
+- `/beatmap_recommender/recommender_db_setup/populate.py`: Populates the recommender database (`beatmap_recommender/dummy.db` by default, see `--db`). We needed a separate population script for the beatmapset ids, and to prevent inserting the CNN vectors.
+- `/beatmap_recommender/recommender_db_setup/beatmap_id_resolution.py`: Works out the real beatmap ID of every .osu file before `populate.py` inserts it.
 - `/beatmap_recommender/recommender_db_setup/precompute_nm1-5.py`: Populates `beatmap_recommender/recommender.local.db` with the CNN-XGBoost probabilities for each beatmap.
 - `/beatmap_recommender/content_similarity/test_recommender.py`: You can run this to see what the recommendations would look like. If you're running this from the CLI, this is the command (`PYTHONPATH=. python beatmap_recommender/content_similarity/test_recommender.py
 `)
 - `/beatmap_recommender/recommender.py`: The recommender for the backend. You can tweak some of the global variables if desired.
 - `/beatmap_recommender/benchmarks/profile_recommender.py` and `/beatmap_recommender/benchmarks/snapshot_recommender.py`: Time/profile the recommender, and check that a change doesn't alter its output. See [PERFORMANCE.md](PERFORMANCE.md).
 
-If there is one file I would choose to really understand, it's `/beatmap_recommender/content_similarity/core_modules/variant_ranking.py`.
-
 ### Rebuilding the recommender database
 
 You only need this if you want to rebuild the database from the .osu files yourself; the [download link](#data) already includes a finished database.
 
 The scripts expect the .osu files to be laid out as `beatmap_recommender/data/<Ranked|Loved>/<year>/*.osu`, because the beatmap status and year are taken from the folder names. 
-Every script below reads and writes `beatmap_recommender/dummy.db` (see `DATABASE_PATH` / `DB_PATH` at the top of each file), so the app won't use the result until you copy or rename it to `beatmap_recommender/recommender.local.db` (local) or `beatmap_recommender/recommender.db` (production). 
-Run the scripts from `beatmap_recommender/recommender_db_setup/`, in this order:
+The app won't use the result until you copy or rename it to `beatmap_recommender/recommender.local.db` (local) or `beatmap_recommender/recommender.db` (production). 
+Run both steps from the project root, in this order:
 
-1. **`populate.py`** creates the tables and inserts every beatmap plus its 20 mod variants (NM and 19 mod combinations), with star rating and pp from `VersionAwareOsuCalculator`. This takes a while (~7h30m). 
-   .osu files before format v10 have no beatmap ID or approach rate, so the script looks them up through the osu! API using the file's MD5 hash. 
-   When the API returns 404, it falls back to using the MD5 hash as the beatmap ID and AR 8.
-2. **`repair_missing_rows/repair_ids_and_ar.py`** (pass 1) fixes those fallback rows, using the manually corrected IDs, beatmapset IDs and ARs in `repair_missing_rows/fixed_beatmap_rows.csv`.
-3. **`repair_missing_rows/repair_variants.py`** (pass 2) recalculates the mod variants of the repaired beatmaps, since they were originally calculated with the fallback AR.
-4. **`precompute_nm1-5.py`** runs the CNN-XGBoost classifier on every NM variant and stores the NM1 to NM5 probabilities. It uses the GPU if one is available. 
+1. **`populate.py`** creates the tables and inserts every osu!standard beatmap plus its 20 mod variants (NM and 19 mod combinations), with star rating and pp from `VersionAwareOsuCalculator`. This takes a while (~7h30m).
+
+   ```bash
+   # Check the ID resolution first. Nothing is written to a database.
+   python -m beatmap_recommender.recommender_db_setup.populate --resolve-only --seed-db beatmap_recommender/dummy.db
+
+   # Populate a fresh database
+   python -m beatmap_recommender.recommender_db_setup.populate --db beatmap_recommender/fresh.db --seed-db beatmap_recommender/dummy.db
+
+   # No existing database to seed from: every unresolved file goes through the osu! API
+   python -m beatmap_recommender.recommender_db_setup.populate --db beatmap_recommender/fresh.db
+   ```
+
+   Without `--seed-db`, the ID resolution makes about 22,000 API calls at ~1 per second, which adds roughly 6 hours before the difficulty calculation starts. It needs `OSU_CLIENT_ID` and `OSU_CLIENT_SECRET` in `.env`. 
+   Responses are cached in `populate_logs/api_lookup_cache.json`, so if the run is interrupted, running the same command again picks up where the lookups left off. You can also run `--resolve-only` first (without `--seed-db`) to do all the lookups and check the log before committing to the full run.
+
+   Before any difficulty calculation, it works out every file's real beatmap ID. A file's own `BeatmapID` can't be trusted when it's missing (files before format v10), `0`/`-1` (e.g. some guest difficulties), or shared by several different files (e.g. every difficulty copying the Normal's ID). Since `beatmap_id` is the primary key, inserting those as-is would make the files overwrite each other. 
+   For those files, and for files missing `ApproachRate` or `BeatmapSetID`, it checks in this order:
+   1. `recommender_db_setup/fixed_beatmap_rows.csv`: manually corrected IDs, beatmapset IDs and ARs for maps the API can't find by checksum. These override the file's own ID.
+   2. `--seed-db`: the IDs an existing database already resolved for the same file contents (opened read-only). This is optional, but without it a full run makes ~22,000 extra API calls.
+   3. The osu! API (`/beatmaps/lookup?checksum=<md5>`), cached in `recommender_db_setup/populate_logs/api_lookup_cache.json` so reruns don't fetch again.
+
+   Files that still can't be resolved are not inserted. Files missing AR that nothing else covers use OD, like osu! does. 
+   Each file is inserted in its own transaction savepoint, so one bad file can't roll back the rest of a batch. 
+   Every file that needed resolving, was skipped, or failed is listed in `recommender_db_setup/populate_logs/populate_<timestamp>.csv`.
+
+2. **`precompute_nm1-5.py`** runs the CNN-XGBoost classifier on every NM variant and stores the NM1 to NM5 probabilities. It uses the GPU if one is available. 
+   It reads and writes `DB_PATH` at the top of the file, so point it at the database you just populated. 
    It reads the model files in `beatmap_classifier/models/full/`, including `vector_normalization.json`, which the training notebook writes so that predictions scale their inputs the same way training did. 
    `SELECTION_MODE` picks what to classify: `"pending"` (not yet classified), `"failed"` (pending plus previous failures), or `"all"` (everything, which is what you want after retraining the model).
-
-`repair_missing_rows/repair_legacy_format_variants.py` is not part of this order. 
-It fixed a database that had been populated before `VersionAwareOsuCalculator` existed, when old maps got inflated star ratings, and shouldn't be needed anymore.
 
 ### Frontend
 

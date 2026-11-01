@@ -1,3 +1,18 @@
+def decode_osu_bytes(raw):
+    """
+    Decode raw .osu bytes. Some old files are saved as UTF-16 (with a BOM);
+    reading those as UTF-8/latin-1 hides every key, including Mode, which let
+    non-standard maps through with NULL difficulty values.
+    """
+    if raw[:2] in (b"\xff\xfe", b"\xfe\xff"):
+        return raw.decode("utf-16")
+
+    try:
+        return raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        return raw.decode("latin-1")
+
+
 def parse_osu_file(
     file_path,
     max_slider_length=500.0,
@@ -68,15 +83,8 @@ def parse_osu_file(
 
     timing_points = []
 
-    # Read file with fallback for legacy character encodings
-    try:
-        file_obj = open(file_path, "r", encoding="utf-8")
-        lines = list(file_obj)
-        file_obj.close()
-    except UnicodeDecodeError:
-        file_obj = open(file_path, "r", encoding="latin-1")
-        lines = list(file_obj)
-        file_obj.close()
+    with open(file_path, "rb") as f:
+        lines = decode_osu_bytes(f.read()).splitlines()
 
     section = None
     for line in lines:
