@@ -1,14 +1,10 @@
 import asyncio
 import logging
-import os
 import threading
-import time
-
-import requests
 
 from beatmap_recommender.api.model import RecommendationSettings
 from beatmap_recommender.api.osu_api_client import OsuAPIClient
-from beatmap_recommender.auth.token_manager import get_access_token
+from beatmap_recommender.auth.osu_oauth import get_access_token, get_application_access_token
 from beatmap_recommender.cancellation import check_cancelled
 from beatmap_recommender.content_similarity.core_modules.cnn_xgboost_influence import (
     get_player_category_preferences,
@@ -27,7 +23,7 @@ from beatmap_recommender.content_similarity.core_modules.variant_ranking import 
     get_player_difficulty_profiles,
     rank_variants,
 )
-from beatmap_recommender.database import connect_memory_db
+from beatmap_recommender.database import connect_db
 
 logger = logging.getLogger(__name__)
 
@@ -36,79 +32,7 @@ logger = logging.getLogger(__name__)
 BATCH_SIZE = 16_384
 RECOMMENDATION_CONCURRENCY = 4
 
-OSU_CLIENT_ID = os.getenv("OSU_CLIENT_ID")
-OSU_CLIENT_SECRET = os.getenv("OSU_CLIENT_SECRET")
-
-APPLICATION_TOKEN_REFRESH_BUFFER = 60
-
 _recommendation_semaphore = asyncio.Semaphore(RECOMMENDATION_CONCURRENCY)
-
-_application_access_token: str | None = None
-_application_token_expires_at = 0.0
-_application_token_lock = asyncio.Lock()
-
-
-# ── Application OAuth ─────────────────────────────────────────────────────────
-
-
-def get_client_credentials_token(
-    client_id: str,
-    client_secret: str,
-) -> tuple[str, int]:
-    response = requests.post(
-        "https://osu.ppy.sh/oauth/token",
-        data={
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "grant_type": "client_credentials",
-            "scope": "public",
-        },
-        headers={
-            "Accept": "application/json",
-            "Content-Type": "application/x-www-form-urlencoded",
-        },
-        timeout=30,
-    )
-
-    response.raise_for_status()
-    data = response.json()
-    return data["access_token"], data["expires_in"]
-
-
-async def get_application_access_token() -> str:
-    global _application_access_token
-    global _application_token_expires_at
-
-    if not OSU_CLIENT_ID:
-        raise RuntimeError("OSU_CLIENT_ID is not configured.")
-    if not OSU_CLIENT_SECRET:
-        raise RuntimeError("OSU_CLIENT_SECRET is not configured.")
-
-    now = time.time()
-
-    if _application_access_token is not None and now < _application_token_expires_at:
-        return _application_access_token
-
-    async with _application_token_lock:
-        now = time.time()
-
-        if (
-            _application_access_token is not None
-            and now < _application_token_expires_at
-        ):
-            return _application_access_token
-
-        token, expires_in = await asyncio.to_thread(
-            get_client_credentials_token,
-            OSU_CLIENT_ID,
-            OSU_CLIENT_SECRET,
-        )
-
-        _application_access_token = token
-        _application_token_expires_at = (
-            time.time() + expires_in - APPLICATION_TOKEN_REFRESH_BUFFER
-        )
-        return _application_access_token
 
 
 def recommend_player_sync(
@@ -135,7 +59,8 @@ def recommend_player_sync(
     excluded_mods = {mod.strip().upper() for mod in (settings.excluded_mods or [])}
 
     check_cancelled(cancel_event)
-    conn = connect_memory_db()
+    # Read-only unless fetched scores need writing.
+    conn = connect_db(read_only=not update_scores)
 
     try:
         # ── Update player scores ───────────────────────────────

@@ -17,14 +17,14 @@ from beatmap_recommender.content_similarity.core_modules.variant_ranking import 
     get_player_difficulty_profiles,
     rank_variants,
 )
-from beatmap_recommender.database import connect_memory_db, load_memory_db
+from beatmap_recommender import database
 from beatmap_recommender.recommender_db_setup.osu_api_client import OsuAPIClient
 
 # ── Configuration ──────────────────────────────────────────────
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-# Loaded into memory; fetched scores are written back to this file.
+# Fetched scores are written to this file.
 LOCAL_DB_PATH = PROJECT_ROOT / "beatmap_recommender/recommender.local.db"
 
 NUM_RECOMMENDATIONS = 100
@@ -188,8 +188,8 @@ def main():
     config = RECOMMENDATION_CONFIG[RECOMMENDATION_GOAL]
     classifier_weight = config["weights"]["classifier"]
 
-    load_memory_db(LOCAL_DB_PATH)
-    conn = connect_memory_db()
+    database.DB_PATH = LOCAL_DB_PATH
+    conn = database.connect_db()
 
     try:
         api = OsuAPIClient()

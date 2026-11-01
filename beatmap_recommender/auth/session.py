@@ -1,41 +1,9 @@
-import os
 import secrets
-import sqlite3
 import time
-from pathlib import Path
+
+from beatmap_recommender.auth.db import auth_db
 
 SESSION_EXPIRATION_SECONDS = 86400
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-AUTH_DB_PATH = Path(
-    os.getenv(
-        "AUTH_DB_PATH",
-        PROJECT_ROOT / "beatmap_recommender/auth.db",
-    )
-)
-
-
-def get_connection():
-    conn = sqlite3.connect(AUTH_DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
-    return conn
-
-
-def initialize_session_store():
-    with get_connection() as conn:
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS sessions (
-                session_id TEXT PRIMARY KEY,
-                player_id INTEGER NOT NULL,
-                created_at REAL NOT NULL,
-                expires_at REAL NOT NULL
-            )
-            """
-        )
-
-        conn.commit()
 
 
 def create_session(player_id: int) -> str:
@@ -43,7 +11,7 @@ def create_session(player_id: int) -> str:
     now = time.time()
     expires_at = now + SESSION_EXPIRATION_SECONDS
 
-    with get_connection() as conn:
+    with auth_db() as conn:
         conn.execute(
             """
             INSERT INTO sessions (
@@ -62,13 +30,11 @@ def create_session(player_id: int) -> str:
             ),
         )
 
-        conn.commit()
-
     return session_id
 
 
 def get_session(session_id: str) -> dict | None:
-    with get_connection() as conn:
+    with auth_db() as conn:
         row = conn.execute(
             """
             SELECT
@@ -94,7 +60,7 @@ def get_session(session_id: str) -> dict | None:
 
 
 def delete_session(session_id: str):
-    with get_connection() as conn:
+    with auth_db() as conn:
         conn.execute(
             """
             DELETE FROM sessions
@@ -102,8 +68,6 @@ def delete_session(session_id: str):
             """,
             (session_id,),
         )
-
-        conn.commit()
 
 
 def get_current_player(session_id: str | None) -> int:

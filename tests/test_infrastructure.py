@@ -17,7 +17,7 @@ import asyncio
 import pytest
 
 from beatmap_recommender import cancellation, result_cache
-from beatmap_recommender.auth import oauth_state, session, token_manager, token_store
+from beatmap_recommender.auth import oauth_state, osu_oauth, session, token_store
 
 
 class FakeClock:
@@ -225,7 +225,7 @@ def test_store_tokens_upserts(auth_db):
 
 def test_tokens_are_deleted_with_their_session(auth_db):
     # oauth_tokens has ON DELETE CASCADE on sessions. This only works because
-    # get_connection() enables PRAGMA foreign_keys=ON; SQLite ignores foreign
+    # auth_db() enables PRAGMA foreign_keys=ON; SQLite ignores foreign
     # keys by default. The test guards that easy-to-lose detail: logging out
     # should not leave tokens behind.
     session_id = session.create_session(42)
@@ -237,7 +237,7 @@ def test_tokens_are_deleted_with_their_session(auth_db):
 
 
 # ---------------------------------------------------------------------------
-# auth/token_manager.py
+# auth/osu_oauth.py
 # ---------------------------------------------------------------------------
 def test_valid_access_token_is_returned_without_refresh(auth_db, monkeypatch):
     session_id = session.create_session(42)
@@ -246,9 +246,9 @@ def test_valid_access_token_is_returned_without_refresh(auth_db, monkeypatch):
     async def must_not_be_called(refresh_token):
         raise AssertionError("refresh should not happen for a valid token")
 
-    monkeypatch.setattr(token_manager, "refresh_access_token", must_not_be_called)
+    monkeypatch.setattr(osu_oauth, "refresh_access_token", must_not_be_called)
 
-    assert asyncio.run(token_manager.get_access_token(session_id)) == "still-good"
+    assert asyncio.run(osu_oauth.get_access_token(session_id)) == "still-good"
 
 
 def test_expiring_access_token_is_refreshed(auth_db, monkeypatch):
@@ -264,12 +264,13 @@ def test_expiring_access_token_is_refreshed(auth_db, monkeypatch):
         calls.append(refresh_token)
         return {"access_token": "new-access", "expires_in": 86400}  # No new refresh token.
 
-    # Patch the name *where it is looked up*: token_manager did
-    # `from ... import refresh_access_token`, so it has its own reference, and
-    # patching osu_oauth.refresh_access_token would have no effect here.
-    monkeypatch.setattr(token_manager, "refresh_access_token", fake_refresh)
+    # Patch the name *where it is looked up*: get_access_token calls the
+    # module-level refresh_access_token of osu_oauth, so that's the one to
+    # replace. (A module that did `from osu_oauth import refresh_access_token`
+    # would have its own reference, which this wouldn't affect.)
+    monkeypatch.setattr(osu_oauth, "refresh_access_token", fake_refresh)
 
-    assert asyncio.run(token_manager.get_access_token(session_id)) == "new-access"
+    assert asyncio.run(osu_oauth.get_access_token(session_id)) == "new-access"
     assert calls == ["old-refresh"]
 
     stored = token_store.get_tokens(session_id)
@@ -279,4 +280,26 @@ def test_expiring_access_token_is_refreshed(auth_db, monkeypatch):
 
 def test_missing_tokens_raise(auth_db):
     with pytest.raises(ValueError, match="No OAuth tokens"):
-        asyncio.run(token_manager.get_access_token("no-such-session"))
+        asyncio.run(osu_oauth.get_access_token("no-such-session"))
+
+
+def test_application_token_is_cached_until_it_expires(monkeypatch):
+    clock = FakeClock()
+    requests = []
+
+    async def fake_request_token(grant):
+        requests.append(grant["grant_type"])
+        return {"access_token": f"app-token-{len(requests)}", "expires_in": 86400}
+
+    monkeypatch.setattr(osu_oauth, "_request_token", fake_request_token)
+    monkeypatch.setattr(osu_oauth.time, "time", clock.now)
+    monkeypatch.setattr(osu_oauth, "_application_token", None)
+    monkeypatch.setattr(osu_oauth, "_application_token_expires_at", 0.0)
+
+    assert asyncio.run(osu_oauth.get_application_access_token()) == "app-token-1"
+    assert asyncio.run(osu_oauth.get_application_access_token()) == "app-token-1"
+
+    # Refreshed TOKEN_EXPIRY_BUFFER seconds before osu! would expire it.
+    clock.advance(86400 - osu_oauth.TOKEN_EXPIRY_BUFFER)
+    assert asyncio.run(osu_oauth.get_application_access_token()) == "app-token-2"
+    assert requests == ["client_credentials", "client_credentials"]

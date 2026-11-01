@@ -1,13 +1,11 @@
-import logging
 import os
 import sqlite3
-import threading
 from pathlib import Path
-
-logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
+# The recommender database. Scripts that use another file (the benchmarks,
+# the smoke test) reassign it before connecting.
 DB_PATH = Path(
     os.getenv(
         "DB_PATH",
@@ -15,105 +13,34 @@ DB_PATH = Path(
     )
 )
 
-# A named memdb database is shared by every connection in this process,
-# so the on-disk database only needs to be loaded into memory once.
-MEMORY_DB_URI = "file:/recommender?vfs=memdb"
-
 CONNECTION_TIMEOUT = 60
 
-_memory_anchor: sqlite3.Connection | None = None
-_memory_source_path: Path | None = None
-_memory_lock = threading.Lock()
 
-
-def load_memory_db(db_path: Path | None = None) -> None:
+def connect_db(read_only: bool = False) -> sqlite3.Connection:
     """
-    Copy an on-disk database (DB_PATH by default) into the shared
-    in-memory database. Only one database can be loaded per process.
+    Connect to DB_PATH.
 
-    The anchor connection is kept open for the lifetime of the process,
-    otherwise SQLite frees the in-memory database when the last
-    connection to it closes.
+    Requests query it directly: the per-request SQL is a few indexed
+    lookups, which the OS page cache makes as fast as an in-memory copy,
+    and the bulk variant data is read once into the variant table
+    (variant_table.py). WAL lets those reads run while scores are written.
     """
-    global _memory_anchor, _memory_source_path
+    path = Path(DB_PATH).resolve()
 
-    db_path = Path(db_path or DB_PATH).resolve()
+    if read_only:
+        conn = sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True, timeout=CONNECTION_TIMEOUT)
+    else:
+        conn = sqlite3.connect(path, timeout=CONNECTION_TIMEOUT)
+        conn.execute("PRAGMA journal_mode=WAL")
 
-    with _memory_lock:
-        if _memory_anchor is not None:
-            if db_path != _memory_source_path:
-                raise RuntimeError(
-                    f"{_memory_source_path} is already loaded into memory; "
-                    f"cannot also load {db_path}."
-                )
-            return
-
-        anchor = sqlite3.connect(
-            MEMORY_DB_URI,
-            uri=True,
-            check_same_thread=False,
-        )
-        # The source must be opened as a URI for VACUUM INTO to treat
-        # MEMORY_DB_URI as a URI rather than a file name.
-        disk_conn = sqlite3.connect(
-            f"{db_path.as_uri()}?mode=ro",
-            uri=True,
-        )
-
-        # VACUUM INTO rather than backup(): backup copies the on-disk WAL
-        # flag into the header, and memdb cannot open WAL databases.
-        try:
-            disk_conn.execute("VACUUM INTO ?", (MEMORY_DB_URI,))
-        except BaseException:
-            anchor.close()
-            raise
-        finally:
-            disk_conn.close()
-
-        _memory_anchor = anchor
-        _memory_source_path = db_path
-        logger.info("Loaded %s into memory.", db_path)
-
-
-class SharedMemoryConnection(sqlite3.Connection):
-    """
-    A connection to the shared in-memory database. PRAGMA database_list
-    reports an empty filename for every in-memory database, so the class is
-    what tells this one apart (see is_shared_memory_db).
-    """
-
-
-def connect_memory_db() -> sqlite3.Connection:
-    # Falls back to DB_PATH if nothing has been loaded yet.
-    if _memory_anchor is None:
-        load_memory_db()
-
-    conn = sqlite3.connect(
-        MEMORY_DB_URI,
-        uri=True,
-        timeout=CONNECTION_TIMEOUT,
-        factory=SharedMemoryConnection,
-    )
     conn.execute("PRAGMA foreign_keys=ON")
     return conn
 
 
-def connect_disk_db() -> sqlite3.Connection:
-    """Connect to the database file the in-memory database was loaded from."""
-    conn = sqlite3.connect(
-        _memory_source_path or DB_PATH,
-        timeout=CONNECTION_TIMEOUT,
-    )
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
-    return conn
+def is_db_path(conn: sqlite3.Connection) -> bool:
+    """Whether conn is connected to the file at DB_PATH."""
+    for _, name, filename in conn.execute("PRAGMA database_list"):
+        if name == "main":
+            return bool(filename) and Path(filename).resolve() == Path(DB_PATH).resolve()
 
-
-def is_shared_memory_db(conn: sqlite3.Connection) -> bool:
-    return isinstance(conn, SharedMemoryConnection)
-
-
-def is_memory_db(conn: sqlite3.Connection) -> bool:
-    # In-memory databases report an empty filename.
-    _, _, filename = conn.execute("PRAGMA database_list").fetchone()
-    return not filename
+    return False

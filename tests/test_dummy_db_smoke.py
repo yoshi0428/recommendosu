@@ -6,7 +6,7 @@ data and asks "does anything catch fire?" It catches the problems hand-made
 test data never contains: weird loved maps, odd mod strings, NULLs in
 unexpected columns, performance cliffs.
 
-It's marked `slow` (loading 583MB takes a while), so a plain `pytest` run
+It's marked `slow` (loading every variant from the 583MB database takes a while), so a plain `pytest` run
 skips it. Run it explicitly with:
 
     python -m pytest -m slow
@@ -48,11 +48,12 @@ def player_ids():
 
 
 @pytest.fixture(scope="module", autouse=True)
-def loaded_dummy_db():
-    # load_memory_db loads once per process and refuses to switch to a
-    # different file afterwards. That's another reason this test is kept
-    # out of the normal run.
-    database.load_memory_db(DUMMY_DB)
+def dummy_db_path():
+    # Point the recommender at dummy.db for this file. `monkeypatch` is
+    # per-test, so a module-scoped fixture uses its context manager form.
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setattr(database, "DB_PATH", DUMMY_DB)
+        yield
 
 
 @pytest.mark.parametrize("goal", ["balanced", "pp_potential"])

@@ -33,12 +33,12 @@ for name in ("OSU_CLIENT_ID", "OSU_CLIENT_SECRET", "OSU_REDIRECT_URI"):
 
 import beatmap_recommender.content_similarity.core_modules.ability as ability
 from beatmap_recommender.api.model import RecommendationSettings
-from beatmap_recommender.database import load_memory_db
+from beatmap_recommender import database
 from beatmap_recommender.recommender import recommend_player_sync
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-# Loaded into memory read-only, so the file itself is never modified.
+# Opened read-only (scores aren't updated), so the file itself is never modified.
 DEFAULT_DB_PATH = PROJECT_ROOT / "beatmap_recommender/recommender.local.db"
 DEFAULT_PLAYER_ID = 10961031
 
@@ -82,7 +82,7 @@ def hash_rows(rows):
 
 def save(path, db_path, player_id):
     ability.datetime = FrozenDatetime
-    load_memory_db(db_path)
+    database.DB_PATH = db_path
     snapshot = {}
 
     for name, overrides in CASES.items():

@@ -4,7 +4,6 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 from beatmap_recommender.api.osu_api_client import OsuAPINotFoundError
-from beatmap_recommender.database import connect_disk_db, is_memory_db
 from beatmap_recommender.recommender_db_setup.db_insertion import insert_score
 
 logger = logging.getLogger(__name__)
@@ -147,12 +146,7 @@ def normalize_score(score, source):
 
 
 def store_player_scores(conn, top_scores, recent_scores):
-    """
-    Store scores in the connected database.
-
-    If conn is the shared in-memory database, the scores are also written
-    to the on-disk database so they survive a restart.
-    """
+    """Store scores in the connected database."""
     stored = 0
     skipped = 0
     to_insert = []
@@ -184,15 +178,6 @@ def store_player_scores(conn, top_scores, recent_scores):
 
         to_insert.append(normalized)
         stored += 1
-
-    if is_memory_db(conn):
-        disk_conn = connect_disk_db()
-        try:
-            with disk_conn:
-                for normalized in to_insert:
-                    insert_score(disk_conn, normalized)
-        finally:
-            disk_conn.close()
 
     with conn:
         for normalized in to_insert:

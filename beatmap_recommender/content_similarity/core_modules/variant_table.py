@@ -8,7 +8,7 @@ longer than ranking them, and a cached result of 3 million dicts held ~6GB.
 Instead, the table is loaded once, filters are numpy masks, and rows are only
 turned into dicts for the page the frontend asks for (see VariantRows).
 
-Only the shared in-memory database (connect_memory_db) is cached: the
+Only the table of the recommender database (DB_PATH) is cached: the
 recommender never writes to beatmap_variants or beatmaps, only to scores.
 Any other connection, such as a test database, gets a fresh table per call.
 """
@@ -19,10 +19,11 @@ import re
 import threading
 import time
 from collections.abc import Sequence
+from pathlib import Path
 
 import numpy as np
 
-from beatmap_recommender.database import connect_memory_db, is_shared_memory_db
+from beatmap_recommender import database
 
 logger = logging.getLogger(__name__)
 
@@ -66,27 +67,30 @@ LOAD_CHUNK_SIZE = 65_536
 # Rows are built in chunks of this many when iterating over a VariantRows.
 ITERATION_CHUNK_SIZE = 10_000
 
+# (database path, table) of the cached table.
 _shared_table = None
 _shared_table_lock = threading.Lock()
 
 
 def get_variant_table(conn):
-    """Return the variant table for conn, cached for the shared memory database."""
+    """Return the variant table for conn, cached for the recommender database (DB_PATH)."""
     global _shared_table
 
-    if not is_shared_memory_db(conn):
+    if not database.is_db_path(conn):
         return VariantTable.load(conn)
 
-    with _shared_table_lock:
-        if _shared_table is None:
-            _shared_table = VariantTable.load(conn)
+    path = Path(database.DB_PATH).resolve()
 
-        return _shared_table
+    with _shared_table_lock:
+        if _shared_table is None or _shared_table[0] != path:
+            _shared_table = (path, VariantTable.load(conn))
+
+        return _shared_table[1]
 
 
 def load_variant_table():
     """Build the shared table now, e.g. at startup, instead of on the first request."""
-    conn = connect_memory_db()
+    conn = database.connect_db(read_only=True)
 
     try:
         get_variant_table(conn)

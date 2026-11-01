@@ -11,7 +11,7 @@ and compares every ranked and loved map (~151,000) against each top/recent play.
 Each map keeps only its best similarity to any of your plays.
 Every map is stored as NM plus 19 mod combinations (~3 million variants in total), but your difficulty range and any filters are applied first,
 so a typical request scores around 150,000 variants to obtain the top recommendations.
-The recommender database (~540MB) is loaded into memory at startup, along with a numpy copy of every variant (and its classifier predictions) for fast filtering, and only newly fetched scores are written back to disk.
+At startup every variant (and its classifier predictions) is read into numpy arrays for fast filtering; everything else, including newly fetched scores, is read from and written to the SQLite file directly.
 I have optimized a typical request down to around 0.5 seconds on the server (not counting the osu! API fetch, see [osu! API usage](#osu-api-usage)).
 Number of recommendations are currently uncapped in the deployed website, and even the worst-case query (max_stars = inf, all mod combinations, ~3 million variants) takes around 1.5 seconds on the server. (It took just over 6 seconds in a real browser when the server needed ~3 seconds; I haven't re-measured the browser since.)
 The frontend receives the first 1,000 recommendations right away and loads the rest as you scroll. See [PERFORMANCE.md](PERFORMANCE.md) for how this was measured.

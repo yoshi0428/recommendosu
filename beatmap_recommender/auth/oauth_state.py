@@ -1,44 +1,15 @@
-import os
-import sqlite3
 import time
-from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-AUTH_DB_PATH = Path(
-    os.getenv(
-        "AUTH_DB_PATH",
-        PROJECT_ROOT / "beatmap_recommender/auth.db",
-    )
-)
+from beatmap_recommender.auth.db import auth_db
+
 _STATE_EXPIRATION_SECONDS = 600
-
-
-def get_connection():
-    conn = sqlite3.connect(AUTH_DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
-    return conn
-
-
-def initialize_state_store():
-    with get_connection() as conn:
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS oauth_states (
-                state TEXT PRIMARY KEY,
-                created_at REAL NOT NULL
-            )
-            """
-        )
-        conn.commit()
 
 
 def store_state(state: str):
     created_at = time.time()
     expiration_time = created_at - _STATE_EXPIRATION_SECONDS
 
-    with get_connection() as conn:
+    with auth_db() as conn:
         # Remove expired states so they do not accumulate.
         conn.execute(
             """
@@ -62,8 +33,6 @@ def store_state(state: str):
             ),
         )
 
-        conn.commit()
-
 
 def consume_state(state: str) -> bool:
     """
@@ -74,7 +43,7 @@ def consume_state(state: str) -> bool:
     """
     expiration_time = time.time() - _STATE_EXPIRATION_SECONDS
 
-    with get_connection() as conn:
+    with auth_db() as conn:
         cursor = conn.execute(
             """
             DELETE FROM oauth_states
@@ -86,7 +55,5 @@ def consume_state(state: str) -> bool:
                 expiration_time,
             ),
         )
-
-        conn.commit()
 
         return cursor.rowcount == 1

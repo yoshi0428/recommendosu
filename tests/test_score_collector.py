@@ -34,7 +34,6 @@ from beatmap_recommender.content_similarity.core_modules.score_collector import 
     store_player_scores,
     update_player_scores,
 )
-from beatmap_recommender.database import is_memory_db
 from beatmap_recommender.recommender_db_setup.db_insertion import insert_score
 
 PLAYER_ID = 100
@@ -217,48 +216,6 @@ def test_store_keeps_older_history(recommender_db):
     store_player_scores(recommender_db.conn, [api_score(2, beatmap_id=2)], [])
 
     assert set(read_scores(recommender_db.conn)) == {"1", "2"}
-
-
-def test_store_writes_through_to_disk_when_using_memory_db(recommender_db, disk_recommender_db, monkeypatch):
-    """
-    In production `conn` is the shared in-memory database, and scores must
-    also be written to the on-disk file so they survive a restart.
-
-    Here recommender_db plays the in-memory database and disk_recommender_db
-    plays the file. We tell score_collector "this connection is the memory DB"
-    and "here's the disk DB" by patching the two names it imported.
-    """
-    for db in (recommender_db, disk_recommender_db):
-        db.add_beatmap(1)
-
-    monkeypatch.setattr(score_collector, "is_memory_db", lambda conn: True)
-    monkeypatch.setattr(score_collector, "connect_disk_db", lambda: sqlite3.connect(disk_recommender_db.path))
-
-    store_player_scores(recommender_db.conn, [api_score(1, beatmap_id=1)], [])
-
-    assert set(read_scores(recommender_db.conn)) == {"1"}
-    assert set(read_scores(disk_recommender_db.conn)) == {"1"}
-
-
-def test_store_does_not_touch_disk_for_a_normal_connection(recommender_db, monkeypatch):
-    recommender_db.add_beatmap(1)
-
-    def fail():
-        raise AssertionError("connect_disk_db should not be called for a file connection")
-
-    monkeypatch.setattr(score_collector, "connect_disk_db", fail)
-
-    store_player_scores(recommender_db.conn, [api_score(1, beatmap_id=1)], [])
-
-
-def test_is_memory_db():
-    memory = sqlite3.connect(":memory:")
-    assert is_memory_db(memory) is True
-    memory.close()
-
-
-def test_is_memory_db_false_for_a_file(recommender_db):
-    assert is_memory_db(recommender_db.conn) is False
 
 
 # ---------------------------------------------------------------------------

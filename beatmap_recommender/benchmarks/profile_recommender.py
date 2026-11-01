@@ -35,12 +35,12 @@ for name in ("OSU_CLIENT_ID", "OSU_CLIENT_SECRET", "OSU_REDIRECT_URI"):
 
 from beatmap_recommender.api.model import RecommendationSettings
 from beatmap_recommender.content_similarity.core_modules.variant_table import load_variant_table
-from beatmap_recommender.database import load_memory_db
+from beatmap_recommender import database
 from beatmap_recommender.recommender import recommend_player_sync
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-# Loaded into memory read-only, so the file itself is never modified.
+# Opened read-only (scores aren't updated), so the file itself is never modified.
 DEFAULT_DB_PATH = PROJECT_ROOT / "beatmap_recommender/recommender.local.db"
 DEFAULT_PLAYER_ID = 10961031
 
@@ -69,9 +69,7 @@ def main():
 
     logging.basicConfig(level=logging.INFO, format="%(name)s: %(message)s")
 
-    start = time.perf_counter()
-    load_memory_db(args.db)
-    print(f"load_memory_db: {time.perf_counter() - start:.2f}s")
+    database.DB_PATH = args.db
 
     # The server builds this at startup, so it isn't part of a request.
     start = time.perf_counter()

@@ -282,20 +282,6 @@ def recommender_db(tmp_path):
     db.conn.close()
 
 
-@pytest.fixture
-def disk_recommender_db(tmp_path):
-    """
-    A second, independent recommender database.
-
-    In production, scores are written to both the in-memory database and the
-    on-disk file it was loaded from. Tests that check that behaviour use
-    `recommender_db` as the "memory" side and this one as the "disk" side.
-    """
-    db = _create_recommender_db(tmp_path / "recommender_disk.db")
-    yield db
-    db.conn.close()
-
-
 PLAYER_ID = 100
 
 
@@ -339,22 +325,16 @@ def seeded_db(recommender_db):
 @pytest.fixture
 def auth_db(tmp_path, monkeypatch):
     """
-    Point all three auth stores at a fresh temporary auth.db and create the
-    tables.
+    Point the auth stores at a fresh temporary auth.db and create the tables.
 
     `monkeypatch` is a built-in pytest fixture that temporarily replaces an
     attribute (here, the module-level AUTH_DB_PATH constant) and automatically
     puts the original back after the test. Without it, tests would write
     sessions into your real beatmap_recommender/auth.db.
     """
-    from beatmap_recommender.auth import oauth_state, session, token_store
+    from beatmap_recommender.auth import db
 
     path = tmp_path / "auth.db"
-    for module in (oauth_state, session, token_store):
-        monkeypatch.setattr(module, "AUTH_DB_PATH", path)
-
-    # sessions must exist before oauth_tokens because of the foreign key.
-    session.initialize_session_store()
-    token_store.initialize_token_store()
-    oauth_state.initialize_state_store()
+    monkeypatch.setattr(db, "AUTH_DB_PATH", path)
+    db.initialize_auth_db()
     return path

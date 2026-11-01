@@ -9,7 +9,7 @@ auth rules, and response shapes.
 
 Important detail: `TestClient(app)` is created *without* a `with` block on
 purpose. Entering `with TestClient(app)` runs the app's lifespan, which
-loads the 583MB recommender database into memory. None of these tests need
+loads every variant of the 583MB recommender database into memory. None of these tests need
 it, so they skip it, and anything that would touch the database or osu! is
 replaced with a fake.
 """
@@ -103,7 +103,6 @@ def test_health(client):
     ("method", "path"),
     [
         ("get", f"{API}/auth/me"),
-        ("get", f"{API}/recommend"),
         ("post", f"{API}/recommend"),
         ("get", f"{API}/recommend/abc/page"),
         ("post", f"{API}/recommend/abc/cancel"),
@@ -298,14 +297,14 @@ def test_recommend_end_to_end_with_test_database(logged_in_client, seeded_db, mo
     pipeline is faked except the two things that leave this machine:
 
       * the database connection is pointed at the tiny seeded test DB
-        instead of the 583MB in-memory one, and
+        instead of the 583MB recommender database, and
       * update_player_scores (which calls the osu! API) is a no-op, so the
         scores already in the test DB are used as-is.
 
     This catches problems the unit tests can't: two pieces that each work
     alone but disagree about a column name, a dict key, or a data type.
     """
-    monkeypatch.setattr(recommender, "connect_memory_db", lambda: sqlite3.connect(seeded_db.path))
+    monkeypatch.setattr(recommender, "connect_db", lambda read_only=False: sqlite3.connect(seeded_db.path))
     monkeypatch.setattr(recommender, "update_player_scores", lambda conn, api, player_id: None)
 
     # The pp_potential goal only keeps maps inside the PP push range. The
@@ -466,7 +465,7 @@ def test_bot_player_lookup(bot_client, monkeypatch):
 
 
 def test_bot_classify(bot_client, seeded_db, monkeypatch):
-    monkeypatch.setattr(main, "connect_memory_db", lambda: sqlite3.connect(seeded_db.path))
+    monkeypatch.setattr(main, "connect_db", lambda read_only=False: sqlite3.connect(seeded_db.path))
     seeded_db.add_beatmap(20, predictions=None)
 
     response = bot_client.get(f"{API}/bot/classify/10")

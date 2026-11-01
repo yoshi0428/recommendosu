@@ -23,25 +23,22 @@ from pydantic import BaseModel, Field
 from beatmap_recommender.api.model import RecommendationSettings
 from beatmap_recommender.api.osu_api import get_authenticated_user
 from beatmap_recommender.api.osu_api_client import OsuAPIClient, OsuAPINotFoundError
-from beatmap_recommender.auth.oauth_state import (
-    consume_state,
-    initialize_state_store,
-    store_state,
-)
+from beatmap_recommender.auth.db import initialize_auth_db
+from beatmap_recommender.auth.oauth_state import consume_state, store_state
 from beatmap_recommender.auth.osu_oauth import (
     OSU_CLIENT_ID,
     OSU_REDIRECT_URI,
     build_authorization_url,
     exchange_code_for_token,
     generate_state,
+    get_application_access_token,
 )
 from beatmap_recommender.auth.session import (
     create_session,
     delete_session,
     get_current_player,
-    initialize_session_store,
 )
-from beatmap_recommender.auth.token_store import initialize_token_store, store_tokens
+from beatmap_recommender.auth.token_store import store_tokens
 from beatmap_recommender.cancellation import (
     RecommendationCancelled,
     cancel_recommendation,
@@ -53,8 +50,8 @@ from beatmap_recommender.content_similarity.core_modules.score_collector import 
     PlayerNotFoundError,
 )
 from beatmap_recommender.content_similarity.core_modules.variant_table import load_variant_table
-from beatmap_recommender.database import connect_memory_db, load_memory_db
-from beatmap_recommender.recommender import get_application_access_token, recommend_player
+from beatmap_recommender.database import connect_db
+from beatmap_recommender.recommender import recommend_player
 from beatmap_recommender.result_cache import get_result_page, store_result
 
 # Logs always go to stdout (`docker compose logs`). Set LOG_FILE to also
@@ -113,10 +110,7 @@ MAX_BOT_RECOMMENDATION_PAGE_SIZE = 100
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("OAuth client ID: %r, redirect URI: %r", OSU_CLIENT_ID, OSU_REDIRECT_URI)
-    initialize_token_store()
-    initialize_session_store()
-    initialize_state_store()
-    load_memory_db()
+    initialize_auth_db()
     load_variant_table()
     yield
 
@@ -383,73 +377,53 @@ def require_player(session_id: str | None) -> int:
         )
 
 
-@app.get(
-    f"{API_PREFIX}/recommend",
-    response_model=RecommendationResponse,
-    summary="Get beatmap recommendations",
-    description=(
-        "Generate personalized beatmap recommendations for the "
-        "authenticated osu! player."
-    ),
-    tags=["Recommendations"],
-)
-async def recommend_get(
-    session_id: str | None = Cookie(default=None),
-    limit: int = Query(
-        default=1000,
-        ge=1,
-        le=100000,
-        description="Maximum number of recommendations to return.",
-        examples=[100],
-    ),
-    goal: str = Query(
-        default="balanced",
-        description=(
-            "Recommendation strategy. The available goals are defined by "
-            "the server's recommendation configuration."
-        ),
-        examples=["balanced", "pp_potential"],
-    ),
-    exclude_already_played: bool = Query(
-        default=True,
-        examples=[True, False],
-    ),
-):
-    player_id = require_player(session_id)
-
-    settings = RecommendationSettings(
-        player_id=player_id,
-        limit=limit,
-        goal=goal,
-        exclude_already_played=exclude_already_played,
-    )
-
+async def run_recommender(settings: RecommendationSettings, **kwargs):
+    """recommend_player(), with the errors a request can cause turned into HTTP errors."""
     try:
-        recommendations = await recommend_player(
-            settings,
-            session_id=session_id,
-            session_player_id=player_id,
-        )
+        return await recommend_player(settings, **kwargs)
     except PlayerNotFoundError as exc:
-        raise HTTPException(
-            status_code=404,
-            detail=str(exc),
-        )
-
+        raise HTTPException(status_code=404, detail=str(exc))
     except ValueError as exc:
-        raise HTTPException(
-            status_code=400,
-            detail=str(exc),
-        )
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+async def cache_and_first_page(
+    recommendation_id: str,
+    owner: int | str,
+    settings: RecommendationSettings,
+    recommendations,
+    page_size: int,
+) -> dict:
+    """
+    Cache a full result for owner (see result_cache.py), who pages through
+    it afterwards, and return its first page_size recommendations.
+    """
+    await asyncio.to_thread(store_result, recommendation_id, owner, recommendations)
 
     return {
-        "recommendation_id": uuid.uuid4().hex,
+        "recommendation_id": recommendation_id,
         "player_id": settings.player_id,
         "recommendation_goal": settings.goal,
         "total_count": len(recommendations),
         "offset": 0,
-        # The recommender builds row dicts on demand; list() builds them all.
-        "recommendations": list(recommendations),
+        "recommendations": recommendations[:page_size],
+    }
+
+
+def result_page(recommendation_id: str, owner: int | str, offset: int, limit: int, expired_detail: str) -> dict:
+    """One page of a cached result, or 404 if it expired or belongs to someone else."""
+    page = get_result_page(recommendation_id, owner, offset, limit)
+
+    if page is None:
+        raise HTTPException(status_code=404, detail=expired_detail)
+
+    total_count, recommendations = page
+
+    return {
+        "recommendation_id": recommendation_id,
+        "total_count": total_count,
+        "offset": offset,
+        "recommendations": recommendations,
     }
 
 
@@ -475,8 +449,6 @@ async def recommend_post(
         alias="X-Recommendation-Id",
     ),
 ):
-    # print("POST similarity weights:", settings.similarity_feature_weights)
-    # print("POST full settings:", settings.model_dump())
     session_player_id = require_player(session_id)
 
     if settings.player_id is None:
@@ -492,13 +464,12 @@ async def recommend_post(
     recommendation_id, cancel_event = create_cancellation_event(recommendation_id)
 
     try:
-        recommendations = await recommend_player(
+        recommendations = await run_recommender(
             settings,
             session_id=session_id,
             session_player_id=session_player_id,
             cancel_event=cancel_event,
         )
-
     except RecommendationCancelled:
         return Response(
             status_code=204,
@@ -507,38 +478,12 @@ async def recommend_post(
                 "X-Recommendation-Id": recommendation_id,
             },
         )
-
-    except PlayerNotFoundError as exc:
-        raise HTTPException(
-            status_code=404,
-            detail=str(exc),
-        )
-
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=400,
-            detail=str(exc),
-        )
-
     finally:
         remove_cancellation_event(recommendation_id)
 
-    # The full result stays on the server; the client pages through it.
-    await asyncio.to_thread(
-        store_result,
-        recommendation_id,
-        session_player_id,
-        recommendations,
+    return await cache_and_first_page(
+        recommendation_id, session_player_id, settings, recommendations, RECOMMENDATION_PAGE_SIZE
     )
-
-    return {
-        "recommendation_id": recommendation_id,
-        "player_id": settings.player_id,
-        "recommendation_goal": settings.goal,
-        "total_count": len(recommendations),
-        "offset": 0,
-        "recommendations": recommendations[:RECOMMENDATION_PAGE_SIZE],
-    }
 
 
 class RecommendationPageResponse(BaseModel):
@@ -571,23 +516,13 @@ async def recommend_page(
         le=MAX_RECOMMENDATION_PAGE_SIZE,
     ),
 ):
-    player_id = require_player(session_id)
-    page = get_result_page(recommendation_id, player_id, offset, limit)
-
-    if page is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Recommendation result expired or not found. Run the recommender again.",
-        )
-
-    total_count, recommendations = page
-
-    return {
-        "recommendation_id": recommendation_id,
-        "total_count": total_count,
-        "offset": offset,
-        "recommendations": recommendations,
-    }
+    return result_page(
+        recommendation_id,
+        require_player(session_id),
+        offset,
+        limit,
+        "Recommendation result expired or not found. Run the recommender again.",
+    )
 
 
 @app.post(
@@ -694,43 +629,18 @@ async def bot_recommend(
 
     # No session: a session_player_id that never matches makes the
     # recommender fetch scores with the application token.
-    try:
-        recommendations = await recommend_player(
-            settings,
-            session_id=None,
-            session_player_id=None,
-        )
-    except PlayerNotFoundError as exc:
-        raise HTTPException(
-            status_code=404,
-            detail=str(exc),
-        )
-
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=400,
-            detail=str(exc),
-        )
+    recommendations = await run_recommender(settings, session_id=None, session_player_id=None)
 
     # Cached for the Discord user who asked, like the website caches a
     # result for its logged-in player, so each Discord user keeps their own
     # latest result and can't replace a website user's.
-    recommendation_id = uuid.uuid4().hex
-    await asyncio.to_thread(
-        store_result,
-        recommendation_id,
+    return await cache_and_first_page(
+        uuid.uuid4().hex,
         bot_result_owner(discord_user_id),
+        settings,
         recommendations,
+        BOT_RECOMMENDATION_PAGE_SIZE,
     )
-
-    return {
-        "recommendation_id": recommendation_id,
-        "player_id": settings.player_id,
-        "recommendation_goal": settings.goal,
-        "total_count": len(recommendations),
-        "offset": 0,
-        "recommendations": recommendations[:BOT_RECOMMENDATION_PAGE_SIZE],
-    }
 
 
 @app.get(
@@ -756,22 +666,14 @@ async def bot_recommend_page(
     ),
 ):
     require_bot(bot_key)
-    page = get_result_page(recommendation_id, bot_result_owner(discord_user_id), offset, limit)
 
-    if page is None:
-        raise HTTPException(
-            status_code=404,
-            detail="These recommendations expired. Run /rec again.",
-        )
-
-    total_count, recommendations = page
-
-    return {
-        "recommendation_id": recommendation_id,
-        "total_count": total_count,
-        "offset": offset,
-        "recommendations": recommendations,
-    }
+    return result_page(
+        recommendation_id,
+        bot_result_owner(discord_user_id),
+        offset,
+        limit,
+        "These recommendations expired. Run /rec again.",
+    )
 
 
 class BotClassifyResponse(BaseModel):
@@ -802,7 +704,7 @@ async def bot_classify(
     require_bot(bot_key)
 
     # Predictions are only precomputed for NM variants.
-    conn = connect_memory_db()
+    conn = connect_db(read_only=True)
 
     try:
         row = conn.execute(
