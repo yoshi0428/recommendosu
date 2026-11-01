@@ -22,30 +22,18 @@ HEADERS = {
 }
 
 
-def get_retry_delay(response, retry_number):
-    """
-    Determine how long to wait before retrying.
-
-    Priority:
-    1. Retry-After header
-    2. Exponential backoff
-    3. Random jitter
-    """
-
-    retry_after = response.headers.get("Retry-After")
-
-    if retry_after:
-        try:
-            delay = float(retry_after)
-            return min(delay, MAX_BACKOFF)
-        except ValueError:
-            pass
-
-    # Exponential backoff
+def backoff_delay(retry_number):
+    """Exponential backoff with 0-25% jitter, capped at MAX_BACKOFF."""
     delay = min(INITIAL_BACKOFF * (2**retry_number), MAX_BACKOFF)
-    delay *= random.uniform(1.0, 1.25)  # add 0-25% jitter
+    return min(delay * random.uniform(1.0, 1.25), MAX_BACKOFF)
 
-    return min(delay, MAX_BACKOFF)
+
+def get_retry_delay(response, retry_number):
+    """How long to wait after a 429: the Retry-After header if it's a number, else backoff_delay()."""
+    try:
+        return min(float(response.headers["Retry-After"]), MAX_BACKOFF)
+    except (KeyError, ValueError):
+        return backoff_delay(retry_number)
 
 
 def download_file(session, beatmap_id, file_path):
@@ -67,9 +55,7 @@ def download_file(session, beatmap_id, file_path):
                 print(f"{beatmap_id}: request failed after {MAX_RETRIES} retries: {e}")
                 return False
 
-            delay = min(INITIAL_BACKOFF * (2**retry_number), MAX_BACKOFF)
-            delay *= random.uniform(1.0, 1.25)
-
+            delay = backoff_delay(retry_number)
             print(f"{beatmap_id}: network error: {e}")
             print(f"Retrying in {delay:.1f} seconds...")
             time.sleep(delay)
@@ -101,9 +87,7 @@ def download_file(session, beatmap_id, file_path):
                 )
                 return False
 
-            delay = min(INITIAL_BACKOFF * (2**retry_number), MAX_BACKOFF)
-            delay *= random.uniform(1.0, 1.25)
-
+            delay = backoff_delay(retry_number)
             print(f"{beatmap_id}: HTTP {response.status_code}.")
             print(f"Retrying in {delay:.1f} seconds...")
             time.sleep(delay)

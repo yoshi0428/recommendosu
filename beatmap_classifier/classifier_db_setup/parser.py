@@ -1,4 +1,7 @@
+import io
 import math
+
+from beatmap_recommender.recommender_db_setup.parser import decode_osu_bytes
 
 
 def parse_osu_file(
@@ -63,15 +66,10 @@ def parse_osu_file(
     # ========================================================
     # Read file
     # ========================================================
-    # Read file with fallback for legacy character encodings
-    try:
-        file_obj = open(file_path, "r", encoding="utf-8")
-        lines = list(file_obj)
-        file_obj.close()
-    except UnicodeDecodeError:
-        file_obj = open(file_path, "r", encoding="latin-1")
-        lines = list(file_obj)
-        file_obj.close()
+    # UTF-8, UTF-16 (old files with a BOM) or latin-1. StringIO with
+    # newline=None splits lines like reading the file in text mode did.
+    with open(file_path, "rb") as f:
+        lines = list(io.StringIO(decode_osu_bytes(f.read()), newline=None))
 
     section = None
     for line in lines:

@@ -13,36 +13,14 @@ def decode_osu_bytes(raw):
         return raw.decode("latin-1")
 
 
-def parse_osu_file(
-    file_path,
-    max_slider_length=500.0,
-):
+def parse_osu_file(file_path):
     """
-    Parse an osu! Standard .osu file.
+    Parse an osu!standard .osu file into the BASE (NM) beatmap's metadata
+    and stats; mods are applied later (beatmap_mods.py). Returns None for
+    other game modes.
 
-    The returned object represents the BASE beatmap.
-
-    Important:
-        - Hit-object vectors contain RAW values.
-        - No mod-specific timing transformation is performed here.
-        - No CNN normalization is performed here.
-        - Variant-specific transformations should be applied later.
-
-    Base vector format:
-
-        (
-            x_diff,
-            y_diff,
-            time_diff,
-            length
-        )
-
-    where:
-
-        x_diff     = normalized x displacement
-        y_diff     = normalized y displacement
-        time_diff  = original/base time difference in milliseconds
-        length     = slider length
+    Only circles and sliders count towards object_count and length_seconds
+    (spinners don't).
     """
 
     data = {
@@ -73,15 +51,10 @@ def parse_osu_file(
         # Map statistics
         "length_seconds": None,
         "object_count": 0,
-
-        # Raw hit objects
-        "hit_objects": [],
-
-        # Raw base vectors
-        "vectors": [],
     }
 
     timing_points = []
+    object_times = []
 
     with open(file_path, "rb") as f:
         lines = decode_osu_bytes(f.read()).splitlines()
@@ -209,50 +182,18 @@ def parse_osu_file(
                 continue
 
             try:
-                x = float(obj_data[0])
-                y = float(obj_data[1])
                 time = float(obj_data[2])
                 hit_object_type = int(obj_data[3])
+                float(obj_data[0]), float(obj_data[1])  # Skip objects without a valid position.
             except ValueError:
                 continue
 
-            hit_circle_flag = 0b00000001
-            slider_flag = 0b00000010
+            is_circle = hit_object_type & 0b01
+            # Sliders without a length field (8th) are skipped.
+            is_slider = hit_object_type & 0b10 and len(obj_data) > 7
 
-            # Circle
-            if hit_object_type & hit_circle_flag:
-                hit_object = {
-                    "x": x,
-                    "y": y,
-                    "time": time,
-                    "length": 0.0,
-                }
-
-                data["hit_objects"].append(hit_object)
-
-            # Slider
-            elif hit_object_type & slider_flag:
-                if len(obj_data) <= 7:
-                    continue
-
-                try:
-                    slider_length = float(obj_data[7])
-                except ValueError:
-                    slider_length = 0.0
-
-                slider_length = min(
-                    max_slider_length,
-                    max(0.0, slider_length),
-                )
-
-                hit_object = {
-                    "x": x,
-                    "y": y,
-                    "time": time,
-                    "length": slider_length,
-                }
-
-                data["hit_objects"].append(hit_object)
+            if is_circle or is_slider:
+                object_times.append(time)
 
     # BPM
     if timing_points:
@@ -262,14 +203,11 @@ def parse_osu_file(
         data["min_bpm"] = min(bpms)
         data["max_bpm"] = max(bpms)
 
-    # Object Count
-    data["object_count"] = len(data["hit_objects"])
+    data["object_count"] = len(object_times)
 
-    # Base Map Length
-    if len(data["hit_objects"]) >= 2:
-        first_object_time = data["hit_objects"][0]["time"]
-        last_object_time = data["hit_objects"][-1]["time"]
-        data["length_seconds"] = (last_object_time - first_object_time) / 1000.0
+    # From the first object to the last, in file order.
+    if len(object_times) >= 2:
+        data["length_seconds"] = (object_times[-1] - object_times[0]) / 1000.0
     else:
         data["length_seconds"] = 0.0
 

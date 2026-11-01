@@ -3,17 +3,17 @@ import sqlite3
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
-from beatmap_mods import calculate_difficulty
-from db_insertion import (
+from tqdm import tqdm
+
+from beatmap_classifier.classifier_db_setup.db_insertion import (
     insert_base_beatmap,
     insert_tournament_prediction,
     insert_variant,
     insert_vectors,
 )
-from db_table_creation import create_tables
-from parser import parse_osu_file
-from tqdm import tqdm
-
+from beatmap_classifier.classifier_db_setup.db_table_creation import create_tables
+from beatmap_classifier.classifier_db_setup.parser import parse_osu_file
+from beatmap_recommender.recommender_db_setup.beatmap_mods import calculate_difficulty
 from beatmap_recommender.recommender_db_setup.star_calculator import VersionAwareOsuCalculator
 
 # ============================================================
@@ -38,77 +38,6 @@ MOD_VARIANTS = {
     "HD": ["HD"],
     "HR": ["HR"],
     "DT": ["DT"],
-}
-
-# ============================================================
-# Tournament prediction labels
-# ============================================================
-TOURNAMENT_LABELS = {
-    "nm1": {
-        "column": "nm1",
-        "mods": [],
-    },
-    "nm2": {
-        "column": "nm2",
-        "mods": [],
-    },
-    "nm3": {
-        "column": "nm3",
-        "mods": [],
-    },
-    "nm4": {
-        "column": "nm4",
-        "mods": [],
-    },
-    "nm5": {
-        "column": "nm5",
-        "mods": [],
-    },
-    "nm6": {
-        "column": "nm6",
-        "mods": [],
-    },
-    "dt1": {
-        "column": "dt1",
-        "mods": ["DT"],
-    },
-    "dt2_and_dt3": {
-        "column": "dt2_and_dt3",
-        "mods": ["DT"],
-    },
-    "dt4": {
-        "column": "dt4",
-        "mods": ["DT"],
-    },
-    "hr1": {
-        "column": "hr1",
-        "mods": ["HR"],
-    },
-    "hr2": {
-        "column": "hr2",
-        "mods": ["HR"],
-    },
-    "hr3": {
-        "column": "hr3",
-        "mods": ["HR"],
-    },
-    "hd1": {
-        "column": "hd1",
-        "mods": ["HD"],
-    },
-    "hd2": {
-        "column": "hd2",
-        "mods": ["HD"],
-    },
-    "hd3": {
-        "column": "hd3",
-        "mods": ["HD"],
-    },
-    "tiebreaker": {
-        "column": "tiebreaker",
-        "mods": [],
-    },
-    # Freemod intentionally omitted for now.
 }
 
 _worker_calculator = None
@@ -225,6 +154,13 @@ def main():
 
             tournament_label = os.path.basename(os.path.dirname(file_path))
 
+            # One SAVEPOINT per file, so a failing file only rolls back its
+            # own rows, not every file since the last commit.
+            if not conn.in_transaction:
+                conn.execute("BEGIN")
+
+            conn.execute("SAVEPOINT beatmap")
+
             try:
                 insert_base_beatmap(conn, beatmap_data)
 
@@ -246,21 +182,17 @@ def main():
                     variant_id, mods_string = insert_variant(
                         conn, beatmap_id, mods, beatmap_data, difficulty_result
                     )
-                    insert_tournament_prediction(
-                        conn,
-                        variant_id,
-                        mods_string,
-                        tournament_label,
-                        TOURNAMENT_LABELS,
-                    )
-
-                successful += 1
+                    insert_tournament_prediction(conn, variant_id, mods_string, tournament_label)
 
             except Exception as exc:
-                conn.rollback()
+                conn.execute("ROLLBACK TO beatmap")
+                conn.execute("RELEASE beatmap")
                 print(f"\nERROR processing: {file_path}")
                 print(f"Error: {exc}")
                 skipped += 1
+            else:
+                conn.execute("RELEASE beatmap")
+                successful += 1
 
             if processed % BATCH_SIZE == 0:
                 conn.commit()

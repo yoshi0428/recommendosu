@@ -388,21 +388,6 @@ def get_data(db_path, chunk_size=50000):
     labels = get_tournament_labels(cursor)
     print(f"Tournament-labeled beatmaps: {len(labels)}")
 
-    # Get maximum vector count
-    cursor.execute("""
-        SELECT
-            beatmap_id,
-            COUNT(*) AS vector_count
-        FROM beatmap_vectors
-        GROUP BY beatmap_id
-        ORDER BY vector_count DESC
-        LIMIT 1
-    """)
-
-    result = cursor.fetchone()
-    if result is not None:
-        print(f"Max Vector Count: {result[1]}")
-
     # Fetch vectors
     cursor.execute("""
         SELECT
@@ -480,23 +465,9 @@ def get_additional_features(db_path, y, beatmap_ids):
     Per-map metadata for each (beatmap_id, label) from get_data(), looked up
     on the variant with that label's mod.
 
-    Returns (raw, normalized), both keyed by (beatmap_id, mod).
-
-    BPM should also be an additional feature
+    Returns {(beatmap_id, mod): features}, the features in the order of
+    inference.SQL_FEATURE_NAMES. (Unscaled: XGBoost doesn't need scaling.)
     """
-    # Fixed normalization scales, sized for NM1-5. The pp values that follow
-    # these eight features are left unscaled.
-    scales = (
-        10.0,  # ar
-        10.0,  # od
-        5.0,  # circle_size
-        10.0,  # star_rating
-        250.0,  # bpm
-        3000.0,  # max_combo
-        400.0,  # length_seconds
-        2500.0,  # object_count
-    )
-
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
@@ -528,8 +499,7 @@ def get_additional_features(db_path, y, beatmap_ids):
 
     conn.close()
 
-    raw_additional_features = {}
-    normalized_additional_features = {}
+    additional_features = {}
 
     # Match each beatmap_id with its required mod
     for beatmap_id, label in zip(beatmap_ids, y):
@@ -541,11 +511,6 @@ def get_additional_features(db_path, y, beatmap_ids):
             )
             continue
 
-        features = variants[key]
-        raw_additional_features[key] = features
-        normalized_additional_features[key] = (
-            tuple(value / scale for value, scale in zip(features, scales))
-            + features[len(scales) :]
-        )
+        additional_features[key] = variants[key]
 
-    return raw_additional_features, normalized_additional_features
+    return additional_features

@@ -9,9 +9,6 @@ def create_tables(conn):
         Raw object-to-object vectors belonging to the base beatmap.
         These are NOT normalized for a particular mod variant.
 
-    beatmap_augmentations:
-        Records which geometric augmentations are available.
-
     beatmap_variants:
         One row per beatmap + mod combination.
         Contains the effective difficulty/statistics for that variant.

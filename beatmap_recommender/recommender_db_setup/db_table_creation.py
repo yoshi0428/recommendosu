@@ -34,31 +34,6 @@ def create_tables(conn):
     """)
 
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS beatmap_vectors (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-
-            beatmap_id TEXT NOT NULL,
-
-            vector_index INTEGER NOT NULL,
-
-            x_diff REAL NOT NULL,
-            y_diff REAL NOT NULL,
-            time_diff REAL NOT NULL,
-            length REAL NOT NULL,
-            distance REAL NOT NULL,
-            speed REAL NOT NULL,
-            speed_change REAL NOT NULL,
-            time_diff_change REAL NOT NULL,
-
-            FOREIGN KEY (beatmap_id)
-                REFERENCES beatmaps(beatmap_id)
-                ON DELETE CASCADE,
-
-            UNIQUE (beatmap_id, vector_index)
-        );
-    """)
-
-    cursor.execute("""
         CREATE TABLE IF NOT EXISTS beatmap_variants (
             variant_id INTEGER PRIMARY KEY AUTOINCREMENT,
 

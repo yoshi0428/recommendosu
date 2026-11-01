@@ -80,17 +80,17 @@ The entry points will be listed below:
 
 ### Beatmap Classifier
 
-- `/beatmap_classifier/dot_osu_extract/downloader_backoff.py`: Given .txt file of beatmap IDs, downloads .osu files with exponential backoff, via the osu! API v2
-- `/beatmap_classifier/classifier_db_setup/osu_parser_modded.py`: Populates `/beatmap_classifier/unexpanded_beatmaps.db` for the CNN-XGBoost model.
+- `/beatmap_classifier/dot_osu_extract/downloader_backoff.py`: Given .txt file of beatmap IDs, downloads .osu files from osu.direct, with exponential backoff
+- `/beatmap_classifier/classifier_db_setup/populate.py`: Populates `/beatmap_classifier/unexpanded_beatmaps.db` for the CNN-XGBoost model (`PYTHONPATH=. python beatmap_classifier/classifier_db_setup/populate.py`).
 - `/beatmap_classifier/train_and_eval.ipynb`: Trains and evaluates the CNN-XGBoost model using a train/val/test split.
 - `/beatmap_classifier/train_full.ipynb`: Trains the CNN-XGBoost model on the full dataset.
 - `/beatmap_classifier/test_model.py`: Can input beatmap IDs and see the prediction probabilities.
-- `/beatmap_classifier/data/extract_osu.py`: Extracts .osu files from directories of .osz archives.
+- `/beatmap_classifier/classifier/inference.py`: Runs the trained model on one beatmap, for both `test_model.py` and `precompute_nm1-5.py`. `/beatmap_classifier/classifier/meta_model.py` holds the XGBoost helpers both notebooks use.
 
 The parser stores every vector channel, including `speed_change` and `time_diff_change`, so training reads them straight from the database. 
 Training and prediction divide both `time_diff` and `time_diff_change` by the same saved `max_time_diff` (`vector_normalization.json`), so the two always build identical inputs.
 
-`osu_parser_modded.py` runs `/beatmap_classifier/clean_multicategory_maps.sql` once it's done, which removes maps placed in more than one tournament slot.
+`populate.py` runs `/beatmap_classifier/clean_multicategory_maps.sql` once it's done, which removes maps placed in more than one tournament slot.
 You can preview them with `/beatmap_classifier/view_multicategory_maps.sql` in the database browser of your choice (I used DB Browser for SQLite).
 
 ### Beatmap Recommender
@@ -98,7 +98,7 @@ You can preview them with `/beatmap_classifier/view_multicategory_maps.sql` in t
 - `/beatmap_recommender/data/extract_osu.py`: Extracts .osu files from directories of .osz archives.
 - `/beatmap_recommender/recommender_db_setup/populate.py`: Populates the recommender database (`beatmap_recommender/dummy.db` by default, see `--db`). We needed a separate population script for the beatmapset ids, and to prevent inserting the CNN vectors.
 - `/beatmap_recommender/recommender_db_setup/beatmap_id_resolution.py`: Works out the real beatmap ID of every .osu file before `populate.py` inserts it.
-- `/beatmap_recommender/recommender_db_setup/precompute_nm1-5.py`: Populates `beatmap_recommender/recommender.local.db` with the CNN-XGBoost probabilities for each beatmap.
+- `/beatmap_recommender/recommender_db_setup/precompute_nm1-5.py`: Stores the CNN-XGBoost NM1-NM5 probabilities for every NM variant in the recommender database (`beatmap_recommender/dummy.db` by default, see `DB_PATH` at the top of the file).
 - `/beatmap_recommender/content_similarity/test_recommender.py`: You can run this to see what the recommendations would look like. If you're running this from the CLI, this is the command (`PYTHONPATH=. python beatmap_recommender/content_similarity/test_recommender.py
 `)
 - `/beatmap_recommender/recommender.py`: The recommender for the backend. You can tweak some of the global variables if desired.

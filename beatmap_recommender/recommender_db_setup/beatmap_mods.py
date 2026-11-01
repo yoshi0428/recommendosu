@@ -27,31 +27,13 @@ def calculate_difficulty(file_path, mods, star_calculator):
     return result
 
 
-def get_result_attribute(result, *names):
-    """
-    Safely retrieve the first available attribute from a
-    CalculationResult object.
-
-    Different versions of osu-tools-py may expose slightly
-    different attribute names.
-    """
-
-    for name in names:
-        if hasattr(result, name):
-            value = getattr(result, name)
-
-            if value is not None:
-                return value
-
-    return None
-
-
 def apply_mod_to_stat(value, mods, stat):
     """
-    Fallback calculation for basic difficulty stats.
+    A difficulty stat (cs, hp, ar or od) with these mods applied.
 
-    Used only when osu-tools-py does not expose the
-    calculated attribute directly.
+    osu-tools-py's CalculationResult doesn't include these stats, so they're
+    calculated here: HR multiplies CS by 1.3 and the rest by 1.4 (capped at
+    10), EZ halves them, and DT/HT change AR and OD through the clock rate.
     """
 
     if value is None:
@@ -205,132 +187,20 @@ def apply_length_mod(
 
 def get_modded_stats(base_data, result, mods):
     """
-    Construct final statistics for a beatmap + mod combination.
-
-    osu-tools-py is the primary source for calculated values.
-    Manual transformations are only used when an attribute
-    isn't exposed by the installed version.
+    Final statistics for a beatmap + mod combination: HP/CS/OD/AR from the
+    base beatmap with apply_mod_to_stat(), and star rating, max combo and pp
+    from osu-tools-py's CalculationResult.
     """
-
-    mods = {mod.upper() for mod in mods}
-
-    # --------------------------------------------------------
-    # Base stats
-    # --------------------------------------------------------
-
-    base_hp = base_data["hp_drain"]
-    base_cs = base_data["circle_size"]
-    base_od = base_data["od"]
-    base_ar = base_data["ar"]
-
-    # --------------------------------------------------------
-    # Difficulty stats
-    # --------------------------------------------------------
-
-    hp = get_result_attribute(
-        result,
-        "hp",
-        "hp_drain",
-    )
-
-    cs = get_result_attribute(
-        result,
-        "cs",
-        "circle_size",
-    )
-
-    od = get_result_attribute(
-        result,
-        "od",
-    )
-
-    ar = get_result_attribute(
-        result,
-        "ar",
-    )
-
-    # --------------------------------------------------------
-    # Fallbacks
-    # --------------------------------------------------------
-
-    if hp is None:
-        hp = apply_mod_to_stat(
-            base_hp,
-            mods,
-            "hp",
-        )
-
-    if cs is None:
-        cs = apply_mod_to_stat(
-            base_cs,
-            mods,
-            "cs",
-        )
-
-    if od is None:
-        od = apply_mod_to_stat(
-            base_od,
-            mods,
-            "od",
-        )
-
-    if ar is None:
-        ar = apply_mod_to_stat(
-            base_ar,
-            mods,
-            "ar",
-        )
-
-    # --------------------------------------------------------
-    # Calculator outputs
-    # --------------------------------------------------------
-
-    stars = get_result_attribute(
-        result,
-        "stars",
-        "star_rating",
-    )
-
-    max_combo = get_result_attribute(
-        result,
-        "max_combo",
-    )
-
-    pp = get_result_attribute(
-        result,
-        "pp",
-    )
-
-    pp_aim = get_result_attribute(
-        result,
-        "pp_aim",
-    )
-
-    pp_speed = get_result_attribute(
-        result,
-        "pp_speed",
-    )
-
-    pp_acc = get_result_attribute(
-        result,
-        "pp_acc",
-    )
-
-    pp_flashlight = get_result_attribute(
-        result,
-        "pp_flashlight",
-    )
-
     return {
-        "hp_drain": hp,
-        "circle_size": cs,
-        "od": od,
-        "ar": ar,
-        "star_rating": stars,
-        "max_combo": max_combo,
-        "pp": pp,
-        "pp_aim": pp_aim,
-        "pp_speed": pp_speed,
-        "pp_acc": pp_acc,
-        "pp_flashlight": pp_flashlight,
+        "hp_drain": apply_mod_to_stat(base_data["hp_drain"], mods, "hp"),
+        "circle_size": apply_mod_to_stat(base_data["circle_size"], mods, "cs"),
+        "od": apply_mod_to_stat(base_data["od"], mods, "od"),
+        "ar": apply_mod_to_stat(base_data["ar"], mods, "ar"),
+        "star_rating": result.stars,
+        "max_combo": result.max_combo,
+        "pp": result.pp,
+        "pp_aim": result.pp_aim,
+        "pp_speed": result.pp_speed,
+        "pp_acc": result.pp_acc,
+        "pp_flashlight": result.pp_flashlight,
     }

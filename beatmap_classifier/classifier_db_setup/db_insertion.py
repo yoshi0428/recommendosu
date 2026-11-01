@@ -1,4 +1,6 @@
-from beatmap_mods import (
+from beatmap_classifier.classifier.utils_training import TOURNAMENT_MODS
+from beatmap_recommender.content_similarity.core_modules.mod_preferences import canonicalize_mods
+from beatmap_recommender.recommender_db_setup.beatmap_mods import (
     apply_bpm_mod,
     apply_length_mod,
     get_modded_stats,
@@ -143,14 +145,7 @@ def insert_variant(
 
     cursor = conn.cursor()
 
-    # --------------------------------------------------------
-    # Canonical mod string
-    # --------------------------------------------------------
-
-    if not mods:
-        mods_string = "NM"
-    else:
-        mods_string = "".join(sorted(mod.upper() for mod in mods))
+    mods_string = canonicalize_mods(mods)
 
     # --------------------------------------------------------
     # Calculate modded difficulty statistics
@@ -280,63 +275,25 @@ def insert_tournament_prediction(
     variant_id,
     mods_string,
     folder_name,
-    tournament_labels,
 ):
     """
-    Mark the appropriate beatmap variant as belonging to a
-    tournament classification.
-
-    The folder name is matched case-insensitively.
-
-    The tournament label determines:
-
-        1. Which prediction column is set to 1.
-        2. Which mod variant the prediction belongs to.
+    Mark the variant as belonging to the tournament slot named by the map's
+    folder (matched case-insensitively against TOURNAMENT_MODS), if the slot
+    is played with this variant's mods.
 
     Examples:
 
         NM1 -> NM variant -> nm1 = 1
         HD2 -> HD variant -> hd2 = 1
-        HR3 -> HR variant -> hr3 = 1
-        DT3 -> DT variant -> dt2_and_dt3 = 1
+        DT2_AND_DT3 -> DT variant -> dt2_and_dt3 = 1
 
-    Returns:
-
-        True
-            If the label matches this variant.
-
-        False
-            If the label does not belong to this variant.
+    Returns True if the label was set, False if it doesn't belong to this
+    variant (or the folder isn't a tournament slot).
     """
+    prediction_column = folder_name.strip().lower()
 
-    label = folder_name.strip().lower()
-
-    tournament = tournament_labels.get(label)
-
-    if tournament is None:
-        return False
-
-    prediction_column = tournament["column"]
-    required_mods = tournament["mods"]
-
-    # --------------------------------------------------------
-    # Determine canonical mod string
-    # --------------------------------------------------------
-
-    if not required_mods:
-        required_mod_string = "NM"
-    else:
-        required_mod_string = "".join(sorted(mod.upper() for mod in required_mods))
-
-    # --------------------------------------------------------
-    # Make sure this prediction belongs to this variant.
-    #
-    # Example:
-    #
     # NM1 must not be inserted into the DT variant.
-    # --------------------------------------------------------
-
-    if mods_string != required_mod_string:
+    if TOURNAMENT_MODS.get(prediction_column) != mods_string:
         return False
 
     cursor = conn.cursor()
@@ -356,10 +313,8 @@ def insert_tournament_prediction(
     )
 
     # --------------------------------------------------------
-    # Set tournament label
-    #
-    # prediction_column comes from your own trusted
-    # tournament_labels configuration.
+    # Set tournament label (prediction_column is a TOURNAMENT_MODS key,
+    # so it's a known column name, not user input)
     # --------------------------------------------------------
 
     cursor.execute(

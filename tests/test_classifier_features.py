@@ -5,11 +5,11 @@ The model is trained in beatmap_classifier/train_full.ipynb, which builds its
 inputs with get_data() and get_additional_features() from
 beatmap_classifier/classifier/utils_training.py. Predictions for the website
 are made later by beatmap_recommender/recommender_db_setup/precompute_nm1-5.py,
-which builds the same inputs again with its own code.
+which builds the same inputs again with beatmap_classifier/classifier/inference.py.
 
 If the two disagree (different order, scaling, padding...) the model gets
 inputs unlike anything it was trained on. Nothing crashes and the notebook's
-accuracy still looks fine, because the notebook never runs precompute. The
+accuracy still looks fine, because the notebook never runs inference. The
 only symptom is quietly worse NM1-NM5 probabilities on the site. This is
 called *training/serving skew*, and a test like this is the standard way to
 catch it.
@@ -17,8 +17,8 @@ catch it.
 How the test works:
   * Training side: run the real get_data() / get_additional_features() on
     beatmap_classifier/unexpanded_beatmaps.db, exactly like the notebook does.
-  * Prediction side: run the real predict_beatmap() from precompute on the
-    same map's .osu file, but with fake models that *record* the inputs they
+  * Prediction side: run the real inference.classify() on the same map's
+    .osu file, as precompute does, but with fake models that *record* the inputs they
     receive instead of predicting. That captures precisely what the real
     models would be fed.
   * Compare the two, for one tournament map from each of NM1-NM5.
@@ -29,7 +29,6 @@ files in beatmap_recommender/data, torch and osu-tools-py. Marked slow
 """
 
 import hashlib
-import importlib.util
 import sqlite3
 from pathlib import Path
 
@@ -37,10 +36,10 @@ import numpy as np
 import pytest
 
 pytest.importorskip("torch")
-pytest.importorskip("osu_tools")  # precompute imports the star calculator.
 
 import torch  # noqa: E402
 
+from beatmap_classifier.classifier import inference  # noqa: E402
 from beatmap_classifier.classifier.augment_faster import extract_movement_features_from_X  # noqa: E402
 from beatmap_classifier.classifier.utils_training import (  # noqa: E402
     get_additional_features,
@@ -53,8 +52,8 @@ from beatmap_classifier.classifier.utils_training import (  # noqa: E402
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CLASSIFIER_DB = PROJECT_ROOT / "beatmap_classifier" / "unexpanded_beatmaps.db"
 RECOMMENDER_DB = PROJECT_ROOT / "beatmap_recommender" / "dummy.db"
-PRECOMPUTE = PROJECT_ROOT / "beatmap_recommender" / "recommender_db_setup" / "precompute_nm1-5.py"
 DATA = PROJECT_ROOT / "beatmap_recommender" / "data"
+VECTOR_NORMALIZATION_PATH = inference.MODEL_DIR / "vector_normalization.json"
 
 pytestmark = [
     pytest.mark.slow,
@@ -95,7 +94,7 @@ def training():
     and is the same for every test in the file.
     """
     X, y, beatmap_ids = get_data(str(CLASSIFIER_DB))
-    raw_additional, _ = get_additional_features(str(CLASSIFIER_DB), y, beatmap_ids)
+    raw_additional = get_additional_features(str(CLASSIFIER_DB), y, beatmap_ids)
 
     # Cell 8: pad to the 99th-percentile length, rounded up to a power of 2.
     lengths = np.array([len(sequence) for sequence in X])
@@ -144,21 +143,11 @@ class FakeLabelEncoder:
         return self.classes_[indices]
 
 
-@pytest.fixture(scope="module")
-def precompute():
-    # The file name contains a hyphen, so it can't be imported with a normal
-    # `import` statement. importlib loads it from its path instead.
-    spec = importlib.util.spec_from_file_location("precompute_nm1_5", PRECOMPUTE)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
 @pytest.fixture(scope="module", params=list(BEATMAPS), ids=list(BEATMAPS))
-def pair(request, training, precompute):
+def pair(request, training):
     """
-    For one beatmap: what training fed the models, and what precompute
-    feeds them. Parametrized fixture: every test using it runs once per map.
+    For one beatmap: what training fed the models, and what inference feeds
+    them. Parametrized fixture: every test using it runs once per map.
     """
     label = request.param
     beatmap_id, md5, relative_path = BEATMAPS[label]
@@ -167,7 +156,7 @@ def pair(request, training, precompute):
         pytest.skip(f"{relative_path} not found")
     assert hashlib.md5(path.read_bytes()).hexdigest() == md5, f"{relative_path} changed on disk"
 
-    # Prediction side: the NM variant row as precompute's main() builds it.
+    # Prediction side: the NM variant row, as precompute passes it.
     with sqlite3.connect(f"{RECOMMENDER_DB.as_uri()}?mode=ro", uri=True) as conn:
         conn.row_factory = sqlite3.Row
         variant = dict(conn.execute(
@@ -175,10 +164,14 @@ def pair(request, training, precompute):
         ).fetchone())
 
     cnn, meta = RecordingCNN(), RecordingMetaModel()
-    precompute.predict_beatmap(
-        str(path), variant, [cnn], FakeLabelEncoder(), meta,
-        load_vector_normalization(precompute.VECTOR_NORMALIZATION_PATH),
+    classifier = inference.Classifier(
+        cnn_models=[cnn],
+        label_encoder=FakeLabelEncoder(),
+        meta_model=meta,
+        vector_normalization=load_vector_normalization(VECTOR_NORMALIZATION_PATH),
+        device=torch.device("cpu"),
     )
+    inference.classify(classifier, inference.read_vectors(str(path)), variant)
 
     i = training["index"][beatmap_id]
     n = len(training["X"][i])
@@ -207,35 +200,34 @@ def describe(names, train, pred, mismatched):
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
-def test_saved_vector_normalization_matches_training(precompute):
+def test_saved_vector_normalization_matches_training():
     # get_data() computes its scales from unexpanded_beatmaps.db at training time.
-    # The copy saved next to the model must be the same, or precompute
+    # The copy saved next to the model must be the same, or inference
     # scales differently from the data the model learned on. (It would
     # drift if unexpanded_beatmaps.db changed without retraining and re-saving.)
     with sqlite3.connect(f"{CLASSIFIER_DB.as_uri()}?mode=ro", uri=True) as conn:
         expected = get_vector_normalization(conn.cursor())
 
-    assert load_vector_normalization(precompute.VECTOR_NORMALIZATION_PATH) == expected
+    assert load_vector_normalization(VECTOR_NORMALIZATION_PATH) == expected
 
 
-def test_sequence_length_matches(training, precompute):
-    assert precompute.MAX_SEQUENCE_LENGTH == training["max_length"]
+def test_sequence_length_matches(training):
+    assert inference.MAX_SEQUENCE_LENGTH == training["max_length"]
 
 
-def test_feature_order_matches(precompute):
-    # get_metadata's docstring says the order "MUST remain"; this checks it
-    # against the order get_additional_features() returns.
-    assert precompute.sql_feature_names == [
+def test_feature_order_matches():
+    # Checked against the order get_additional_features() returns.
+    assert inference.SQL_FEATURE_NAMES == [
         "ar", "od", "circle_size", "star_rating", "bpm", "max_combo",
         "length_seconds", "object_count", "pp", "pp_aim", "pp_speed", "pp_acc",
     ]
-    assert precompute.indices == list(range(24)), "precompute excludes features the model was trained with"
+    assert len(inference.ADDITIONAL_FEATURE_NAMES) == 24
 
 
-def test_metadata_features_match(pair, precompute):
+def test_metadata_features_match(pair):
     train, pred = pair["train_additional"][:12], pair["pred_additional"][:12]
     mismatched = np.flatnonzero(~np.isclose(train, pred, rtol=1e-5))
-    names = precompute.additional_feature_names[:12]
+    names = inference.ADDITIONAL_FEATURE_NAMES[:12]
     assert not mismatched.size, "\n" + describe(names, train, pred, mismatched)
 
 
@@ -251,8 +243,8 @@ def test_cnn_input_matches(pair):
     assert not bad, f"{pair['label']}: CNN channels differ: {bad}"
 
 
-def test_movement_features_match(pair, precompute):
+def test_movement_features_match(pair):
     train, pred = pair["train_additional"][12:], pair["pred_additional"][12:]
     mismatched = np.flatnonzero(~np.isclose(train, pred, rtol=1e-4, atol=1e-6))
-    names = precompute.additional_feature_names[12:]
+    names = inference.ADDITIONAL_FEATURE_NAMES[12:]
     assert not mismatched.size, "\n" + describe(names, train, pred, mismatched)

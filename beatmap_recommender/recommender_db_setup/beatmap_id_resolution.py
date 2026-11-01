@@ -56,6 +56,14 @@ LOG_FIELDS = [
 ]
 
 
+def new_log_row(header, **fields):
+    """A log row for one scanned file: its path, md5 and BeatmapID, plus fields; "" for the rest."""
+    row = dict.fromkeys(LOG_FIELDS, "")
+    row.update(file=header["path"], md5=header["md5"], file_beatmap_id=header["file_beatmap_id"] or "")
+    row.update(fields)
+    return row
+
+
 # ============================================================
 # Scanning
 # ============================================================
@@ -219,17 +227,7 @@ def resolve_beatmap_ids(headers, lookup, overrides=None, seed=None):
             }
             continue
 
-        row = {
-            "file": header["path"],
-            "md5": md5,
-            "file_beatmap_id": file_id or "",
-            "problem": problem or "no ApproachRate",
-            "source": "",
-            "beatmap_id": "",
-            "beatmapset_id": "",
-            "outcome": "",
-            "note": "",
-        }
+        row = new_log_row(header, problem=problem or "no ApproachRate")
         log_rows[md5] = row
 
         # Only the AR is missing: keep the file's ID, find the AR wherever it is cheapest.
@@ -311,20 +309,7 @@ def resolve_beatmap_ids(headers, lookup, overrides=None, seed=None):
 
         resolution["beatmapset_id"] = set_id
         header = first_by_md5[md5]
-        row = log_rows.setdefault(
-            md5,
-            {
-                "file": header["path"],
-                "md5": md5,
-                "file_beatmap_id": header["file_beatmap_id"] or "",
-                "problem": "",
-                "source": "file",
-                "beatmap_id": resolution["beatmap_id"],
-                "beatmapset_id": "",
-                "outcome": "",
-                "note": "",
-            },
-        )
+        row = log_rows.setdefault(md5, new_log_row(header, source="file", beatmap_id=resolution["beatmap_id"]))
         row["problem"] = "; ".join(p for p in (row["problem"], "BeatmapSetID missing") if p)
         row["beatmapset_id"] = set_id or ""
         row["note"] = "; ".join(n for n in (row["note"], f"set ID from {source}") if n)
@@ -350,20 +335,7 @@ def resolve_beatmap_ids(headers, lookup, overrides=None, seed=None):
         for md5 in drop:
             del resolutions[md5]
             header = first_by_md5[md5]
-            row = log_rows.setdefault(
-                md5,
-                {
-                    "file": header["path"],
-                    "md5": md5,
-                    "file_beatmap_id": header["file_beatmap_id"] or "",
-                    "problem": "",
-                    "source": "file",
-                    "beatmap_id": beatmap_id,
-                    "beatmapset_id": "",
-                    "outcome": "",
-                    "note": "",
-                },
-            )
+            row = log_rows.setdefault(md5, new_log_row(header, source="file", beatmap_id=beatmap_id))
             row.update(
                 outcome="skipped",
                 note=f"resolves to {beatmap_id}, already taken by {first_by_md5[keep]['path']}",

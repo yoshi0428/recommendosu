@@ -39,21 +39,16 @@ def extract_movement_features_from_X(X_beatmap):
     )
 
     # 2. Localized Tech Indicators (90th/95th Percentiles & Ratios)
-    # Tech maps exhibit localized bursts of acceleration and acute turn spikes
-    speed_change_95th = (
-        float(np.percentile(np.abs(speed_changes), 95))
-        if len(speed_changes) > 0
-        else 0.0
-    )
-    angle_90th = float(np.percentile(angles, 90)) if len(angles) > 0 else 0.0
+    # Tech maps exhibit localized bursts of acceleration and acute turn spikes.
+    # (At least 3 vectors from here on, so none of these arrays are empty.)
+    speed_change_95th = float(np.percentile(np.abs(speed_changes), 95))
+    angle_90th = float(np.percentile(angles, 90))
 
     # Sharp Turn Ratio: Turns sharper than 75 degrees (1.309 rad)
-    sharp_turn_ratio = (
-        float(np.sum(angles > 1.309)) / float(len(angles)) if len(angles) > 0 else 0.0
-    )
+    sharp_turn_ratio = float(np.sum(angles > 1.309)) / float(len(angles))
 
-    # Rhythm Complexity: Ratio of non-standard rhythm gaps (< 100ms or > 250ms)
-    rhythm_variance = float(np.std(time_diffs)) if len(time_diffs) > 0 else 0.0
+    # Rhythm variance: spread of the time gaps between objects
+    rhythm_variance = float(np.std(time_diffs))
 
     return np.array(
         [

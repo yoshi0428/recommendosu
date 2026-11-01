@@ -1,6 +1,6 @@
 """
-Unit tests for recommender_db_setup/beatmap_mods.py: the fallback formulas
-that turn a map's base stats into modded stats.
+Unit tests for recommender_db_setup/beatmap_mods.py: the formulas that turn
+a map's base stats into modded stats.
 
 These formulas encode osu! game rules, so the expected values come from the
 game itself rather than from running the code. That matters: a test whose
@@ -22,7 +22,6 @@ from beatmap_recommender.recommender_db_setup.beatmap_mods import (
     apply_length_mod,
     apply_mod_to_stat,
     get_modded_stats,
-    get_result_attribute,
 )
 
 
@@ -85,7 +84,7 @@ def test_bpm_and_length_scale_with_clock_rate():
 
 
 # ---------------------------------------------------------------------------
-# get_result_attribute / get_modded_stats with a fake calculator result
+# get_modded_stats with a fake calculator result
 # ---------------------------------------------------------------------------
 # SimpleNamespace(a=1, b=2) builds an object whose attributes are a and b.
 # That's all get_modded_stats needs from osu-tools-py's CalculationResult, so
@@ -93,33 +92,28 @@ def test_bpm_and_length_scale_with_clock_rate():
 # the real calculator or a .osu file.
 BASE = {"hp_drain": 5.0, "circle_size": 4.0, "od": 8.0, "ar": 9.0}
 
-
-def test_get_result_attribute_tries_names_in_order():
-    result = SimpleNamespace(star_rating=6.1, stars=None)
-    # `stars` exists but is None, so it falls through to `star_rating`.
-    assert get_result_attribute(result, "stars", "star_rating") == 6.1
-    assert get_result_attribute(result, "missing") is None
+# The fields of osu-tools-py's CalculationResult that get_modded_stats reads.
+RESULT = SimpleNamespace(
+    stars=6.0, max_combo=1234, pp=300.0, pp_aim=150.0, pp_speed=100.0, pp_acc=50.0, pp_flashlight=0.0
+)
 
 
-def test_modded_stats_prefer_calculator_values():
-    result = SimpleNamespace(ar=10.5, od=9.9, cs=4.0, hp=5.0, stars=6.0, pp=300.0)
+def test_modded_stats_combine_formulas_and_calculator():
+    stats = get_modded_stats(BASE, RESULT, ["HR"])
 
-    stats = get_modded_stats(BASE, result, ["DT"])
-
-    assert stats["ar"] == 10.5  # From the calculator, not the fallback formula.
-    assert stats["star_rating"] == 6.0
-    assert stats["pp"] == 300.0
-    assert stats["pp_aim"] is None  # Not provided by this fake.
-
-
-def test_modded_stats_fall_back_to_formulas():
-    # An older osu-tools-py version that only exposes star rating.
-    result = SimpleNamespace(star_rating=6.0)
-
-    stats = get_modded_stats(BASE, result, ["HR"])
-
+    # HP/CS/OD/AR from the formulas (CalculationResult doesn't have them).
     assert stats["circle_size"] == pytest.approx(5.2)
     assert stats["ar"] == pytest.approx(10.0)
     assert stats["od"] == pytest.approx(10.0)
     assert stats["hp_drain"] == pytest.approx(7.0)
+
+    # The rest straight from the calculator.
     assert stats["star_rating"] == 6.0
+    assert stats["max_combo"] == 1234
+    assert (stats["pp"], stats["pp_aim"], stats["pp_speed"], stats["pp_acc"], stats["pp_flashlight"]) == (
+        300.0, 150.0, 100.0, 50.0, 0.0,
+    )
+
+
+def test_modded_stats_accept_lowercase_mods():
+    assert get_modded_stats(BASE, RESULT, ["hr"]) == get_modded_stats(BASE, RESULT, ["HR"])
