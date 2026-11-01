@@ -105,6 +105,14 @@ describe("getRecommendations", () => {
     await expect(getRecommendations({})).rejects.toThrow("status 502. Server returned text/html");
   });
 
+  it("returns null for a cancelled request (204, no body)", async () => {
+    // POST /recommend answers 204 when the request was cancelled. The page
+    // must not show that as an error.
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+
+    await expect(getRecommendations({})).resolves.toBeNull();
+  });
+
   it("passes an abort through as an AbortError", async () => {
     // RecommendationsPage treats AbortError as "the user cancelled", not as
     // an error to show, so the error type matters.

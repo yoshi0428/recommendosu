@@ -53,6 +53,7 @@ export default defineConfig({
       "@testing-library/dom",
       "@testing-library/user-event",
       "@testing-library/jest-dom",
+      "react-router-dom",
     ],
   },
 });

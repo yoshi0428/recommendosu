@@ -44,6 +44,12 @@ export async function getRecommendations(body, options = {}) {
     signal: options.signal,
   });
 
+  // A recommendation cancelled with cancelRecommendation() ends with 204 and
+  // no body.
+  if (response.status === 204) {
+    return null;
+  }
+
   const contentType = response.headers.get("content-type") || "";
 
   // Nginx can return an HTML 504 page when the recommendation backend takes too long to respond.

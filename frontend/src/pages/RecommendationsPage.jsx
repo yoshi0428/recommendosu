@@ -9,10 +9,7 @@ import {
   getRecommendations,
 } from "../api/client";
 
-import {
-  createDefaultSettings,
-  normalizeSettings,
-} from "../utils/recommendation";
+import { createDefaultSettings } from "../utils/recommendation";
 
 import SiteHeader from "../components/SiteHeader.jsx";
 import RecommendationSettingsModal from "../components/recommendations/RecommendationSettingsModal.jsx";
@@ -20,6 +17,16 @@ import RecommendationSettingsModal from "../components/recommendations/Recommend
 // Must match RECOMMENDATION_PAGE_SIZE in main.py, which also sizes the first
 // page returned by POST /recommend.
 const RECOMMENDATION_PAGE_SIZE = 1000;
+
+// The per-variant scores in the breakdown shown when a row is clicked.
+const SCORE_BREAKDOWN = [
+  ["Final", "final_score"],
+  ["Content", "content_similarity"],
+  ["Difficulty", "difficulty_score"],
+  ["Mod Preference", "mod_preference"],
+  ["Classifier", "classifier_score"],
+  ["PP Potential", "pp_potential"],
+];
 
 const EMPTY_RESULT = {
   id: null,
@@ -98,19 +105,14 @@ function RecommendationsPage({ user, logout }) {
     setError(null);
 
     try {
-      const requestSettings = normalizeSettings(settings);
-
-      console.log(
-        "Normalized similarity weights:",
-        requestSettings.similarity_feature_weights
-      );
-
-      const data = await getRecommendations(requestSettings, {
+      const data = await getRecommendations(settings, {
         signal: controller.signal,
         recommendationId,
       });
 
-      if (controller.signal.aborted) {
+      // null: the backend confirmed the cancellation before the browser's
+      // request was aborted. Either way, keep the previous results.
+      if (data === null || controller.signal.aborted) {
         return;
       }
 
@@ -135,12 +137,7 @@ function RecommendationsPage({ user, logout }) {
         version: 0,
       });
     } catch (err) {
-      if (
-        err.name === "AbortError" ||
-        err.code === "ERR_CANCELED" ||
-        err.name === "CanceledError"
-      ) {
-        console.log("Recommendation request successfully cancelled.");
+      if (err.name === "AbortError") {
         return;
       }
 
@@ -231,6 +228,14 @@ function RecommendationsPage({ user, logout }) {
     setLoading(false);
   };
 
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (err) {
+      setError(err.message || "Failed to log out.");
+    }
+  };
+
   return (
     <AudioPreviewProvider>
       <div
@@ -248,8 +253,6 @@ function RecommendationsPage({ user, logout }) {
           loading={loading}
           advancedSettingsButton={
             <RecommendationSettingsModal
-              user={user}
-              logout={logout}
               settings={settings}
               updateSetting={updateSetting}
               updateNestedSetting={updateNestedSetting}
@@ -258,7 +261,7 @@ function RecommendationsPage({ user, logout }) {
               loading={loading}
             />
           }
-          logout={logout}
+          logout={handleLogout}
         />
 
         <main
@@ -318,35 +321,12 @@ function RecommendationsPage({ user, logout }) {
               </div>
 
               <div className="d-flex flex-wrap justify-content-center gap-3 small">
-                <div>
-                  <strong>Final:</strong>{" "}
-                  {Number(selectedRecommendation.final_score).toFixed(4)}
-                </div>
-
-                <div>
-                  <strong>Content:</strong>{" "}
-                  {Number(selectedRecommendation.content_similarity).toFixed(4)}
-                </div>
-
-                <div>
-                  <strong>Difficulty:</strong>{" "}
-                  {Number(selectedRecommendation.difficulty_score).toFixed(4)}
-                </div>
-
-                <div>
-                  <strong>Mod Preference:</strong>{" "}
-                  {Number(selectedRecommendation.mod_preference).toFixed(4)}
-                </div>
-
-                <div>
-                  <strong>Classifier:</strong>{" "}
-                  {Number(selectedRecommendation.classifier_score).toFixed(4)}
-                </div>
-
-                <div>
-                  <strong>PP Potential:</strong>{" "}
-                  {Number(selectedRecommendation.pp_potential).toFixed(4)}
-                </div>
+                {SCORE_BREAKDOWN.map(([label, key]) => (
+                  <div key={key}>
+                    <strong>{label}:</strong>{" "}
+                    {Number(selectedRecommendation[key]).toFixed(4)}
+                  </div>
+                ))}
               </div>
             </Alert>
           </div>

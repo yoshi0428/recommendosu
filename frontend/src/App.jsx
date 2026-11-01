@@ -7,7 +7,7 @@ import useTheme from "./hooks/useTheme";
 
 // Each page is its own chunk, so a visitor only downloads the page they land
 // on (signed-out visitors never load the recommendations UI).
-const LoginPage = lazy(() => import("./pages/LoginPage"));
+const AuthScreen = lazy(() => import("./components/AuthScreen"));
 // Started now rather than when first rendered, so it downloads alongside the
 // auth check instead of after it. Signed-out visitors fetch it unused.
 const recommendationsPageImport = import("./pages/RecommendationsPage");
@@ -50,7 +50,7 @@ function App() {
             user ? (
               <RecommendationsPage user={user} logout={logout} />
             ) : (
-              <LoginPage />
+              <AuthScreen />
             )
           }
         />

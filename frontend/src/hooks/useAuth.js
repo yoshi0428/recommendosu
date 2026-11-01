@@ -1,19 +1,16 @@
 import { useEffect, useState } from "react";
-import { getCurrentUser, login, logout } from "../api/client";
+import { getCurrentUser, logout } from "../api/client";
 
 export function useAuth() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
   useEffect(() => {
     async function checkAuthentication() {
       try {
-        const data = await getCurrentUser();
-        console.log("Authenticated user:", data);
-        setUser(data);
+        setUser(await getCurrentUser());
       } catch {
-        setError("Failed to connect to the backend.");
+        // Backend unreachable: treat as logged out, so the login screen shows.
       } finally {
         setLoading(false);
       }
@@ -22,20 +19,15 @@ export function useAuth() {
     checkAuthentication();
   }, []);
 
+  // Throws if the server refuses; the caller shows the error.
   async function handleLogout() {
-    try {
-      await logout();
-      setUser(null);
-    } catch (err) {
-      setError(err.message);
-    }
+    await logout();
+    setUser(null);
   }
 
   return {
     user,
     loading,
-    error,
-    login,
     logout: handleLogout,
   };
 }

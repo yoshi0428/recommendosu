@@ -3,35 +3,56 @@ import { Form, Button } from "react-bootstrap";
 import { Link } from "react-router-dom";
 import { ChevronUp, Funnel } from "react-bootstrap-icons";
 import useTheme from "../hooks/useTheme";
+import ModCheckboxes from "./ModCheckboxes";
 import "./SiteHeader.css";
 
-const INDIVIDUAL_MODS = ["NM", "HD", "HR", "DT", "EZ", "HT", "FL"];
+// Quick filters for min_<name> / max_<name>. srName is the name screen
+// readers announce ("Minimum stars").
+const QUICK_RANGES = [
+  { name: "stars", label: "Stars", srName: "stars", step: "0.1", inputMode: "decimal", width: "60px" },
+  { name: "bpm", label: "BPM", srName: "BPM", step: "1", inputMode: "numeric", width: "60px" },
+  { name: "pp", label: "PP", srName: "PP", step: "1", inputMode: "numeric", width: "65px" },
+];
 
-const MOD_VARIANTS = {
-  HD: ["HD"],
-  HR: ["HR"],
-  DT: ["DT"],
-  EZ: ["EZ"],
-  HT: ["HT"],
-  FL: ["FL"],
-  HDHR: ["HD", "HR"],
-  HDDT: ["HD", "DT"],
-  HDHRDT: ["HD", "HR", "DT"],
-  HRDT: ["HR", "DT"],
-  EZDT: ["EZ", "DT"],
-  EZHD: ["EZ", "HD"],
-  EZHT: ["EZ", "HT"],
-  HDHT: ["HD", "HT"],
-  HRHT: ["HR", "HT"],
-  HDHRFL: ["HD", "HR", "FL"],
-  HDFL: ["HD", "FL"],
-  HRFL: ["HR", "FL"],
-  DTFL: ["DT", "FL"],
-};
+function RangeInput({ settings, updateSetting, name, label, srName, step, inputMode, width }) {
+  const input = (bound, srBound, placeholder) => {
+    const key = `${bound}_${name}`;
+    const id = `header-${bound}-${name}`;
+
+    return (
+      <>
+        <Form.Label htmlFor={id} visuallyHidden>
+          {srBound} {srName}
+        </Form.Label>
+        <Form.Control
+          id={id}
+          type="number"
+          size="sm"
+          placeholder={placeholder}
+          value={settings[key] ?? ""}
+          step={step}
+          inputMode={inputMode}
+          style={{ width }}
+          onChange={(e) =>
+            updateSetting(key, e.target.value === "" ? null : Number(e.target.value))
+          }
+        />
+      </>
+    );
+  };
+
+  return (
+    <div className="site-header-collapsible d-flex align-items-center gap-1">
+      <span className="fw-semibold">{label}:</span>
+      {input("min", "Minimum", "Min")}
+      <span>-</span>
+      {input("max", "Maximum", "Max")}
+    </div>
+  );
+}
 
 function SiteHeader({
-  rightActions,
-  settings = {},
+  settings,
   updateSetting,
   onRunRecommendations,
   onCancelRecommendations,
@@ -43,72 +64,6 @@ function SiteHeader({
   // Phones only: the quick filters and nav buttons are hidden behind a toggle
   // so the results get most of the screen. Larger screens always show them.
   const [controlsOpen, setControlsOpen] = useState(false);
-  const currentMods = settings?.mods ?? [];
-  const excludedMods = settings?.excluded_mods ?? [];
-  const exactMods = settings?.exact_mods ?? false;
-
-  const isModCompatible = (mod) => {
-    if (!exactMods || currentMods.length === 0) return true;
-    if (currentMods.includes(mod)) return true;
-    if (mod === "NM" || currentMods.includes("NM")) return false;
-
-    const proposedMods = [...currentMods, mod];
-
-    return Object.values(MOD_VARIANTS).some(
-      (mods) =>
-        mods.length === proposedMods.length &&
-        mods.every((m) => proposedMods.includes(m))
-    );
-  };
-
-  const handleModChange = (mod) => {
-    if (!updateSetting) return;
-
-    const isRequired = currentMods.includes(mod);
-    const isExcluded = excludedMods.includes(mod);
-
-    if (exactMods) {
-      if (!isRequired && !isModCompatible(mod)) return;
-
-      if (isRequired) {
-        updateSetting(
-          "mods",
-          currentMods.filter((m) => m !== mod)
-        );
-      } else {
-        updateSetting("mods", [...currentMods, mod]);
-      }
-      return;
-    }
-
-    // Required -> Excluded
-    if (isRequired) {
-      updateSetting(
-        "mods",
-        currentMods.filter((m) => m !== mod)
-      );
-      updateSetting("excluded_mods", [...excludedMods, mod]);
-      return;
-    }
-
-    // Excluded -> Allowed
-    if (isExcluded) {
-      updateSetting(
-        "excluded_mods",
-        excludedMods.filter((m) => m !== mod)
-      );
-      return;
-    }
-
-    // Allowed -> Required
-    updateSetting("mods", [...currentMods, mod]);
-  };
-
-  const handleNumberChange = (key, value) => {
-    if (!updateSetting) return;
-
-    updateSetting(key, value === "" ? null : Number(value));
-  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -165,158 +120,23 @@ function SiteHeader({
                   w-100
                 "
               >
-                {/* Stars Quick Filter */}
-                <div className="site-header-collapsible d-flex align-items-center gap-1">
-                  <span className="fw-semibold">Stars:</span>
-
-                  <Form.Label htmlFor="header-min-stars" visuallyHidden>
-                    Minimum stars
-                  </Form.Label>
-                  <Form.Control
-                    id="header-min-stars"
-                    type="number"
-                    size="sm"
-                    placeholder="Min"
-                    value={settings.min_stars ?? ""}
-                    step="0.1"
-                    inputMode="decimal"
-                    style={{ width: "60px" }}
-                    onChange={(e) =>
-                      handleNumberChange("min_stars", e.target.value)
-                    }
+                {QUICK_RANGES.map((range) => (
+                  <RangeInput
+                    key={range.name}
+                    settings={settings}
+                    updateSetting={updateSetting}
+                    {...range}
                   />
-
-                  <span>-</span>
-
-                  <Form.Label htmlFor="header-max-stars" visuallyHidden>
-                    Maximum stars
-                  </Form.Label>
-                  <Form.Control
-                    id="header-max-stars"
-                    type="number"
-                    size="sm"
-                    placeholder="Max"
-                    value={settings.max_stars ?? ""}
-                    step="0.1"
-                    inputMode="decimal"
-                    style={{ width: "60px" }}
-                    onChange={(e) =>
-                      handleNumberChange("max_stars", e.target.value)
-                    }
-                  />
-                </div>
-
-                {/* BPM Quick Filter */}
-                <div className="site-header-collapsible d-flex align-items-center gap-1">
-                  <span className="fw-semibold">BPM:</span>
-
-                  <Form.Label htmlFor="header-min-bpm" visuallyHidden>
-                    Minimum BPM
-                  </Form.Label>
-                  <Form.Control
-                    id="header-min-bpm"
-                    type="number"
-                    size="sm"
-                    placeholder="Min"
-                    value={settings.min_bpm ?? ""}
-                    step="1"
-                    inputMode="numeric"
-                    style={{ width: "60px" }}
-                    onChange={(e) =>
-                      handleNumberChange("min_bpm", e.target.value)
-                    }
-                  />
-
-                  <span>-</span>
-
-                  <Form.Label htmlFor="header-max-bpm" visuallyHidden>
-                    Maximum BPM
-                  </Form.Label>
-                  <Form.Control
-                    id="header-max-bpm"
-                    type="number"
-                    size="sm"
-                    placeholder="Max"
-                    value={settings.max_bpm ?? ""}
-                    step="1"
-                    inputMode="numeric"
-                    style={{ width: "60px" }}
-                    onChange={(e) =>
-                      handleNumberChange("max_bpm", e.target.value)
-                    }
-                  />
-                </div>
-
-                {/* PP Quick Filter */}
-                <div className="site-header-collapsible d-flex align-items-center gap-1">
-                  <span className="fw-semibold">PP:</span>
-
-                  <Form.Label htmlFor="header-min-pp" visuallyHidden>
-                    Minimum PP
-                  </Form.Label>
-                  <Form.Control
-                    id="header-min-pp"
-                    type="number"
-                    size="sm"
-                    placeholder="Min"
-                    value={settings.min_pp ?? ""}
-                    step="1"
-                    inputMode="numeric"
-                    style={{ width: "65px" }}
-                    onChange={(e) =>
-                      handleNumberChange("min_pp", e.target.value)
-                    }
-                  />
-
-                  <span>-</span>
-
-                  <Form.Label htmlFor="header-max-pp" visuallyHidden>
-                    Maximum PP
-                  </Form.Label>
-                  <Form.Control
-                    id="header-max-pp"
-                    type="number"
-                    size="sm"
-                    placeholder="Max"
-                    value={settings.max_pp ?? ""}
-                    step="1"
-                    inputMode="numeric"
-                    style={{ width: "65px" }}
-                    onChange={(e) =>
-                      handleNumberChange("max_pp", e.target.value)
-                    }
-                  />
-                </div>
+                ))}
 
                 {/* Quick Mod Checkboxes */}
                 <div className="site-header-collapsible site-header-mods d-flex flex-wrap align-items-center gap-2 ps-3">
-                  {INDIVIDUAL_MODS.map((mod) => {
-                    const isRequired = currentMods.includes(mod);
-                    const isExcluded = excludedMods.includes(mod);
-                    const isDisabled = exactMods && !isModCompatible(mod);
-
-                    return (
-                      <Form.Check
-                        inline
-                        type="checkbox"
-                        id={`header-mod-${mod}`}
-                        label={mod}
-                        key={mod}
-                        checked={isRequired && !isExcluded}
-                        disabled={isDisabled}
-                        className="mb-0"
-                        style={{
-                          cursor: isDisabled ? "not-allowed" : "pointer",
-                        }}
-                        ref={(element) => {
-                          if (element) {
-                            element.indeterminate = !exactMods && isExcluded;
-                          }
-                        }}
-                        onChange={() => handleModChange(mod)}
-                      />
-                    );
-                  })}
+                  <ModCheckboxes
+                    settings={settings}
+                    updateSetting={updateSetting}
+                    idPrefix="header-mod-"
+                    compact
+                  />
                 </div>
 
                 {/* Run / Advanced Settings */}
@@ -361,8 +181,6 @@ function SiteHeader({
           {/* Right side */}
           <div className="site-header-collapsible col-12 col-lg-2">
             <div className="d-flex align-items-center justify-content-center justify-content-lg-end gap-2">
-              {rightActions}
-
               {/* About */}
               <Button
                 as={Link}

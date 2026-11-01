@@ -1,5 +1,6 @@
-import { useId } from "react";
-import { Card, Col, Form, Row } from "react-bootstrap";
+import { Card, Col, Row } from "react-bootstrap";
+
+import NumberInput from "./NumberInput";
 
 const DIFFICULTY_FEATURES = [
   ["star_rating", "Star Rating"],
@@ -7,24 +8,6 @@ const DIFFICULTY_FEATURES = [
   ["od", "OD"],
   ["bpm", "BPM"],
 ];
-
-function NumberInput({ label, value, onChange, step = "any" }) {
-  const id = useId();
-
-  return (
-    <Form.Group controlId={id}>
-      <Form.Label>{label}</Form.Label>
-      <Form.Control
-        type="number"
-        value={value ?? ""}
-        step={step}
-        onChange={(e) =>
-          onChange(e.target.value === "" ? 0 : Number(e.target.value))
-        }
-      />
-    </Form.Group>
-  );
-}
 
 function DifficultyProfile({ settings, updateNestedSetting }) {
   return (

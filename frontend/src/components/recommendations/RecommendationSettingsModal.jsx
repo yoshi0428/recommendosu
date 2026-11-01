@@ -21,15 +21,7 @@ function RecommendationSettingsModal({
     setShow(false);
   };
 
-  const handleRun = () => {
-    onRunRecommendations?.();
-  };
-
-  const handleCancelLoading = (e) => {
-    e?.preventDefault();
-    e?.stopPropagation();
-    onCancelRecommendations?.();
-  };
+  const footerButtonStyle = { minWidth: "min(160px, 40vw)" };
 
   return (
     <>
@@ -69,43 +61,29 @@ function RecommendationSettingsModal({
         </Modal.Body>
 
         <Modal.Footer className="justify-content-center">
-          {loading ? (
-            <div className="d-flex gap-2 justify-content-center">
-              <Button
-                variant="secondary"
-                onClick={handleClose}
-                style={{ minWidth: "min(160px, 40vw)" }}
-              >
-                Close
-              </Button>
+          <div className="d-flex gap-2 justify-content-center">
+            <Button variant="secondary" onClick={handleClose} style={footerButtonStyle}>
+              Close
+            </Button>
 
+            {loading ? (
               <Button
                 variant="outline-danger"
-                onClick={handleCancelLoading}
-                style={{ minWidth: "min(160px, 40vw)" }}
+                onClick={onCancelRecommendations}
+                style={footerButtonStyle}
               >
                 Cancel Request
               </Button>
-            </div>
-          ) : (
-            <div className="d-flex gap-2 justify-content-center">
-              <Button
-                variant="secondary"
-                onClick={handleClose}
-                style={{ minWidth: "min(160px, 40vw)" }}
-              >
-                Close
-              </Button>
-
+            ) : (
               <Button
                 variant="primary"
-                onClick={handleRun}
-                style={{ minWidth: "min(160px, 40vw)" }}
+                onClick={onRunRecommendations}
+                style={footerButtonStyle}
               >
                 Run Recommender
               </Button>
-            </div>
-          )}
+            )}
+          </div>
         </Modal.Footer>
       </Modal>
     </>

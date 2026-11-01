@@ -22,6 +22,12 @@ const formatDuration = (totalSeconds) => {
   }
 };
 
+// A number with `digits` decimals and an optional suffix, or "—" if missing.
+const formatStat = (value, digits, suffix = "") =>
+  value != null ? `${Number(value).toFixed(digits)}${suffix}` : "—";
+
+const formatCombo = (combo) => (combo != null ? `${combo.toLocaleString()}x` : "—");
+
 function RecommendationRow({
   recommendation,
   onSelectRecommendation,
@@ -178,56 +184,38 @@ function RecommendationRow({
 
             {/* Stats shown under the title on phones, where the stat columns are hidden */}
             <div className="recommendation-mobile-stats small text-body-secondary">
-              <span className="fw-semibold text-body">
-                {pp != null ? `${Number(pp).toFixed(0)}pp` : "—"}
-              </span>
+              <span className="fw-semibold text-body">{formatStat(pp, 0, "pp")}</span>
               <span>{mods || "NM"}</span>
+              <span>{formatStat(star_rating, 2, "★")}</span>
+              <span>{formatStat(bpm, 0, " BPM")}</span>
               <span>
-                {star_rating != null
-                  ? `${Number(star_rating).toFixed(2)}★`
-                  : "—"}
-              </span>
-              <span>{bpm != null ? `${Number(bpm).toFixed(0)} BPM` : "—"}</span>
-              <span>
-                CS {circle_size != null ? Number(circle_size).toFixed(1) : "—"}
-                {" · "}AR {ar != null ? Number(ar).toFixed(1) : "—"}
-                {" · "}OD {od != null ? Number(od).toFixed(1) : "—"}
+                CS {formatStat(circle_size, 1)}
+                {" · "}AR {formatStat(ar, 1)}
+                {" · "}OD {formatStat(od, 1)}
               </span>
               <span>{formatDuration(length_seconds)}</span>
-              <span>
-                {max_combo != null ? `${max_combo.toLocaleString()}x` : "—"}
-              </span>
+              <span>{formatCombo(max_combo)}</span>
             </div>
           </div>
         </div>
       </td>
 
       {/* Core stats visible on all screens */}
-      <td className="text-center recommendation-stat">
-        {pp != null ? Number(pp).toFixed(0) : "—"}
-      </td>
-      <td className="text-center recommendation-stat">{mods || "NM"}</td>
-      <td className="text-center recommendation-stat">
-        {star_rating != null ? Number(star_rating).toFixed(2) : "—"}
-      </td>
-      <td className="text-center recommendation-stat">
-        {bpm != null ? Number(bpm).toFixed(0) : "—"}
-      </td>
-      <td className="text-center recommendation-stat">
-        {circle_size != null ? Number(circle_size).toFixed(1) : "—"}
-      </td>
-      <td className="text-center recommendation-stat">
-        {ar != null ? Number(ar).toFixed(1) : "—"}
-      </td>
-      <td className="text-center recommendation-stat">
-        {od != null ? Number(od).toFixed(1) : "—"}
-      </td>
-      <td className="text-center recommendation-stat">
-        {formatDuration(length_seconds)}
-      </td>
-      <td className="text-center recommendation-stat">
-        {max_combo != null ? `${max_combo.toLocaleString()}x` : "—"}
-      </td>
+      {[
+        formatStat(pp, 0),
+        mods || "NM",
+        formatStat(star_rating, 2),
+        formatStat(bpm, 0),
+        formatStat(circle_size, 1),
+        formatStat(ar, 1),
+        formatStat(od, 1),
+        formatDuration(length_seconds),
+        formatCombo(max_combo),
+      ].map((stat, index) => (
+        <td key={index} className="text-center recommendation-stat">
+          {stat}
+        </td>
+      ))}
     </tr>
   );
 }

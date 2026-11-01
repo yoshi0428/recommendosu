@@ -1,6 +1,10 @@
 import {Card, Col, Form, Row} from "react-bootstrap";
 import {useState} from "react";
 
+// Years with ranked maps (MIN/MAX_BEATMAP_YEAR in beatmap_recommender/api/model.py).
+const MIN_YEAR = 2007;
+const MAX_YEAR = 2026;
+
 const GOALS = [
   ["balanced", "Balanced"],
   ["pp_potential", "PP Potential"],
@@ -20,47 +24,39 @@ function BasicOptions({settings, updateSetting}) {
     settings.max_year?.toString() ?? ""
   );
 
-  const commitMinYear = () => {
-    if (minYearInput === "") {
-      updateSetting("min_year", null);
+  // Applies a typed year once the field loses focus, or puts the last valid
+  // value back if it's not a 4-digit year in range or crosses the other bound.
+  const commitYear = (key, input, setInput, isValid) => {
+    if (input === "") {
+      updateSetting(key, null);
       return;
     }
 
-    const year = parseInt(minYearInput, 10);
+    const year = parseInt(input, 10);
 
-    if (minYearInput.length !== 4 || year < 2007 || year > 2026) {
-      setMinYearInput(settings.min_year?.toString() ?? "");
+    if (input.length !== 4 || year < MIN_YEAR || year > MAX_YEAR || !isValid(year)) {
+      setInput(settings[key]?.toString() ?? "");
       return;
     }
 
-    if (settings.max_year != null && year > settings.max_year) {
-      setMinYearInput(settings.min_year?.toString() ?? "");
-      return;
-    }
-
-    updateSetting("min_year", year);
+    updateSetting(key, year);
   };
 
-  const commitMaxYear = () => {
-    if (maxYearInput === "") {
-      updateSetting("max_year", null);
-      return;
-    }
+  const commitMinYear = () =>
+    commitYear(
+      "min_year",
+      minYearInput,
+      setMinYearInput,
+      (year) => settings.max_year == null || year <= settings.max_year
+    );
 
-    const year = parseInt(maxYearInput, 10);
-
-    if (maxYearInput.length !== 4 || year < 2007 || year > 2026) {
-      setMaxYearInput(settings.max_year?.toString() ?? "");
-      return;
-    }
-
-    if (settings.min_year != null && year < settings.min_year) {
-      setMaxYearInput(settings.max_year?.toString() ?? "");
-      return;
-    }
-
-    updateSetting("max_year", year);
-  };
+  const commitMaxYear = () =>
+    commitYear(
+      "max_year",
+      maxYearInput,
+      setMaxYearInput,
+      (year) => settings.min_year == null || year >= settings.min_year
+    );
 
   return (
     <Card className="mb-4">
@@ -212,7 +208,7 @@ function BasicOptions({settings, updateSetting}) {
                 />
               </div>
 
-              <Form.Text className="text-muted">Lower/upper bounds default to 2007/2026</Form.Text>
+              <Form.Text className="text-muted">Lower/upper bounds default to {MIN_YEAR}/{MAX_YEAR}</Form.Text>
             </Form.Group>
           </Col>
         </Row>
