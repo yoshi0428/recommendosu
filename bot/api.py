@@ -83,8 +83,6 @@ def _detail(response):
     except (ValueError, KeyError, TypeError):
         return response.text
 
-    # FastAPI validation errors are a list of {"loc": ..., "msg": ...}.
-    if isinstance(detail, list):
-        return "; ".join(str(error.get("msg", error)) for error in detail)
-
+    # Only 400s and 404s get here; the backend always sends a string detail
+    # for those (422 validation errors are logged as server errors instead).
     return str(detail)

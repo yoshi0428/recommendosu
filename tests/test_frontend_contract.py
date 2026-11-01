@@ -2,10 +2,13 @@
 Contract tests: the frontend and backend must agree on default settings.
 
 frontend/src/utils/recommendation.js keeps its own copy of the defaults in
-beatmap_recommender/api/model.py (feature weights, goal weights, scoring
-settings). The frontend sends its copy with every request, so it's what the
-site actually uses. Change a weight in model.py and forget the JS file, and
-the change silently never reaches users.
+beatmap_recommender/api/model.py for the settings the Advanced panel can
+change (difficulty tables, scoring weights...). The frontend sends its copy
+with every request, so it's what the site actually uses. Change a weight in
+model.py and forget the JS file, and the change silently never reaches users.
+
+Settings the UI can't change (goal weights, similarity weights, the result
+limit...) aren't copied or sent at all, so the backend's defaults apply.
 
 These tests load the JavaScript module with Node, print its defaults as JSON,
 and compare them with the Python values. They're skipped if Node isn't
@@ -45,19 +48,18 @@ def frontend_defaults():
 
 
 def test_feature_weight_tables_match(frontend_defaults):
-    assert frontend_defaults["DEFAULT_DIFFICULTY_STD_FLOORS"] == model.DIFFICULTY_STD_FLOORS
-    assert frontend_defaults["DEFAULT_DIFFICULTY_FEATURE_WEIGHTS"] == model.DIFFICULTY_FEATURE_WEIGHTS
-    assert frontend_defaults["DEFAULT_SIMILARITY_FEATURE_WEIGHTS"] == model.SIMILARITY_FEATURE_WEIGHTS
+    settings = frontend_defaults["settings"]
+    assert settings["difficulty_std_floors"] == model.DIFFICULTY_STD_FLOORS
+    assert settings["difficulty_feature_weights"] == model.DIFFICULTY_FEATURE_WEIGHTS
 
 
-def test_recommendation_goals_match(frontend_defaults):
-    frontend_config = frontend_defaults["DEFAULT_RECOMMENDATION_CONFIG"]
-
-    assert frontend_config.keys() == model.RECOMMENDATION_CONFIG.keys()
-    for goal, config in model.RECOMMENDATION_CONFIG.items():
-        assert frontend_config[goal]["weights"] == config["weights"], goal
-        # Python stores sort keys as a tuple, JSON as a list.
-        assert tuple(frontend_config[goal]["sort_keys"]) == config["sort_keys"], goal
+@pytest.mark.parametrize(
+    "field",
+    ["limit", "similarity_feature_weights", "recommendation_config", "feature_target_z", "feature_max_z"],
+)
+def test_settings_the_ui_cant_change_are_left_to_the_backend(frontend_defaults, field):
+    # Not sent, so a change in model.py reaches the site without a JS change.
+    assert field not in frontend_defaults["settings"]
 
 
 # Every scalar default the frontend sends, paired with the backend default.
@@ -65,11 +67,11 @@ def test_recommendation_goals_match(frontend_defaults):
 @pytest.mark.parametrize(
     "field",
     [
-        "goal", "beatmap_status", "limit",
+        "goal", "beatmap_status",
         "top_weight", "recent_weight", "pp_weight",
         "ability_top_weight", "ability_recent_weight", "ability_pp_weight",
         "recency_half_life_days",
-        "pp_push_target_z", "pp_push_max_z", "feature_target_z", "feature_max_z",
+        "pp_push_target_z", "pp_push_max_z",
     ],
 )
 def test_default_settings_match(frontend_defaults, field):

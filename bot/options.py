@@ -9,14 +9,17 @@ import math
 import re
 from decimal import ROUND_DOWN, Decimal
 
-# Same as the website (frontend/src/components/ModOptions.jsx and
+# Same as the website (frontend/src/components/ModCheckboxes.jsx and
 # frontend/src/utils/recommendation.js), so /rec with no options gives the
-# same results as the site with default settings.
+# same results as the site with default settings. The bot's Docker image only
+# contains bot/, so these are copies; tests/test_shared_constants.py checks
+# they still match.
 INDIVIDUAL_MODS = ("NM", "HD", "HR", "DT", "EZ", "HT", "FL")
 DEFAULT_EXCLUDED_MODS = ("EZ", "HT", "FL")
 
 # Every mod combination stored in the database besides NM (MOD_VARIANTS in
-# ModOptions.jsx). Exact mode can only ask for one of these.
+# populate.py, MOD_COMBINATIONS in ModCheckboxes.jsx). Exact mode can only
+# ask for one of these.
 MOD_COMBINATIONS = {
     frozenset(mods)
     for mods in (
@@ -276,10 +279,6 @@ def build_settings(
 
     if status is not None:
         settings["beatmap_status"] = status
-
-    unknown = set(ranges) - set(RANGE_FILTERS)
-    if unknown:
-        raise TypeError(f"Unknown range options: {', '.join(sorted(unknown))}")
 
     for name, text in ranges.items():
         if text is None:

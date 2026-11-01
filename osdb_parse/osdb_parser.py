@@ -1,16 +1,22 @@
-import struct
-
 """
+Extract the beatmap IDs of an osu!Collector .osdb file (inputs/<NAME>.osdb)
+into outputs/<collection>_beatmap_ids.txt and _beatmapset_ids.txt.
+
 To get the .osdb files, I used this: https://github.com/roogue/osu-collector-dl
 
-Trial and error required to get the right beatmap counts
-Usually around -1 to -5 from the collection count shown in https://osucollector.com worked for me
+The beatmap count stored in the file didn't match the records it holds, so
+each collection's real count is set in COUNT_DICT instead, found by trial and
+error. Usually around -1 to -5 from the collection count shown on
+https://osucollector.com worked for me.
 """
+
+import struct
+
 COUNT_DICT = {
     "NM2": 887,
     "NM3": 928,
     "NM4": 771,
-    "HR1": 774,
+    "HR1": 777,
     "HR2": 683,
     "DT2 and DT3": 1087,
 }
@@ -50,79 +56,7 @@ class Reader:
         return self.read(length).decode("utf-8")
 
 
-def parse_beatmap(r):
-    """
-    FOR TESTING PURPOSES
-
-    Parse one beatmap.
-
-    Some records in this file appear to omit beatmapset_id,
-    while others contain it. Detect which layout is present.
-    """
-
-    start = r.pos
-
-    beatmap_id = r.int32()
-
-    # ---------------------------------------------------------
-    # Try the format WITH beatmapset_id first.
-    # ---------------------------------------------------------
-    try:
-        test_pos = r.pos
-
-        beatmapset_id = r.int32()
-
-        artist = r.string()
-        title = r.string()
-        difficulty = r.string()
-        md5 = r.string()
-        comment = r.string()
-        mode = r.byte()
-        stars = r.double()
-
-        # If all of that worked, use this format.
-        return {
-            "beatmap_id": beatmap_id,
-            "beatmapset_id": beatmapset_id,
-            "artist": artist,
-            "title": title,
-            "difficulty": difficulty,
-            "md5": md5,
-            "comment": comment,
-            "mode": mode,
-            "stars": stars,
-        }
-
-    except (UnicodeDecodeError, EOFError, struct.error):
-        # The record probably doesn't contain a beatmapset ID.
-        r.pos = start + 4
-
-    # ---------------------------------------------------------
-    # Format WITHOUT beatmapset_id.
-    # ---------------------------------------------------------
-
-    artist = r.string()
-    title = r.string()
-    difficulty = r.string()
-    md5 = r.string()
-    comment = r.string()
-    mode = r.byte()
-    stars = r.double()
-
-    return {
-        "beatmap_id": beatmap_id,
-        "beatmapset_id": None,
-        "artist": artist,
-        "title": title,
-        "difficulty": difficulty,
-        "md5": md5,
-        "comment": comment,
-        "mode": mode,
-        "stars": stars,
-    }
-
-
-def parse_osdb(filename, name):
+def parse_osdb(filename):
 
     with open(filename, "rb") as f:
         data = f.read()
@@ -161,7 +95,7 @@ def parse_osdb(filename, name):
         print(f"\nCollection {collection_index}")
         print(f"  Name: {collection_name}")
         print(f"  Online ID: {online_id}")
-        print(f"  Beatmaps: {beatmap_count}")
+        print(f"  Beatmaps: {beatmap_count} in the file, reading {ACTUAL_BEATMAP_COUNT} (COUNT_DICT)")
 
         beatmap_ids = []
         beatmapset_ids = []
@@ -225,9 +159,8 @@ def parse_osdb(filename, name):
         md5_count = r.int32()
         print(f"MD5 count: {md5_count}")
 
-        md5_hashes = []
         for _ in range(md5_count):
-            md5_hashes.append(r.string())
+            r.string()  # Skip the MD5 list.
 
         footer = r.string()
         print(f"Footer: {footer!r}")
@@ -244,7 +177,7 @@ def parse_osdb(filename, name):
 
 
 if __name__ == "__main__":
-    collections = parse_osdb(FILENAME, NAME)
+    collections = parse_osdb(FILENAME)
 
     for collection_name, collection_data in collections.items():
         beatmap_ids = collection_data["beatmap_ids"]

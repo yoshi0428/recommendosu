@@ -370,7 +370,6 @@ def test_backend_client_sends_the_key_and_settings():
     ("response", "message"),
     [
         (httpx.Response(404, json={"detail": "osu! player 'x' was not found."}), "osu! player 'x' was not found."),
-        (httpx.Response(400, json={"detail": [{"msg": "bad min_year"}]}), "bad min_year"),
         (httpx.Response(500, text="boom"), "Something went wrong on the server"),
         (httpx.Response(401, json={"detail": "Invalid bot API key."}), "Something went wrong on the server"),
     ],

@@ -85,7 +85,7 @@ def help_embed_parts():
         (
             "Browsing and other commands",
             "**« 10 / Previous / Next / 10 »** move through the list. Only the person who ran "
-            "`/rec` can use them, and the list expires after 30 minutes without use.\n"
+            "`/rec` can use them, and they stop working after 10 minutes without a click.\n"
             "`/classify index: 12`: what #12 of your last `/rec` mostly tests "
             "(aim, streams, alt, tech, or speed & stamina). Also takes a beatmap link.\n"
             "`/link username: peppy`: use this account for `/rec` by default. "
