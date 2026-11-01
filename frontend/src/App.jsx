@@ -13,6 +13,7 @@ const AuthScreen = lazy(() => import("./components/AuthScreen"));
 const recommendationsPageImport = import("./pages/RecommendationsPage");
 const RecommendationsPage = lazy(() => recommendationsPageImport);
 const About = lazy(() => import("./pages/About"));
+const Changelog = lazy(() => import("./pages/Changelog"));
 
 function App() {
   const { user, loading, logout } = useAuth();
@@ -43,6 +44,7 @@ function App() {
     <Suspense fallback={loadingScreen("Loading...")}>
       <Routes>
         <Route path="/about" element={<About />} />
+        <Route path="/changelog" element={<Changelog />} />
 
         <Route
           path="/"

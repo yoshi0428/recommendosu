@@ -13,6 +13,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   cancelRecommendation,
+  getChangelog,
   getCurrentUser,
   getRecommendationPage,
   getRecommendations,
@@ -159,6 +160,21 @@ describe("cancelRecommendation", () => {
     fetchMock.mockResolvedValue(jsonResponse({ detail: "Not authenticated." }, 401));
 
     await expect(cancelRecommendation("abc")).rejects.toThrow("Not authenticated.");
+  });
+});
+
+describe("getChangelog", () => {
+  it("GETs the public changelog", async () => {
+    fetchMock.mockResolvedValue(jsonResponse([{ date: "2026-11-01", title: "x", changes: [] }]));
+
+    await expect(getChangelog()).resolves.toHaveLength(1);
+    expect(fetchCall().url).toBe("/api/v1/changelog");
+  });
+
+  it("throws with the status when it fails", async () => {
+    fetchMock.mockResolvedValue(new Response("boom", { status: 500 }));
+
+    await expect(getChangelog()).rejects.toThrow("status 500");
   });
 });
 

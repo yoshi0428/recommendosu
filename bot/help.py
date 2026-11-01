@@ -89,7 +89,8 @@ def help_embed_parts():
             "`/classify index: 12`: what #12 of your last `/rec` mostly tests "
             "(aim, streams, alt, tech, or speed & stamina). Also takes a beatmap link.\n"
             "`/link username: peppy`: use this account for `/rec` by default. "
-            "`/unlink` removes it.",
+            "`/unlink` removes it.\n"
+            "`/changelog`: what's new on the website and in the bot.",
         ),
     ]
 

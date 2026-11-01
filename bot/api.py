@@ -15,9 +15,10 @@ class BackendError(Exception):
 
 
 class BackendClient:
-    """The recommendosu.com /api/v1/bot endpoints (see main.py)."""
+    """The recommendosu.com /api/v1/bot endpoints (see main.py), and the public changelog."""
 
     def __init__(self, base_url, api_key, transport=None):
+        self.changelog_url = f"{base_url.rstrip('/')}/api/v1/changelog"
         self.client = httpx.AsyncClient(
             base_url=f"{base_url.rstrip('/')}/api/v1/bot",
             headers={"X-Bot-Key": api_key},
@@ -57,6 +58,11 @@ class BackendClient:
     async def classify(self, beatmap_id):
         """A BotClassifyResponse with the NM1-NM5 probabilities."""
         return await self._request("GET", f"/classify/{beatmap_id}")
+
+    async def changelog(self):
+        """The site's changelog entries, newest first: [{"date", "title", "changes"}, ...]"""
+        # An absolute URL, since the changelog isn't under /api/v1/bot.
+        return await self._request("GET", self.changelog_url)
 
     async def _request(self, method, path, **kwargs):
         try:

@@ -37,6 +37,9 @@ services:
       - .env
     environment:
       BOT_BACKEND_URL: http://backend:8000
+      # Production registers its commands everywhere, even if .env has a
+      # BOT_DEV_GUILD_ID; only the dev bot (compose.local.yml) sets one.
+      BOT_DEV_GUILD_ID: ""
     volumes:
       # /link's Discord user -> osu! player table.
       - ./bot/data:/app/bot/data

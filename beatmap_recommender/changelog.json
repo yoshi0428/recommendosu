@@ -1,0 +1,263 @@
+[
+  {
+    "date": "2026-11-01",
+    "title": "changelog page and /changelog",
+    "changes": [
+      "there's a changelog now! this page on the website, and /changelog for the Discord bot",
+      "cancelling a recommendation sometimes showed a red error banner even though it cancelled fine, that's fixed",
+      "switching between light and dark mode now applies everywhere, before the loading screen and the About page could stay on the old theme",
+      "if logging out fails, you'll actually see an error now instead of nothing happening",
+      "the bot's /help said the page buttons work for 30 minutes, it's really 10 minutes without a click",
+      "the backend uses about half as much memory as before, it was keeping two copies of every beatmap variant"
+    ]
+  },
+  {
+    "date": "2026-11-01",
+    "title": "database rebuild + October 2026 maps",
+    "changes": [
+      "The described changes below will apply starting tomorrow",
+      "I found that around ~1.8k maps from 2012 got poof'd out of existence, due to a 2.5k batch insert fail from a UTF-16 taiko .osu file",
+      "Redesigned the recommender database creation, it was too messy previously. It caches the API calls to fetch missing beatmap details in a JSON located at https://github.com/yoshi0428/recommendosu/blob/main/beatmap_recommender/recommender_db_setup/populate_logs/api_lookup_cache.json and also has the option to use a seed database. Logs for problematic beatmaps (~22k) are in the form of a CSV file where it describes the problem, how it got resolved, and by which source (seed, api, ...)",
+      "CSV logs found 2 difficulties from this beatmap (https://osu.ppy.sh/beatmapsets/2321908) that were rejected from an older .osu file. I redownloaded the .osz file associated to that beatmap and corrected the .osu files.",
+      "Included Ranked/Loved maps from October 2026",
+      "Whenever the changes are applied, there will be a total of 154190 beatmaps compared to 151240 previously"
+    ]
+  },
+  {
+    "date": "2026-10-22",
+    "title": "favicon",
+    "changes": [
+      "the site's favicon matches the Discord bot's pfp now"
+    ]
+  },
+  {
+    "date": "2026-10-21",
+    "title": "less memory",
+    "changes": [
+      "first round of memory optimizations, the server hands back ~440MB it was holding onto after startup"
+    ]
+  },
+  {
+    "date": "2026-10-20",
+    "title": "audio previews from osu!",
+    "changes": [
+      "audio previews are osu!'s own ~10 second clips now (the same ones you hear in osu!), so they start at the map's preview point"
+    ]
+  },
+  {
+    "date": "2026-10-19",
+    "title": "Discord bot",
+    "changes": [
+      "first iteration of the Discord bot is out! /rec gives you recommendations right in Discord, with the same default settings as the website",
+      "/link your osu! username once and /rec uses it without typing it every time, /unlink removes it",
+      "/classify tells you what a map mostly tests (aim, streams, alt, tech, or speed & stamina), from a beatmap link or a number from your last /rec",
+      "/help explains every option with examples"
+    ]
+  },
+  {
+    "date": "2026-10-18",
+    "title": "worst case under 5 seconds",
+    "changes": [
+      "I won't go too deep into the optimization details, but just know that worst case query takes less than 5 seconds now",
+      "Check the repository's README.md for the complete description",
+      "running the recommender again within 2 minutes (like after changing a setting) doesn't fetch your scores from osu! again, which was the longest wait"
+    ]
+  },
+  {
+    "date": "2026-10-17",
+    "title": "frontend improvements",
+    "changes": [
+      "the website got a round of frontend improvements, including a better recommendation row layout around 760px to 900px wide",
+      "pages load faster now (optimized the Lighthouse score)"
+    ]
+  },
+  {
+    "date": "2026-10-16",
+    "title": "more optimizations",
+    "changes": [
+      "many optimizations related to the Python configuration, Docker, the frontend and the backend"
+    ]
+  },
+  {
+    "date": "2026-10-14",
+    "title": "better NM1-5 classifier",
+    "changes": [
+      "massive improvement to the NM1-5 classifier from switching its CNN to residual blocks"
+    ]
+  },
+  {
+    "date": "2026-10-13",
+    "title": "min pp in Balanced",
+    "changes": [
+      "setting a min pp in the Balanced goal (without star filters) lifts the automatic star rating ceiling, since you're clearly trying to push",
+      "added a Tips section to the About page, e.g. setting either star rating filter replaces the automatic difficulty threshold"
+    ]
+  },
+  {
+    "date": "2026-10-12",
+    "title": "fixed databases",
+    "changes": [
+      "Changed HR variant's CS non-calculator multiplier from 1.4x to 1.3x",
+      "Found and fixed mismatch of .osu files before v14 when calculating stats with osu-tools-py. It previously defaulted to v14 on files that were older than v14, which is around 39k beatmaps (around 2007 - 2016?). The base beatmaps were correct, it was just the beatmap variants that were completely off.",
+      "Star filtering should work properly, case of filling min and max star fields should not return a range from 0* to max star field value.",
+      "the NM1-5 classifier was retrained with these fixes",
+      "here https://drive.google.com/drive/folders/1ieotIJppsimwpRJbcZzQ7oC41nzc7Oz2?usp=sharing"
+    ]
+  },
+  {
+    "date": "2026-10-12",
+    "title": "Loved maps",
+    "changes": [
+      "hello again, filtering for Loved beatmaps possible now",
+      "While inspecting the Loved beatmaps, I found some anomalies within the Ranked maps, where beatmapset_id were -1. The corrected values are in fixed_beatmap_rows.csv.",
+      "In the case of Primary - in the Garden (Heanday)'s Collab Insane, the beatmap_id 545053 is completely wrong and should be 691208 instead.",
+      "I removed columns 2007 to 2026 in variant_predictions table since the years are already present in beatmaps and beatmap_variants",
+      "Added a status field in beatmaps and beatmap_variants tables to signify Ranked or Loved",
+      "Some Loved beatmaps are extremely weird and return nothing for the NM1-5 classifier's predictions, because they have 0 vectors: 470113 (HitObjects is completely empty), 1021194 and 326585 (one slider of length 1850 / 1793, which gets filtered out by MAX_SLIDER_LENGTH = 500), 260177 (all spinners, so nothing is left)",
+      "Loved beatmap 1981090 completely broke the similarity search because of its bpm being infinity, so the code needed to be able to handle that.",
+      "Found an unintended behavior where a certain beatmap_id with multiple variants would only return its highest scoring variant. It should now be possible for it to return all its variants, regardless of its scores.",
+      "Using paging and caching to not make the frontend explode in the worst case scenario, which is returning around 3 million ranked beatmap rows. Expect this query (max_stars=99999999999 + all mod combinations) to complete in around 1 minute.",
+      "Updated the About page to better describe the min/max star ratings' functionality.",
+      "your top plays are fetched past the first 100 now, osu! only returns 100 per request so the rest were getting cut off",
+      "corrected the PP Potential goal's pp ranges",
+      "The updated databases along with the .osu files are provided here https://www.mediafire.com/file/m2mt1kwzt6bgjjs/recommendosu-data_12-10-2026.zip/file"
+    ]
+  },
+  {
+    "date": "2026-10-10",
+    "title": "year range wording",
+    "changes": [
+      "better description for the year range option"
+    ]
+  },
+  {
+    "date": "2026-10-09",
+    "title": "year range + speed",
+    "changes": [
+      "slight speed increase from moving the application's sqlite database to in-memory, instead of going back and forth with the SSD",
+      "very noticeable loop and algorithm improvements, number of neighbors and recommendations are effectively uncapped now",
+      "i legit have to read over the code changes like 10-20 times to really understand what just happened",
+      "and filtering by year range is possible, the setup was done well so implementation was easy",
+      "a player ID that's wrong or restricted gives a proper error message now"
+    ]
+  },
+  {
+    "date": "2026-10-06",
+    "title": "September 2026 maps",
+    "changes": [
+      "it is now possible to obtain maps from September 2026",
+      "corrected ~350 ranked beatmap difficulties from 2007-2012",
+      "ranked maps from September 2026 are inside of beatmap_recommender's .db files",
+      "you may notice a new field named year in tables beatmaps and beatmap_variants, this is just to prepare for the filtering by year range feature",
+      "better training methodology for the NM1-5 classifier",
+      "the updated dataset is provided here https://www.mediafire.com/file/9gwvef84g4ezn74/recommendosu-data_06-10-2026.zip/file"
+    ]
+  },
+  {
+    "date": "2026-10-02",
+    "title": "Balanced + PP Potential improvements",
+    "changes": [
+      "Improved Balanced goal's final sorting",
+      "Using an exponential decay sum over the top plays' pp values to calculate the difficulty profile's pp mean and std. weight = 0.80 ** (rank - 1), so for example top play #1 -> 0.80 ** 0 = 1, top play #2 -> 0.80 ** 1 = 0.80, top play #3 -> 0.80 ** 2 = 0.64, and so on...",
+      "Increased standard deviation values in PP Potential goal, since it seemed way too soft... so from 0.75 - 2.00 std to 2.50 - 5.00 std which is closer to what I look for when trying to make top plays. Keep in mind that the recommendation's PP values are associated with 100% accuracy, which is why I've increased the lower bound by a lot. I might adjust the upper bound if needed 👀",
+      "Added an additional constraint to HEAVILY penalize recommendations outside of PP Potential goal's bounds. From my profile: PP potential range 488.2 - 542.6 PP (mean=433.9, std=21.7), so lower bound -> 433.9 + (21.7 * 2.50) = 488.15 and upper bound -> 433.9 + (21.7 * 5.00) = 542.4"
+    ]
+  },
+  {
+    "date": "2026-09-30",
+    "title": "major speed improvements",
+    "changes": [
+      "deployed some major improvements to the recommender's speed",
+      "this time is for the nearest neighbors calculation, we're only using scikit-learn's NearestNeighbors which cut down the worst case scenario from 27 seconds to ~7 seconds!",
+      "you may have noticed a slight speed improvement before that, it was from moving the hard difficulty constraints to the database query instead of applying them after the query"
+    ]
+  },
+  {
+    "date": "2026-09-29",
+    "title": "more time for slow devices",
+    "changes": [
+      "increased the timeout limit so recommendations come back on weaker devices too"
+    ]
+  },
+  {
+    "date": "2026-09-27",
+    "title": "similarity search + lots of changes",
+    "changes": [
+      "I've changed the similarity search between top/recent plays and the full mappool to account for pp_aim, pp_acc, and pp_speed because I found that it was giving me too many aim maps as a stream player. now im getting something like this map's Extreme diff, which makes more sense to me https://osu.ppy.sh/beatmapsets/801704#osu/1693573",
+      "Recommendation goal weights have been shifted to include the classifier as an extra signal",
+      "The user can now adjust the amount of nearest neighbors to each top/recent play",
+      "Number of Recommendations cap increased from 1000 to 100000, since the rows are virtualized and returning the ranked recommendations isn't the bottleneck",
+      "Added a maximum difficulty threshold to prevent myself from being suggested >1000pp plays 🤣",
+      "No need to adjust the difficulty star rating standard deviation to get maps outside the minimum/maximum difficulty threshold, setting min and max stars should result in similar behavior",
+      "I opted to not go the GPU route (with CuPy) for the nearest neighbors calculation, because I found these timing values with Number of Neighbors set to 146096: 27 seconds on a 5700X, 23 seconds on a RTX5060 Ti. so there is a legitimate case where a better CPU will simply do a lot better than the GPU above"
+    ]
+  },
+  {
+    "date": "2026-09-26",
+    "title": "missing 2007-2012 diffs",
+    "changes": [
+      "i tracked down and corrected the ~350 missing ranked beatmap difficulties from 2007-2012, they should be in the possible mappool now (unfetchable_beatmaps_rows.csv)",
+      "the audio preview's volume carries over between maps now"
+    ]
+  },
+  {
+    "date": "2026-09-25",
+    "title": "NM1-5 predictions in the dataset",
+    "changes": [
+      "my bad i forgot to run the NM1-5 population script for the databases in recommendosu-data_24-09-2026.zip",
+      "recommendosu-data_25-09-2026.zip should have them, here https://www.mediafire.com/file/imtk1ttkqumogel/recommendosu-data_25-09-2026.zip/file",
+      "the About page links the Discord server now"
+    ]
+  },
+  {
+    "date": "2026-09-24",
+    "title": "audio previews",
+    "changes": [
+      "you can listen to a map's audio preview right from the recommendations list"
+    ]
+  },
+  {
+    "date": "2026-09-22",
+    "title": "advanced settings names",
+    "changes": [
+      "better names for the options in the advanced settings, and filled out more of the About page"
+    ]
+  },
+  {
+    "date": "2026-09-21",
+    "title": "exact mod combinations + difficulty fix",
+    "changes": [
+      "fixed the issue where mrekk was getting 6-7* NM maps",
+      "exact mod combinations: only recommend the exact combo you checked, e.g. HDDT but not HD or DT",
+      "turning on exact mod combinations in the advanced settings switches the front page's mod checkboxes to that mode too",
+      "these should generally be better weights, I noticed that recent plays had too much influence on the final recommendations",
+      "setting a min star rating now works even when it's outside your usual star range",
+      "a fallback page shows up while the website is restarting"
+    ]
+  },
+  {
+    "date": "2026-09-20",
+    "title": "excluding mods and recent plays",
+    "changes": [
+      "the mod checkboxes have three states now: required, excluded or allowed",
+      "you can leave out your recent plays, not just the maps you've already played",
+      "unknown mods (like SD) in your scores don't break things anymore"
+    ]
+  },
+  {
+    "date": "2026-09-18",
+    "title": "already played maps + phone layout",
+    "changes": [
+      "choose whether maps you've already played are included or excluded",
+      "fixed the phone layout, hopefully a better mobile experience"
+    ]
+  },
+  {
+    "date": "2026-09-17",
+    "title": "recommendosu is up",
+    "changes": [
+      "the website is up! log in with osu! and get beatmap recommendations based on your top and recent plays",
+      "the dataset is published too, see the README"
+    ]
+  }
+]

@@ -39,6 +39,7 @@ from beatmap_recommender.auth.session import (
     get_current_player,
 )
 from beatmap_recommender.auth.token_store import store_tokens
+from beatmap_recommender.changelog import ChangelogEntry, read_changelog
 from beatmap_recommender.cancellation import (
     RecommendationCancelled,
     cancel_recommendation,
@@ -342,6 +343,17 @@ class RecommendationResponse(BaseModel):
     recommendations: list[Recommendation] = Field(
         description="Ranked list of recommended beatmap variants.",
     )
+
+
+@app.get(
+    f"{API_PREFIX}/changelog",
+    response_model=list[ChangelogEntry],
+    summary="The site's changelog, newest first",
+    description="Public, like the About page. Also shown by the Discord bot's /changelog.",
+    tags=["System"],
+)
+def changelog():
+    return read_changelog()
 
 
 @app.get(

@@ -101,6 +101,7 @@ You can preview them with `/beatmap_classifier/view_multicategory_maps.sql` in t
 - `/beatmap_recommender/recommender_db_setup/precompute_nm1-5.py`: Stores the CNN-XGBoost NM1-NM5 probabilities for every NM variant in the recommender database (`beatmap_recommender/dummy.db` by default, see `DB_PATH` at the top of the file).
 - `/beatmap_recommender/content_similarity/test_recommender.py`: You can run this to see what the recommendations would look like. If you're running this from the CLI, this is the command (`PYTHONPATH=. python beatmap_recommender/content_similarity/test_recommender.py
 `)
+- `/beatmap_recommender/changelog.json`: The changelog shown at `/changelog` on the website and by the bot's `/changelog`, newest first: `{"date": "2026-11-01", "title": "...", "changes": ["...", "..."]}` per entry. It's read on every request, so on the server an edit shows up without a restart (`beatmap_recommender/` is mounted into the backend container).
 - `/beatmap_recommender/recommender.py`: The recommender for the backend. You can tweak some of the global variables if desired.
 - `/beatmap_recommender/benchmarks/profile_recommender.py` and `/beatmap_recommender/benchmarks/snapshot_recommender.py`: Time/profile the recommender, and check that a change doesn't alter its output. See [PERFORMANCE.md](PERFORMANCE.md).
 
@@ -208,11 +209,19 @@ The file rotates at 10MB and keeps 5 old files (`backend.log.1` to `backend.log.
 
 Some Docker commands to get you started...
 
-### Local
+### Local and dev Discord bot
+
+The local stack also runs a dev Discord bot, a second Discord application separate from the deployed one: its own token, its commands only in your test server, and its own `/link` data in `bot/data-dev/`. It talks to the local backend. To set it up:
+
+1. In the [Discord developer portal](https://discord.com/developers/applications), create a new application (e.g. "recommendosu dev"), and copy its token from Bot -> Reset Token.
+2. Invite it to your test server: OAuth2 -> URL Generator, with the scopes `bot` and `applications.commands`.
+3. In `.env`, set `DEV_DISCORD_TOKEN` to its token and `DEV_BOT_GUILD_ID` to the test server's ID (with Developer Mode on, right-click the server -> Copy Server ID). Commands there update instantly.
+
+Without `DEV_DISCORD_TOKEN`, everything else still starts; the dev bot just fails to log in and stops. Its links (the "full list at recommendosu.com" footer, `/changelog`'s link) point at the live website.
 
 ```
-### everything
-HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -p recommendosu-local -f compose.yml -f compose.local.yml up --build -d
+### everything, website and dev bot
+HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -p recommendosu-local -f compose.yml -f compose.local.yml --profile bot up --build -d
 
 ### rebuild/recreate nginx first
 HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -p recommendosu-local -f compose.yml -f compose.local.yml build nginx && \
@@ -222,24 +231,27 @@ HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -p recommendosu-local -f comp
 HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -p recommendosu-local -f compose.yml -f compose.local.yml build frontend backend && \
 HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -p recommendosu-local -f compose.yml -f compose.local.yml up -d --no-deps frontend backend
 
+### start or rebuild only the dev bot, without touching the website
+HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -p recommendosu-local -f compose.yml -f compose.local.yml --profile bot up --build -d --no-deps bot
+
 ### soft shutdown and restart to test nginx-only page
 docker compose -p recommendosu-local -f compose.yml -f compose.local.yml stop frontend backend
 docker compose -p recommendosu-local -f compose.yml -f compose.local.yml start frontend backend
 
-### logs
-docker compose -p recommendosu-local -f compose.yml -f compose.local.yml logs -f
+### logs (add bot, backend, ... at the end for one service)
+docker compose -p recommendosu-local -f compose.yml -f compose.local.yml --profile bot logs -f
 
-### full shutdown
-docker compose -p recommendosu-local -f compose.yml -f compose.local.yml down
+### full shutdown, website and dev bot
+docker compose -p recommendosu-local -f compose.yml -f compose.local.yml --profile bot down
 ```
 
 ### Production and Discord bot
 
 The Discord bot (`bot/`) is behind the `bot` compose profile, so commands without `--profile bot` leave it alone. It talks to the backend over the compose network, so it must run in the same project as the website (`-p recommendosu-prod`). Without `-p`, Compose starts a separate project with a second backend.
 
-It needs `DISCORD_TOKEN` and `BOT_API_KEY` in `.env` (see `.env.example`); the backend reads `BOT_API_KEY` too, so restart the backend after setting it. Set `BOT_DEV_GUILD_ID` to a server ID to update the commands there instantly instead of within about an hour. `/link` data is kept in `bot/data/`.
+It needs `DISCORD_TOKEN` and `BOT_API_KEY` in `.env` (see `.env.example`); the backend reads `BOT_API_KEY` too, so restart the backend after setting it. Its commands are registered in every server it's in, and changes to them take up to about an hour to show up. `/link` data is kept in `bot/data/`.
 
-Don't run it from the local stack with the production token: two bots logged in with one token both answer every command.
+The local stack never uses `DISCORD_TOKEN`: its bot logs in with `DEV_DISCORD_TOKEN` instead (see Local and dev Discord bot), because two bots logged in with one token both answer every command.
 
 ```
 ### everything, website and bot

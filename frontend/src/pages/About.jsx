@@ -20,9 +20,12 @@ function About() {
       }
     >
       <Container className="py-5">
-        <div className="mb-4">
+        <div className="mb-4 d-flex flex-wrap gap-2">
           <Button as={Link} to="/" variant="outline-secondary">
             Back to Recommendations
+          </Button>
+          <Button as={Link} to="/changelog" variant="outline-secondary">
+            Changelog
           </Button>
         </div>
 

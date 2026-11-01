@@ -23,6 +23,7 @@ import discord
 from discord import app_commands
 
 from bot.api import BackendClient, BackendError
+from bot.changelog import changelog_embed_parts
 from bot.links import LinkStore
 from bot.help import help_embed_parts
 from bot.options import (
@@ -413,6 +414,24 @@ def register_commands(bot: RecommendOsuBot):
                 "classifier trained on the NoMod slots (NM1-NM5) of tournament mappools"
             )
         )
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
+    @tree.command(name="changelog", description="What's new on recommendosu.com and in the bot")
+    async def changelog(interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
+        try:
+            entries = await bot.backend.changelog()
+        except BackendError as exc:
+            await interaction.followup.send(str(exc), ephemeral=True)
+            return
+
+        description, fields = changelog_embed_parts(entries)
+        embed = discord.Embed(title="Changelog", url=f"{SITE_URL}/changelog", description=description, color=EMBED_COLOR)
+
+        for name, value in fields:
+            embed.add_field(name=name, value=value, inline=False)
+
         await interaction.followup.send(embed=embed, ephemeral=True)
 
     @tree.command(name="help", description="What /rec can do, with examples")

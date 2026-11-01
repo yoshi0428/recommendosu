@@ -23,6 +23,16 @@ export async function logout() {
   }
 }
 
+export async function getChangelog() {
+  const response = await fetch(`${API_BASE}/changelog`);
+
+  if (!response.ok) {
+    throw new Error(`Failed to load the changelog (status ${response.status}).`);
+  }
+
+  return response.json();
+}
+
 export function login() {
   window.location.href = `${API_BASE}/auth/osu`;
 }
