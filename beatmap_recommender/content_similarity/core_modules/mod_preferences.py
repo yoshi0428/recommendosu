@@ -142,7 +142,7 @@ def canonicalize_mods(mods):
             if not mod or mod == "NM":
                 continue
 
-            parsed_mods.extend(_parse_mod_string(mod))
+            parsed_mods.extend(parse_mod_string(mod))
 
     # --------------------------------------------------------
     # String representation
@@ -152,7 +152,7 @@ def canonicalize_mods(mods):
         if not mods or mods == "NM":
             return "NM"
 
-        parsed_mods = _parse_mod_string(mods)
+        parsed_mods = parse_mod_string(mods)
 
     # --------------------------------------------------------
     # Empty means NM
@@ -177,7 +177,7 @@ def canonicalize_mods(mods):
     return "".join(parsed_mods)
 
 
-def _parse_mod_string(mod_string):
+def parse_mod_string(mod_string):
     """
     Parse a string containing one or more osu! mods.
 

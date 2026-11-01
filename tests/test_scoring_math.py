@@ -19,10 +19,11 @@ from beatmap_recommender.content_similarity.core_modules.ability import (
     get_recency_weight,
 )
 from beatmap_recommender.content_similarity.core_modules.cnn_xgboost_influence import (
-    calculate_classifier_score,
+    NM_LABELS,
+    calculate_classifier_scores,
 )
 from beatmap_recommender.content_similarity.core_modules.pp_potential import (
-    calculate_pp_potential,
+    calculate_pp_potentials,
     weighted_mean_and_std,
 )
 
@@ -110,8 +111,23 @@ def test_weighted_mean_and_std_with_zero_weights_falls_back_to_unweighted():
 
 
 # ---------------------------------------------------------------------------
-# pp_potential.calculate_pp_potential
+# pp_potential.calculate_pp_potentials
 # ---------------------------------------------------------------------------
+def calculate_pp_potential(variant, difficulty_profile, difficulty_std_floors, difficulty_feature_weights, **kwargs):
+    """calculate_pp_potentials() for one variant dict, with non-numbers as missing (NaN)."""
+
+    def as_float(value):
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return np.nan
+
+    columns = {name: np.array([as_float(variant.get(name))]) for name in ("pp", *difficulty_feature_weights)}
+    return float(
+        calculate_pp_potentials(columns, difficulty_profile, difficulty_std_floors, difficulty_feature_weights, **kwargs)[0]
+    )
+
+
 PROFILE = {
     "pp_mean": 200.0, "pp_std": 20.0,
     "star_rating_mean": 5.0, "star_rating_std": 0.5,
@@ -162,8 +178,17 @@ def test_pp_potential_falls_back_to_profile_bounds():
 
 
 # ---------------------------------------------------------------------------
-# cnn_xgboost_influence.calculate_classifier_score
+# cnn_xgboost_influence.calculate_classifier_scores
 # ---------------------------------------------------------------------------
+def calculate_classifier_score(probabilities, preferences):
+    """calculate_classifier_scores() for one {label: probability} dict; missing data scores 0."""
+    if not probabilities or not preferences:
+        return 0.0
+
+    row = [probabilities.get(label) or 0.0 for label in NM_LABELS]
+    return float(calculate_classifier_scores([row], preferences)[0])
+
+
 def test_classifier_score_rewards_matching_category():
     preferences = {"NM1": 0.0, "NM2": 0.0, "NM3": 1.0, "NM4": 0.0, "NM5": 0.0}
     matching = {"NM1": 0.0, "NM2": 0.0, "NM3": 1.0, "NM4": 0.0, "NM5": 0.0}

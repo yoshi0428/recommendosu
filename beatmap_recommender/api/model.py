@@ -1,7 +1,7 @@
 from copy import deepcopy
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 # Ranked beatmap years available in the recommender database.
 MIN_BEATMAP_YEAR = 2007
@@ -114,6 +114,12 @@ class RecommendationSettings(BaseModel):
     excluded_mods: list[str] | None = Field(
         default=None,
     )
+
+    @field_validator("mods", "excluded_mods")
+    @classmethod
+    def _normalize_mods(cls, mods):
+        """ " hd" -> "HD", so the recommender only sees uppercase mods."""
+        return None if mods is None else [mod.strip().upper() for mod in mods]
 
     exclude_already_played: bool = Field(
         default=True,

@@ -19,14 +19,6 @@ def weighted_mean_and_std(values, weights):
     return float(mean), float(std)
 
 
-def _as_float(value):
-    """float(value), or NaN when value is missing or not a number."""
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return np.nan
-
-
 def _square(values):
     """
     values ** 2 through C pow(), like Python's float ** 2. numpy's ** 2
@@ -40,7 +32,8 @@ def _neumaier_add(total, compensation, values, mask):
     One step of sum() over floats, per element where mask is set.
 
     CPython's sum() uses Neumaier compensated summation for floats since
-    3.12, so this is what calculate_pp_potential's sum() over a list did.
+    3.12, so this is what the per-variant version's sum() over a list did
+    (kept bit-identical when it was vectorized).
     Returns the new (total, compensation).
     """
     new_total = total + values
@@ -55,42 +48,6 @@ def _neumaier_add(total, compensation, values, mask):
 def _neumaier_result(total, compensation):
     """sum()'s final result: the total plus a nonzero, finite compensation."""
     return np.where((compensation != 0) & np.isfinite(compensation), total + compensation, total)
-
-
-def calculate_pp_potential(
-    variant,
-    difficulty_profile,
-    difficulty_std_floors,
-    difficulty_feature_weights,
-    pp_push_target_z=2.5,  # For PP filtering bounds
-    pp_push_max_z=7.5,  # For PP filtering bounds
-    feature_target_z=1.0,  # Ideal feature push distance (AR, BPM, etc.)
-    feature_max_z=3.0,  # Feature limit before exponential decay
-    pp_min=None,
-    pp_max=None,
-):
-    """
-    calculate_pp_potentials() for one variant dict.
-    """
-    columns = {
-        name: np.array([_as_float(variant.get(name))])
-        for name in ("pp", *difficulty_feature_weights)
-    }
-
-    return float(
-        calculate_pp_potentials(
-            columns,
-            difficulty_profile,
-            difficulty_std_floors,
-            difficulty_feature_weights,
-            pp_push_target_z,
-            pp_push_max_z,
-            feature_target_z,
-            feature_max_z,
-            pp_min=pp_min,
-            pp_max=pp_max,
-        )[0]
-    )
 
 
 def calculate_pp_potentials(

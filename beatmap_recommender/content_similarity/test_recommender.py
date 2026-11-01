@@ -61,23 +61,12 @@ EXCLUDED_MODS = ["EZ", "HT", "FL"]
 
 # ── Candidate filters ──────────────────────────────────────────
 
-MIN_STARS = None
-MAX_STARS = None
-
-MIN_BPM = MAX_BPM = None
-MIN_PP = MAX_PP = None
-MIN_AR = MAX_AR = None
-MIN_OD = MAX_OD = None
-MIN_LENGTH = MAX_LENGTH = None
-MIN_COMBO = MAX_COMBO = None
-MIN_CS = MAX_CS = None
+# {name: (minimum, maximum)}, names as in variant_ranking.RANGE_COLUMNS
+# (stars, bpm, pp, ar, od, length, combo, cs, year); None for no limit.
+RANGES = {}
 
 # Example:
-# MIN_STARS, MAX_STARS = 6.5, 7.5
-# MIN_BPM, MAX_BPM = 200, 300
-# MIN_PP, MAX_PP = 450, 550
-# MIN_AR, MAX_AR = 9.0, 11.0
-# MIN_OD, MAX_OD = 9.0, 11.0
+# RANGES = {"stars": (6.5, 7.5), "bpm": (200, 300), "pp": (450, 550), "ar": (9.0, None)}
 
 
 # ── Recommendation configurations ─────────────────────────────
@@ -324,28 +313,9 @@ def main():
             difficulty_star_std_multiplier=DIFFICULTY_STAR_STD_MULTIPLIER,
             category_preferences=category_preferences,
             top_k=NUM_RECOMMENDATIONS,
-            requested_mods=(
-                {mod.strip().upper() for mod in REQUESTED_MODS}
-                if REQUESTED_MODS
-                else None
-            ),
-            excluded_mods={mod.strip().upper() for mod in EXCLUDED_MODS},
-            min_stars=MIN_STARS,
-            max_stars=MAX_STARS,
-            min_bpm=MIN_BPM,
-            max_bpm=MAX_BPM,
-            min_pp=MIN_PP,
-            max_pp=MAX_PP,
-            min_ar=MIN_AR,
-            max_ar=MAX_AR,
-            min_od=MIN_OD,
-            max_od=MAX_OD,
-            min_length=MIN_LENGTH,
-            max_length=MAX_LENGTH,
-            min_combo=MIN_COMBO,
-            max_combo=MAX_COMBO,
-            min_cs=MIN_CS,
-            max_cs=MAX_CS,
+            requested_mods=REQUESTED_MODS,
+            excluded_mods=EXCLUDED_MODS,
+            ranges=RANGES,
             recommendation_goal=RECOMMENDATION_GOAL,
             recommendation_config=RECOMMENDATION_CONFIG,
             difficulty_std_floors=DIFFICULTY_STD_FLOORS,

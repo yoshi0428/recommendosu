@@ -66,17 +66,6 @@ def get_tokens(session_id: str) -> dict | None:
     return dict(row)
 
 
-def delete_tokens(session_id: str):
-    with auth_db() as conn:
-        conn.execute(
-            """
-            DELETE FROM oauth_tokens
-            WHERE session_id = ?
-            """,
-            (session_id,),
-        )
-
-
 def update_tokens(
     session_id: str,
     access_token: str,

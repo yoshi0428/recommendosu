@@ -104,7 +104,8 @@ def get_player_category_preferences(
 
 def calculate_classifier_scores(probabilities, preferences):
     """
-    calculate_classifier_score() for many beatmaps at once.
+    How well each beatmap's NM1-NM5 prediction matches the player's NM
+    category preferences: 1.0 a strong match, 0.0 a weak one.
 
     probabilities: [beatmaps, 5] NM1-NM5 probabilities, in NM_LABELS order.
     Returns a float64 array of scores in [0, 1].
@@ -123,25 +124,3 @@ def calculate_classifier_scores(probabilities, preferences):
         score = score + probabilities[:, column] * weight
 
     return np.clip(score / max_preference, 0.0, 1.0)
-
-
-def calculate_classifier_score(
-    probabilities,
-    preferences,
-):
-    """
-    Calculate how well a candidate's NM1-NM5 prediction matches the player's NM category preferences.
-
-    Returns [0, 1]:
-
-        1.0 = strong match
-        0.0 = weak match
-
-    Missing classifier probabilities or player preferences return 0.0 rather than a neutral 0.5 fallback.
-    """
-
-    if not probabilities or not preferences:
-        return 0.0
-
-    row = [(probabilities.get(label) or 0.0) for label in NM_LABELS]
-    return float(calculate_classifier_scores([row], preferences)[0])

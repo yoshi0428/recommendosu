@@ -12,6 +12,7 @@ from beatmap_recommender.content_similarity.core_modules.cnn_xgboost_influence i
 )
 from beatmap_recommender.content_similarity.core_modules.mod_preferences import (
     canonicalize_mods,
+    parse_mod_string,
 )
 from beatmap_recommender.content_similarity.core_modules.pp_potential import (
     calculate_pp_potentials,
@@ -27,7 +28,19 @@ from beatmap_recommender.content_similarity.core_modules.variant_table import (
 
 logger = logging.getLogger(__name__)
 
-MOD_ORDER = ["EZ", "NF", "HT", "HD", "HR", "DT", "NC", "FL"]
+# Range filters: the name of each one (min_<name>/max_<name> in
+# RecommendationSettings, "min_bpm" etc.) and the variant column it filters.
+RANGE_COLUMNS = {
+    "stars": "star_rating",
+    "bpm": "bpm",
+    "pp": "pp",
+    "ar": "ar",
+    "od": "od",
+    "length": "length_seconds",
+    "combo": "max_combo",
+    "cs": "circle_size",
+    "year": "year",
+}
 
 # Per-variant scores stored alongside each variant in rank_variants().
 SCORE_FIELDS = (
@@ -286,26 +299,7 @@ def get_candidate_variants(
     exact_mods=False,
     excluded_mods=None,
     beatmap_status="all",
-    min_stars=None,
-    max_stars=None,
-    difficulty_min_stars=None,
-    difficulty_max_stars=None,
-    min_bpm=None,
-    max_bpm=None,
-    min_pp=None,
-    max_pp=None,
-    min_ar=None,
-    max_ar=None,
-    min_od=None,
-    max_od=None,
-    min_length=None,
-    max_length=None,
-    min_combo=None,
-    max_combo=None,
-    min_cs=None,
-    max_cs=None,
-    min_year=None,
-    max_year=None,
+    ranges=None,
     cancel_event=None,
 ):
     """
@@ -313,6 +307,13 @@ def get_candidate_variants(
 
     Returns a VariantRows in table (rowid) order. The filters behave like the
     SQL they replace: NULLs never match, and excluded mods use LIKE '%mod%'.
+
+    requested_mods: mods to recommend, uppercase. A variant matches if its
+    mods are all requested (NM only if "NM" is), or with exact_mods, if its
+    mods are exactly the requested ones.
+
+    ranges: {name: (minimum, maximum)} for names in RANGE_COLUMNS, either
+    bound None for no limit.
     """
     if not beatmap_ids:
         return []
@@ -326,32 +327,16 @@ def get_candidate_variants(
     mask = allowed_beatmaps[table.columns["beatmap_id"]]
 
     # ── Mod filters ────────────────────────────────────────────
-    if requested_mods:
-        requested_mods_set = {mod.strip().upper() for mod in requested_mods}
+    requested = set(requested_mods or ())
+    gameplay_requested = requested - {"NM"}
+
+    def mods_requested(mods):
+        variant_mods = set() if mods == "NM" else set(parse_mod_string(mods))
 
         if exact_mods:
-            valid_variants = [
-                "".join(mod for mod in MOD_ORDER if mod in requested_mods_set)
-            ]
+            return variant_mods == gameplay_requested
 
-            if not valid_variants[0]:
-                valid_variants = ["NM"]
-        else:
-            gameplay_mods = [mod for mod in MOD_ORDER if mod in requested_mods_set]
-
-            valid_variants = ["NM"] if "NM" in requested_mods_set else []
-
-            for bits in range(1, 1 << len(gameplay_mods)):
-                combination = [
-                    gameplay_mods[index]
-                    for index in range(len(gameplay_mods))
-                    if bits & (1 << index)
-                ]
-                valid_variants.append("".join(combination))
-
-        valid_variants = set(valid_variants)
-    else:
-        valid_variants = None
+        return "NM" in requested if mods == "NM" else variant_mods <= gameplay_requested
 
     excluded_mods = list(excluded_mods or [])
 
@@ -359,7 +344,7 @@ def get_candidate_variants(
         if mods is None:
             return False
 
-        if valid_variants is not None and mods not in valid_variants:
+        if requested and not mods_requested(mods):
             return False
 
         for mod in excluded_mods:
@@ -371,7 +356,7 @@ def get_candidate_variants(
 
         return True
 
-    if valid_variants is not None or excluded_mods:
+    if requested or excluded_mods:
         mask &= table.category_mask("mods", mods_allowed)[table.columns["mods"]]
 
     # ── Status filter ──────────────────────────────────────────
@@ -380,25 +365,9 @@ def get_candidate_variants(
             table.columns["status"]
         ]
 
-    # ── Numeric filters ────────────────────────────────────────
-    numeric_filters = (
-        (
-            "star_rating",
-            difficulty_min_stars if difficulty_min_stars is not None else min_stars,
-            difficulty_max_stars if difficulty_max_stars is not None else max_stars,
-        ),
-        ("bpm", min_bpm, max_bpm),
-        ("pp", min_pp, max_pp),
-        ("ar", min_ar, max_ar),
-        ("od", min_od, max_od),
-        ("length_seconds", min_length, max_length),
-        ("max_combo", min_combo, max_combo),
-        ("circle_size", min_cs, max_cs),
-        ("year", min_year, max_year),
-    )
-
-    for column, minimum, maximum in numeric_filters:
-        values = table.float_columns[column]
+    # ── Range filters ──────────────────────────────────────────
+    for name, (minimum, maximum) in (ranges or {}).items():
+        values = table.float_columns[RANGE_COLUMNS[name]]
 
         if minimum is not None:
             mask &= values >= minimum
@@ -513,30 +482,6 @@ def calculate_difficulty_scores(
     return scores
 
 
-def score_variant(
-    content_similarity,
-    mod_preference,
-    difficulty_score,
-    classifier_score=0.5,
-    pp_potential=0.5,
-    recommendation_goal="balanced",
-    recommendation_config=None,
-):
-    """Combine recommendation signals for one variant."""
-    if recommendation_goal not in recommendation_config:
-        raise ValueError(f"Unknown recommendation goal: {recommendation_goal!r}. Expected one of {sorted(recommendation_config)}")
-
-    weights = recommendation_config[recommendation_goal]["weights"]
-
-    return (
-        weights["content"] * content_similarity
-        + weights["mod_preference"] * mod_preference
-        + weights["difficulty"] * difficulty_score
-        + weights["classifier"] * classifier_score
-        + weights["pp_potential"] * pp_potential
-    )
-
-
 def _descending_order(sort_arrays):
     """
     Row order for sorted(..., key=sort_keys, reverse=True), where
@@ -586,24 +531,7 @@ def rank_variants(
     exact_mods=False,
     excluded_mods=None,
     beatmap_status="all",
-    min_stars=None,
-    max_stars=None,
-    min_bpm=None,
-    max_bpm=None,
-    min_pp=None,
-    max_pp=None,
-    min_ar=None,
-    max_ar=None,
-    min_od=None,
-    max_od=None,
-    min_length=None,
-    max_length=None,
-    min_combo=None,
-    max_combo=None,
-    min_cs=None,
-    max_cs=None,
-    min_year=None,
-    max_year=None,
+    ranges=None,
     recommendation_goal="balanced",
     recommendation_config=None,
     difficulty_std_floors=None,
@@ -643,6 +571,10 @@ def rank_variants(
     w_diff = weights["difficulty"]
     w_class = weights["classifier"]
     w_pp = weights["pp_potential"]
+
+    ranges = dict(ranges or {})
+    min_stars, max_stars = ranges.get("stars", (None, None))
+    min_pp, max_pp = ranges.get("pp", (None, None))
 
     # ── Player difficulty target ───────────────────────────────
     star_mean = difficulty_profile.get("star_rating_mean")
@@ -707,21 +639,9 @@ def rank_variants(
         )
 
     # ── Validate filters ───────────────────────────────────────
-    filter_ranges = (
-        ("min_stars", min_stars, max_stars),
-        ("min_bpm", min_bpm, max_bpm),
-        ("min_pp", min_pp, max_pp),
-        ("min_ar", min_ar, max_ar),
-        ("min_od", min_od, max_od),
-        ("min_length", min_length, max_length),
-        ("min_combo", min_combo, max_combo),
-        ("min_cs", min_cs, max_cs),
-        ("min_year", min_year, max_year),
-    )
-
-    for name, minimum, maximum in filter_ranges:
+    for name, (minimum, maximum) in ranges.items():
         if minimum is not None and maximum is not None and minimum > maximum:
-            raise ValueError(f"{name} ({minimum}) cannot be greater than {name.replace('min_', 'max_')} ({maximum})")
+            raise ValueError(f"min_{name} ({minimum}) cannot be greater than max_{name} ({maximum})")
 
     # Goals with pp_push_filter only keep maps inside the PP push range,
     # narrowed further by any explicit pp filters. Applied after validation
@@ -734,6 +654,8 @@ def rank_variants(
 
         if min_pp > max_pp:
             return []
+
+        ranges["pp"] = (min_pp, max_pp)
 
     # build_seed_similarity_index() already keeps the best similarity per beatmap.
     candidate_similarity = similarity_index
@@ -751,26 +673,8 @@ def rank_variants(
         exact_mods=exact_mods,
         excluded_mods=excluded_mods,
         beatmap_status=beatmap_status,
-        min_stars=min_stars,
-        max_stars=max_stars,
-        difficulty_min_stars=min_difficulty_stars,
-        difficulty_max_stars=max_difficulty_stars,
-        min_bpm=min_bpm,
-        max_bpm=max_bpm,
-        min_pp=min_pp,
-        max_pp=max_pp,
-        min_ar=min_ar,
-        max_ar=max_ar,
-        min_od=min_od,
-        max_od=max_od,
-        min_length=min_length,
-        max_length=max_length,
-        min_combo=min_combo,
-        max_combo=max_combo,
-        min_cs=min_cs,
-        max_cs=max_cs,
-        min_year=min_year,
-        max_year=max_year,
+        # The difficulty window (or explicit star filters, which override it).
+        ranges={**ranges, "stars": (min_difficulty_stars, max_difficulty_stars)},
         cancel_event=cancel_event,
     )
 
@@ -862,7 +766,7 @@ def rank_variants(
     pp_potential_scores = np.zeros(eligible_count)
 
     if pp_potential_weight > 0:
-        # Only the columns a variant dict has, as calculate_pp_potential() sees them.
+        # Only the columns a variant dict has; any other feature counts as missing.
         pp_columns = {
             name: variants.float_column(name)
             for name in ("pp", *difficulty_feature_weights)
@@ -881,7 +785,7 @@ def rank_variants(
             pp_max=pp_potential_max,
         )
 
-    # Same left-to-right float64 arithmetic as score_variant().
+    # The goal's weighted sum of the scores, added left to right.
     final_scores = (
         w_content * content_scores
         + w_mod * mod_scores

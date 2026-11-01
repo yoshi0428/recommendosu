@@ -20,6 +20,7 @@ from beatmap_recommender.content_similarity.core_modules.score_collector import 
     update_player_scores,
 )
 from beatmap_recommender.content_similarity.core_modules.variant_ranking import (
+    RANGE_COLUMNS,
     get_player_difficulty_profiles,
     rank_variants,
 )
@@ -46,17 +47,9 @@ def recommend_player_sync(
         raise ValueError(f"Unknown recommendation goal: {settings.goal}")
 
     goal_config = recommendation_config[settings.goal]
-    classifier_weight = goal_config["weights"]["classifier"]
 
     logger.debug("Recommendation config: %s", recommendation_config)
     logger.debug("Goal config: %s", goal_config)
-    logger.debug("Classifier weight: %s", classifier_weight)
-
-    requested_mods = (
-        {mod.strip().upper() for mod in settings.mods} if settings.mods else None
-    )
-
-    excluded_mods = {mod.strip().upper() for mod in (settings.excluded_mods or [])}
 
     check_cancelled(cancel_event)
     # Read-only unless fetched scores need writing.
@@ -170,28 +163,14 @@ def recommend_player_sync(
             difficulty_star_std_multiplier=settings.difficulty_star_std_multiplier,
             category_preferences=category_preferences,
             top_k=settings.limit,
-            requested_mods=requested_mods,
+            requested_mods=settings.mods,
             exact_mods=settings.exact_mods,
-            excluded_mods=excluded_mods,
+            excluded_mods=settings.excluded_mods,
             beatmap_status=settings.beatmap_status,
-            min_stars=settings.min_stars,
-            max_stars=settings.max_stars,
-            min_bpm=settings.min_bpm,
-            max_bpm=settings.max_bpm,
-            min_pp=settings.min_pp,
-            max_pp=settings.max_pp,
-            min_ar=settings.min_ar,
-            max_ar=settings.max_ar,
-            min_od=settings.min_od,
-            max_od=settings.max_od,
-            min_length=settings.min_length,
-            max_length=settings.max_length,
-            min_combo=settings.min_combo,
-            max_combo=settings.max_combo,
-            min_cs=settings.min_cs,
-            max_cs=settings.max_cs,
-            min_year=settings.min_year,
-            max_year=settings.max_year,
+            ranges={
+                name: (getattr(settings, f"min_{name}"), getattr(settings, f"max_{name}"))
+                for name in RANGE_COLUMNS
+            },
             recommendation_goal=settings.goal,
             recommendation_config=recommendation_config,
             difficulty_std_floors=settings.difficulty_std_floors,
