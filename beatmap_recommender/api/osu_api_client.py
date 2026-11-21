@@ -31,31 +31,54 @@ class RateLimiter:
 
     Waiting callers reserve their slot under the lock and sleep outside it,
     so they're served in order without holding the lock while they wait.
+
+    Background work (acquire_background()) only takes a slot that live
+    requests aren't using.
     """
 
-    def __init__(self, burst, interval):
+    def __init__(self, burst, interval, background_idle=2.0):
         self.burst = burst
         self.interval = interval
+        # Background requests wait until no live request went out for this long.
+        self.background_idle = background_idle
         self._tokens = float(burst)
         self._updated = time.monotonic()
+        self._last_foreground = float("-inf")
         self._lock = threading.Lock()
+
+    def _refill(self, now):
+        if self.interval > 0:
+            self._tokens = min(self.burst, self._tokens + (now - self._updated) / self.interval)
+        else:
+            self._tokens = float(self.burst)
+        self._updated = now
 
     def acquire(self):
         with self._lock:
             now = time.monotonic()
-
-            if self.interval > 0:
-                self._tokens = min(self.burst, self._tokens + (now - self._updated) / self.interval)
-            else:
-                self._tokens = float(self.burst)
-
-            self._updated = now
+            self._refill(now)
+            self._last_foreground = now
             # Below zero means the slot is reserved in the future.
             self._tokens -= 1
             wait_time = -self._tokens * self.interval if self._tokens < 0 else 0.0
 
         if wait_time > 0:
             time.sleep(wait_time)
+
+    def acquire_background(self):
+        """
+        A slot for low-priority work: only once the bucket is full again and
+        no live request went out for background_idle seconds, so a live score
+        refresh arriving now still gets (nearly) its whole burst.
+        """
+        while True:
+            with self._lock:
+                now = time.monotonic()
+                self._refill(now)
+                if self._tokens >= self.burst and now - self._last_foreground >= self.background_idle:
+                    self._tokens -= 1
+                    return
+            time.sleep(max(self.interval, 0.25))
 
 
 # Sized so no 60 second window holds more than REQUESTS_PER_MINUTE requests:
@@ -67,6 +90,9 @@ rate_limiter = RateLimiter(
 
 
 class OsuAPIClient:
+    # Background work (played_maps.py) sets this, so its requests yield to live ones.
+    low_priority = False
+
     def __init__(self, access_token: str):
         self.session = requests.Session()
         self.access_token = access_token
@@ -99,7 +125,10 @@ class OsuAPIClient:
         url = f"{API_BASE}{endpoint}"
 
         for attempt in range(MAX_RETRIES):
-            rate_limiter.acquire()
+            if self.low_priority:
+                rate_limiter.acquire_background()
+            else:
+                rate_limiter.acquire()
 
             headers = {
                 "Authorization": f"Bearer {self.access_token}",

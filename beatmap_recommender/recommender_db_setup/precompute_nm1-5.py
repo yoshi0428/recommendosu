@@ -1,10 +1,11 @@
 """
-Store the CNN-XGBoost classifier's NM1-NM5 probabilities for every NM variant
+Store the fusion classifier's NM1-NM5 probabilities for every NM variant
 in the recommender database (variant_predictions), and the outcome of each
 attempt (classifier_prediction_status).
 
 The classifier reads the hit objects from the variant's local .osu file
-(found by its MD5) and its stats from the beatmap_variants row.
+(found by its MD5) and its stats from the beatmap's NM/HD/HR/DT
+beatmap_variants rows.
 """
 
 import hashlib
@@ -12,17 +13,17 @@ import sqlite3
 from pathlib import Path
 
 from beatmap_classifier.classifier.inference import (
+    STAT_MODS,
     UnclassifiableBeatmap,
     classify,
     load_classifier,
-    read_vectors,
 )
 
 # ============================================================
 # Configuration
 # ============================================================
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DB_PATH = PROJECT_ROOT / "beatmap_recommender/dummy.db"
+DB_PATH = PROJECT_ROOT / "beatmap_recommender/recommender.local.db"
 DATA_ROOT = PROJECT_ROOT / "beatmap_recommender/data"
 
 COMMIT_INTERVAL = 500
@@ -84,6 +85,20 @@ def get_nm_variants(conn, mode):
         ORDER BY v.variant_id
         """
     ).fetchall()
+
+
+def get_stats_by_mod(conn, beatmap_id):
+    """{mod: beatmap_variants row} of the beatmap, for the mods the classifier reads."""
+    rows = conn.execute(
+        f"""
+        SELECT *
+        FROM beatmap_variants
+        WHERE beatmap_id = ?
+          AND mods IN ({", ".join("?" * len(STAT_MODS))})
+        """,
+        (beatmap_id, *STAT_MODS),
+    ).fetchall()
+    return {row["mods"]: dict(row) for row in rows}
 
 
 def save_prediction(conn, variant_id, probabilities):
@@ -154,7 +169,7 @@ def main():
 
         print("Loading classifier...")
         classifier = load_classifier()
-        print(f"Loaded {len(classifier.cnn_models)} CNN models on {classifier.device}")
+        print(f"Loaded {len(classifier.models)} fusion models on {classifier.device}")
 
         successful = skipped = failed = 0
 
@@ -168,7 +183,7 @@ def main():
                     raise FileNotFoundError(f"Local .osu file not found for md5 {variant['md5']}")
 
                 print(f"  -> {file_path}")
-                prediction = classify(classifier, read_vectors(file_path), variant)
+                prediction = classify(classifier, file_path, get_stats_by_mod(conn, variant["beatmap_id"]))
 
                 save_prediction(conn, variant_id, prediction["probabilities"])
                 save_status(conn, variant_id, "success")

@@ -6,21 +6,16 @@ import numpy as np
 from beatmap_recommender.cancellation import check_cancelled
 from beatmap_recommender.content_similarity.core_modules.ability import (
     get_ability_score_weight,
+    weighted_mean_and_std,
 )
-from beatmap_recommender.content_similarity.core_modules.cnn_xgboost_influence import (
+from beatmap_recommender.content_similarity.core_modules.classifier_influence import (
     calculate_classifier_scores,
 )
 from beatmap_recommender.content_similarity.core_modules.mod_preferences import (
     canonicalize_mods,
     parse_mod_string,
 )
-from beatmap_recommender.content_similarity.core_modules.pp_potential import (
-    calculate_pp_potentials,
-    weighted_mean_and_std,
-)
 from beatmap_recommender.content_similarity.core_modules.variant_table import (
-    TEXT_COLUMNS,
-    VARIANT_COLUMNS,
     VariantRows,
     get_variant_table,
     sql_like,
@@ -48,7 +43,6 @@ SCORE_FIELDS = (
     "mod_preference",
     "difficulty_score",
     "classifier_score",
-    "pp_potential",
     "final_score",
 )
 
@@ -73,6 +67,8 @@ def get_player_played_variants(
         SELECT beatmap_id, mods, source, pp, created_at
         FROM scores
         WHERE player_id = ?
+          -- Failed plays (rank F) aren't evidence of what the player can do.
+          AND COALESCE(rank, '') != 'F'
         """,
         (player_id,),
     ).fetchall()
@@ -532,14 +528,9 @@ def rank_variants(
     excluded_mods=None,
     beatmap_status="all",
     ranges=None,
-    recommendation_goal="balanced",
     recommendation_config=None,
     difficulty_std_floors=None,
     difficulty_feature_weights=None,
-    pp_push_target_z=None,
-    pp_push_max_z=None,
-    feature_target_z=None,
-    feature_max_z=None,
     cancel_event=None,
 ):
     """
@@ -560,17 +551,15 @@ def rank_variants(
     if not similarity_index:
         return []
 
-    config = recommendation_config[recommendation_goal]
+    config = recommendation_config
     weights = config["weights"]
     classifier_weight = weights["classifier"]
-    pp_potential_weight = weights["pp_potential"]
 
     # Local copies of weights to eliminate dict access overhead inside loop
     w_content = weights["content"]
     w_mod = weights["mod_preference"]
     w_diff = weights["difficulty"]
     w_class = weights["classifier"]
-    w_pp = weights["pp_potential"]
 
     ranges = dict(ranges or {})
     min_stars, max_stars = ranges.get("stars", (None, None))
@@ -593,69 +582,20 @@ def rank_variants(
             min_difficulty_stars = float(min_stars) if min_stars is not None else 0.0
             max_difficulty_stars = float(max_stars) if max_stars is not None else float("inf")
 
-        # A min_pp without star filters on the balanced goal means the player
-        # is trying to push, so the automatic star ceiling would hide exactly
-        # the maps they're asking for. Lift it and keep the lower bound.
-        other_filters = (min_stars, max_stars)
-
-        if (
-            recommendation_goal == "balanced"
-            and min_pp is not None
-            and all(value is None for value in other_filters)
-        ):
+        # A min_pp without star filters means the player is trying to push,
+        # so the automatic star ceiling would hide exactly the maps they're
+        # asking for. Lift it and keep the lower bound.
+        if min_pp is not None and min_stars is None and max_stars is None:
             max_difficulty_stars = float("inf")
     else:
         min_difficulty_stars = float(min_stars) if min_stars is not None else None
 
         max_difficulty_stars = float(max_stars) if max_stars is not None else None
 
-    # ── PP push range ──────────────────────────────────────────
-    pp_mean = difficulty_profile.get("pp_mean")
-    pp_std = difficulty_profile.get("pp_std")
-
-    pp_potential_min = None
-    pp_potential_max = None
-
-    if (
-        pp_mean is not None
-        and pp_std is not None
-        and pp_push_target_z is not None
-        and pp_push_max_z is not None
-    ):
-        pp_mean = float(pp_mean)
-        pp_std = float(pp_std)
-
-        pp_potential_min = pp_mean + pp_push_target_z * pp_std
-        pp_potential_max = pp_mean + pp_push_max_z * pp_std
-
-        logger.info(
-            "PP potential range: %.1f - %.1f PP (z=%.2f to %.2f, mean=%.1f, std=%.1f)",
-            pp_potential_min,
-            pp_potential_max,
-            pp_push_target_z,
-            pp_push_max_z,
-            pp_mean,
-            pp_std,
-        )
-
     # ── Validate filters ───────────────────────────────────────
     for name, (minimum, maximum) in ranges.items():
         if minimum is not None and maximum is not None and minimum > maximum:
             raise ValueError(f"min_{name} ({minimum}) cannot be greater than max_{name} ({maximum})")
-
-    # Goals with pp_push_filter only keep maps inside the PP push range,
-    # narrowed further by any explicit pp filters. Applied after validation
-    # so a user's own min_pp/max_pp are still checked against each other.
-    if config.get("pp_push_filter") and pp_potential_min is not None:
-        min_pp = pp_potential_min if min_pp is None else max(float(min_pp), pp_potential_min)
-        max_pp = pp_potential_max if max_pp is None else min(float(max_pp), pp_potential_max)
-
-        logger.info("PP push filter: %.1f - %.1f PP", min_pp, max_pp)
-
-        if min_pp > max_pp:
-            return []
-
-        ranges["pp"] = (min_pp, max_pp)
 
     # build_seed_similarity_index() already keeps the best similarity per beatmap.
     candidate_similarity = similarity_index
@@ -763,35 +703,12 @@ def rank_variants(
 
     check_cancelled(cancel_event)
 
-    pp_potential_scores = np.zeros(eligible_count)
-
-    if pp_potential_weight > 0:
-        # Only the columns a variant dict has; any other feature counts as missing.
-        pp_columns = {
-            name: variants.float_column(name)
-            for name in ("pp", *difficulty_feature_weights)
-            if name in VARIANT_COLUMNS and name not in TEXT_COLUMNS
-        }
-        pp_potential_scores = calculate_pp_potentials(
-            pp_columns,
-            difficulty_profile,
-            difficulty_std_floors,
-            difficulty_feature_weights,
-            pp_push_target_z,
-            pp_push_max_z,
-            feature_target_z,
-            feature_max_z,
-            pp_min=pp_potential_min,
-            pp_max=pp_potential_max,
-        )
-
-    # The goal's weighted sum of the scores, added left to right.
+    # The weighted sum of the scores, added left to right.
     final_scores = (
         w_content * content_scores
         + w_mod * mod_scores
         + w_diff * difficulty_scores
         + w_class * classifier_scores
-        + w_pp * pp_potential_scores
     )
 
     check_cancelled(cancel_event)
@@ -810,7 +727,6 @@ def rank_variants(
                 mod_scores,
                 difficulty_scores,
                 classifier_scores,
-                pp_potential_scores,
                 final_scores,
             ),
         )

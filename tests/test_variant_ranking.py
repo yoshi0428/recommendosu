@@ -41,11 +41,10 @@ def variant_mods(variants):
     return {(v["beatmap_id"], v["mods"]) for v in variants}
 
 
-def test_goal_weights_sum_to_one():
+def test_weights_sum_to_one():
     # A cheap sanity check on configuration: if someone tweaks a weight and
     # forgets to rebalance, final scores silently drift out of [0, 1].
-    for goal, config in RECOMMENDATION_CONFIG.items():
-        assert sum(config["weights"].values()) == pytest.approx(1.0), goal
+    assert sum(RECOMMENDATION_CONFIG["weights"].values()) == pytest.approx(1.0)
 
 
 # ---------------------------------------------------------------------------
@@ -240,12 +239,9 @@ def rank(conn, **overrides):
         },
         difficulty_star_std_multiplier=1.0,
         category_preferences={"NM1": 0.1, "NM2": 0.1, "NM3": 0.6, "NM4": 0.1, "NM5": 0.1},
-        recommendation_goal="balanced",
         recommendation_config=RECOMMENDATION_CONFIG,
         difficulty_std_floors=DIFFICULTY_STD_FLOORS,
         difficulty_feature_weights=DIFFICULTY_FEATURE_WEIGHTS,
-        pp_push_target_z=2.5, pp_push_max_z=5.0,
-        feature_target_z=1.0, feature_max_z=3.0,
     )
     kwargs.update(overrides)
     return rank_variants(conn, **kwargs)
@@ -260,12 +256,12 @@ def test_rank_variants_returns_sorted_results_with_metadata(seeded_db):
 
     first = ranked[0]
     assert first["title"] == f"Song {first['beatmap_id']}"
-    for field in ("content_similarity", "mod_preference", "difficulty_score", "classifier_score", "pp_potential"):
+    for field in ("content_similarity", "mod_preference", "difficulty_score", "classifier_score"):
         assert field in first
 
 
-def test_final_score_is_the_goals_weighted_sum(seeded_db):
-    weights = RECOMMENDATION_CONFIG["balanced"]["weights"]
+def test_final_score_is_the_weighted_sum(seeded_db):
+    weights = RECOMMENDATION_CONFIG["weights"]
     ranked = rank(seeded_db.conn)
 
     for row in ranked:
@@ -274,17 +270,8 @@ def test_final_score_is_the_goals_weighted_sum(seeded_db):
             + weights["mod_preference"] * row["mod_preference"]
             + weights["difficulty"] * row["difficulty_score"]
             + weights["classifier"] * row["classifier_score"]
-            + weights["pp_potential"] * row["pp_potential"]
         )
         assert row["final_score"] == expected
-
-
-def test_unknown_goal_is_rejected():
-    # Checked before anything else runs, so no database is needed.
-    from beatmap_recommender.recommender import recommend_player_sync
-
-    with pytest.raises(ValueError, match="Unknown recommendation goal"):
-        recommend_player_sync(RecommendationSettings(player_id=PLAYER_ID, goal="farm"), update_scores=False)
 
 
 def test_rank_variants_applies_star_window(seeded_db):
@@ -301,9 +288,9 @@ def test_explicit_star_filter_overrides_window(seeded_db):
     assert {r["beatmap_id"] for r in ranked} == {"13"}
 
 
-def test_min_pp_alone_on_balanced_lifts_star_ceiling(seeded_db):
-    # Map 13 (9*) sits above the [4.7, 5.7] window. A lone min_pp on the
-    # balanced goal removes the ceiling but keeps the floor, so 14 (1.5*) stays out.
+def test_min_pp_alone_lifts_star_ceiling(seeded_db):
+    # Map 13 (9*) sits above the [4.7, 5.7] window. A lone min_pp removes
+    # the ceiling but keeps the floor, so 14 (1.5*) stays out.
     ranked = rank(seeded_db.conn, ranges={"pp": (100, None)})
     beatmap_ids = {r["beatmap_id"] for r in ranked}
 
@@ -333,47 +320,12 @@ def test_explicit_max_stars_wins_over_min_pp(seeded_db):
     assert max(stars) > 5.7, "the user's max_stars replaces the automatic ceiling"
 
 
-def test_min_pp_on_other_goal_keeps_star_ceiling(seeded_db):
-    # Same weights as balanced under another name, so only the goal check differs.
-    config = {**RECOMMENDATION_CONFIG, "other": RECOMMENDATION_CONFIG["balanced"]}
-    ranked = rank(seeded_db.conn, ranges={"pp": (100, None)}, recommendation_goal="other", recommendation_config=config)
-
-    assert ranked and all(r["star_rating"] <= 5.7 for r in ranked)
-
-
 def test_ranking_without_difficulty_profile(seeded_db):
     # What the ranker receives for a player with no matching plays (see the
     # regression test above). It must still rank, just without a star window.
     ranked = rank(seeded_db.conn, difficulty_profile={})
 
     assert {r["beatmap_id"] for r in ranked} == set(CANDIDATES)
-
-
-def test_pp_potential_goal_keeps_only_the_pp_push_range(seeded_db):
-    # Push range = 500 + [2.5, 5.0] * 20 = [550, 600] pp. Test variants have
-    # pp = 20 * stars**2, so that's roughly 5.24-5.48 stars; the star window
-    # [4.7, 5.7] alone would let more through.
-    profile = {
-        "star_rating_mean": 5.2, "star_rating_std": 0.5,
-        "ar_mean": 9.0, "ar_std": 0.5,
-        "pp_mean": 500.0, "pp_std": 20.0,
-    }
-    balanced = rank(seeded_db.conn, difficulty_profile=profile)
-    pushed = rank(seeded_db.conn, difficulty_profile=profile, recommendation_goal="pp_potential")
-
-    assert pushed, "expected some maps inside the push range"
-    assert len(pushed) < len(balanced)
-    assert all(550 <= r["pp"] <= 600 for r in pushed)
-
-
-def test_pp_push_range_intersects_explicit_pp_filters(seeded_db):
-    profile = {"star_rating_mean": 5.2, "star_rating_std": 0.5, "pp_mean": 500.0, "pp_std": 20.0}
-
-    narrowed = rank(seeded_db.conn, difficulty_profile=profile, recommendation_goal="pp_potential", ranges={"pp": (None, 570)})
-    assert narrowed and all(550 <= r["pp"] <= 570 for r in narrowed)
-
-    # A pp filter entirely outside the push range leaves nothing.
-    assert rank(seeded_db.conn, difficulty_profile=profile, recommendation_goal="pp_potential", ranges={"pp": (None, 500)}) == []
 
 
 def test_top_k_truncates(seeded_db):

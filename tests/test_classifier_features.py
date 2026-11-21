@@ -1,34 +1,34 @@
 """
-Training/prediction consistency for the CNN-XGBoost classifier.
+Training/prediction consistency for the fusion classifier.
 
-The model is trained in beatmap_classifier/train_full.ipynb, which builds its
-inputs with get_data() and get_additional_features() from
-beatmap_classifier/classifier/utils_training.py. Predictions for the website
-are made later by beatmap_recommender/recommender_db_setup/precompute_nm1-5.py,
-which builds the same inputs again with beatmap_classifier/classifier/inference.py.
+The model is trained by beatmap_classifier/train_fusion.py, which builds its
+inputs from a classifier database (get_data() vectors, beatmap_variants rows)
+and the maps' .osu files. Predictions for the website are made later by
+beatmap_recommender/recommender_db_setup/precompute_nm1-5.py, which builds
+the same inputs again with beatmap_classifier/classifier/inference.py from the
+recommender database and its own copies of the .osu files.
 
-If the two disagree (different order, scaling, padding...) the model gets
-inputs unlike anything it was trained on. Nothing crashes and the notebook's
-accuracy still looks fine, because the notebook never runs inference. The
-only symptom is quietly worse NM1-NM5 probabilities on the site. This is
-called *training/serving skew*, and a test like this is the standard way to
-catch it.
+If the two disagree (different order, scaling, stats...) the model gets
+inputs unlike anything it was trained on. Nothing crashes and the training
+accuracy still looks fine, because training never runs inference. The only
+symptom is quietly worse NM1-NM5 probabilities on the site. This is called
+*training/serving skew*, and a test like this is the standard way to catch it.
 
-How the test works:
-  * Training side: run the real get_data() / get_additional_features() on
-    beatmap_classifier/unexpanded_beatmaps.db, exactly like the notebook does.
-  * Prediction side: run the real inference.classify() on the same map's
-    .osu file, as precompute does, but with fake models that *record* the inputs they
-    receive instead of predicting. That captures precisely what the real
-    models would be fed.
-  * Compare the two, for one tournament map from each of NM1-NM5.
+How the test works, for one tournament map from each of NM1-NM5:
+  * Training side: train_fusion.py's own functions on
+    beatmap_classifier/curated_collection.db and beatmap_classifier/data.
+  * Prediction side: inference.model_inputs() on the recommender's copy of
+    the .osu file and its beatmap_variants rows, as precompute does.
+  * Compare the two.
 
-Needs beatmap_classifier/unexpanded_beatmaps.db, beatmap_recommender/dummy.db, the .osu
-files in beatmap_recommender/data, torch and osu-tools-py. Marked slow
-(loading the classifier database takes ~6s); run with `pytest -m slow`.
+Needs beatmap_classifier/curated_collection.db, beatmap_recommender/dummy.db,
+the .osu files in beatmap_classifier/data and beatmap_recommender/data, and
+torch. Marked slow (loading the classifier database takes ~6s); run with
+`pytest -m slow`.
 """
 
 import hashlib
+import json
 import sqlite3
 from pathlib import Path
 
@@ -39,31 +39,25 @@ pytest.importorskip("torch")
 
 import torch  # noqa: E402
 
-from beatmap_classifier.classifier import inference  # noqa: E402
-from beatmap_classifier.classifier.augment_faster import extract_movement_features_from_X  # noqa: E402
-from beatmap_classifier.classifier.utils_training import (  # noqa: E402
-    get_additional_features,
-    get_data,
-    get_vector_normalization,
-    load_vector_normalization,
-    pad_sequences_pt,
-)
+from beatmap_classifier import train_fusion  # noqa: E402
+from beatmap_classifier.classifier import fusion, inference  # noqa: E402
+from beatmap_classifier.classifier.training_data import get_data, get_vector_normalization  # noqa: E402
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-CLASSIFIER_DB = PROJECT_ROOT / "beatmap_classifier" / "unexpanded_beatmaps.db"
+CLASSIFIER_DB = PROJECT_ROOT / "beatmap_classifier" / "curated_collection.db"
+CLASSIFIER_DATA = PROJECT_ROOT / "beatmap_classifier" / "data"
 RECOMMENDER_DB = PROJECT_ROOT / "beatmap_recommender" / "dummy.db"
 DATA = PROJECT_ROOT / "beatmap_recommender" / "data"
-VECTOR_NORMALIZATION_PATH = inference.MODEL_DIR / "vector_normalization.json"
 
 pytestmark = [
     pytest.mark.slow,
     pytest.mark.skipif(
         not (CLASSIFIER_DB.exists() and RECOMMENDER_DB.exists()),
-        reason="beatmap_classifier/unexpanded_beatmaps.db or beatmap_recommender/dummy.db not found",
+        reason="beatmap_classifier/curated_collection.db or beatmap_recommender/dummy.db not found",
     ),
 ]
 
-# One tournament map per category, with its .osu file and that file's MD5.
+# One tournament map per category, with the recommender's .osu file and that file's MD5.
 BEATMAPS = {
     "NM1": ("1001573", "64ac315bc3b8764cf0408acb8b10b2a3",
             "Ranked/2016/Cocoa, Chino, Rize, Chiya, Syaro, Maya, Megu - Honjitsu wa Makoto ni Rarirurein (Momochikun) [Extrarirurein].osu"),
@@ -77,123 +71,64 @@ BEATMAPS = {
             "Ranked/2017/xi - Glorious Crown (Monstrata) [NiNo's Extra].osu"),
 }
 
-CNN_CHANNELS = [
-    "x_diff", "y_diff", "time_diff", "length",
-    "distance", "speed", "speed_change", "time_diff_change",
-]
-
 
 # ---------------------------------------------------------------------------
 # Loading both sides
 # ---------------------------------------------------------------------------
 @pytest.fixture(scope="module")
 def training():
-    """
-    Training inputs for every tournament map, built exactly like cells 6-10
-    of train_full.ipynb. scope="module" because this takes several seconds
-    and is the same for every test in the file.
-    """
-    X, y, beatmap_ids = get_data(str(CLASSIFIER_DB))
-    raw_additional = get_additional_features(str(CLASSIFIER_DB), y, beatmap_ids)
-
-    # Cell 8: pad to the 99th-percentile length, rounded up to a power of 2.
-    lengths = np.array([len(sequence) for sequence in X])
-    max_length = int(np.percentile(lengths, 99))
-    max_length = min(2 ** int(np.ceil(np.log2(max_length))), 4096)
-    X_padded = pad_sequences_pt(X, maxlen=max_length, dtype=torch.float32)
-
+    """What train_fusion.load_dataset() builds each map's inputs from. scope="module": it takes seconds."""
+    X, _, beatmap_ids = get_data(str(CLASSIFIER_DB))
+    with sqlite3.connect(f"{CLASSIFIER_DB.as_uri()}?mode=ro", uri=True) as conn:
+        vector_normalization = get_vector_normalization(conn.cursor())
     return {
-        "index": {beatmap_id: i for i, beatmap_id in enumerate(beatmap_ids)},
-        "X": X,
-        "X_padded": X_padded,
-        "max_length": max_length,
-        "raw_additional": raw_additional,
+        "vectors": dict(zip(map(str, beatmap_ids), X)),
+        "stats": train_fusion.variant_stats(CLASSIFIER_DB, [b for b, _, _ in BEATMAPS.values()]),
+        "files": {p.stem: p for p in CLASSIFIER_DATA.rglob("*.osu")},
+        "vector_normalization": vector_normalization,
     }
-
-
-class RecordingCNN:
-    """Stands in for one bagged CNN: records its input, returns flat logits."""
-
-    def __init__(self):
-        self.inputs = []
-
-    def eval(self):
-        return self
-
-    def __call__(self, batch):
-        self.inputs.append(batch.detach().cpu())
-        return torch.zeros((batch.shape[0], 5))
-
-
-class RecordingMetaModel:
-    """Stands in for the XGBoost meta-model: records its input row."""
-
-    def __init__(self):
-        self.inputs = []
-
-    def predict_proba(self, features):
-        self.inputs.append(np.asarray(features))
-        return np.full((1, 5), 0.2)
-
-
-class FakeLabelEncoder:
-    classes_ = np.array(["nm1", "nm2", "nm3", "nm4", "nm5"])
-
-    def inverse_transform(self, indices):
-        return self.classes_[indices]
 
 
 @pytest.fixture(scope="module", params=list(BEATMAPS), ids=list(BEATMAPS))
 def pair(request, training):
-    """
-    For one beatmap: what training fed the models, and what inference feeds
-    them. Parametrized fixture: every test using it runs once per map.
-    """
+    """For one beatmap: the inputs training builds, and the ones inference builds."""
     label = request.param
     beatmap_id, md5, relative_path = BEATMAPS[label]
     path = DATA / relative_path
     if not path.exists():
         pytest.skip(f"{relative_path} not found")
     assert hashlib.md5(path.read_bytes()).hexdigest() == md5, f"{relative_path} changed on disk"
+    training_file = training["files"].get(beatmap_id)
+    if training_file is None:
+        pytest.skip(f"{beatmap_id}.osu not in beatmap_classifier/data")
 
-    # Prediction side: the NM variant row, as precompute passes it.
+    # Prediction side: the beatmap_variants rows precompute passes.
     with sqlite3.connect(f"{RECOMMENDER_DB.as_uri()}?mode=ro", uri=True) as conn:
         conn.row_factory = sqlite3.Row
-        variant = dict(conn.execute(
-            "SELECT * FROM beatmap_variants WHERE beatmap_id = ? AND mods = 'NM'", (beatmap_id,)
-        ).fetchone())
-
-    cnn, meta = RecordingCNN(), RecordingMetaModel()
+        stats_by_mod = {
+            row["mods"]: dict(row)
+            for row in conn.execute("SELECT * FROM beatmap_variants WHERE beatmap_id = ?", (beatmap_id,))
+            if row["mods"] in inference.STAT_MODS
+        }
     classifier = inference.Classifier(
-        cnn_models=[cnn],
-        label_encoder=FakeLabelEncoder(),
-        meta_model=meta,
-        vector_normalization=load_vector_normalization(VECTOR_NORMALIZATION_PATH),
-        device=torch.device("cpu"),
+        models=[], classes=[], normalization={},
+        vector_normalization=training["vector_normalization"], device=torch.device("cpu"),
     )
-    inference.classify(classifier, inference.read_vectors(str(path)), variant)
-
-    i = training["index"][beatmap_id]
-    n = len(training["X"][i])
-    cnn_input = cnn.inputs[0][0].T.numpy()  # [channels, length] -> [length, channels]
+    pred_sequence, pred_tabular = inference.model_inputs(classifier, str(path), stats_by_mod)
 
     return {
         "label": label,
-        "n": n,
-        "train_cnn": training["X_padded"][i].numpy(),
-        "pred_cnn": cnn_input,
-        "train_additional": np.hstack([
-            np.asarray(training["raw_additional"][(beatmap_id, "NM")], dtype=np.float32),
-            extract_movement_features_from_X(training["X_padded"][i]),
-        ]),
-        # Meta-model row = 5 CNN probabilities, then the additional features.
-        "pred_additional": meta.inputs[0][0, 5:],
+        "mods": set(stats_by_mod),
+        "train_sequence": fusion.rich_sequence(training_file),
+        "pred_sequence": pred_sequence,
+        "train_tabular": fusion.tabular_row(training["stats"].get(beatmap_id, {}), training["vectors"][beatmap_id]),
+        "pred_tabular": pred_tabular,
     }
 
 
 def describe(names, train, pred, mismatched):
     return "\n".join(
-        f"  {names[j]:20s} training={train[j]:.6g}  prediction={pred[j]:.6g}" for j in mismatched
+        f"  {names[j]:30s} training={train[j]:.6g}  prediction={pred[j]:.6g}" for j in mismatched
     )
 
 
@@ -201,50 +136,34 @@ def describe(names, train, pred, mismatched):
 # Tests
 # ---------------------------------------------------------------------------
 def test_saved_vector_normalization_matches_training():
-    # get_data() computes its scales from unexpanded_beatmaps.db at training time.
-    # The copy saved next to the model must be the same, or inference
-    # scales differently from the data the model learned on. (It would
-    # drift if unexpanded_beatmaps.db changed without retraining and re-saving.)
-    with sqlite3.connect(f"{CLASSIFIER_DB.as_uri()}?mode=ro", uri=True) as conn:
-        expected = get_vector_normalization(conn.cursor())
-
-    assert load_vector_normalization(VECTOR_NORMALIZATION_PATH) == expected
-
-
-def test_sequence_length_matches(training):
-    assert inference.MAX_SEQUENCE_LENGTH == training["max_length"]
-
-
-def test_feature_order_matches():
-    # Checked against the order get_additional_features() returns.
-    assert inference.SQL_FEATURE_NAMES == [
-        "ar", "od", "circle_size", "star_rating", "bpm", "max_combo",
-        "length_seconds", "object_count", "pp", "pp_aim", "pp_speed", "pp_acc",
-    ]
-    assert len(inference.ADDITIONAL_FEATURE_NAMES) == 24
+    # get_data() computes its scales from the training database. The copy saved
+    # with the model must be the same, or inference scales the movement features'
+    # vectors differently from the data the model learned on.
+    config_path = inference.MODEL_DIR / "fusion_config.json"
+    if not config_path.exists():
+        pytest.skip("no trained model in models/fusion")
+    config = json.loads(config_path.read_text())
+    db = Path(config["info"].get("db", ""))
+    if not db.is_absolute():
+        db = PROJECT_ROOT / db
+    if not db.exists():
+        pytest.skip(f"training database {db} not found")
+    with sqlite3.connect(f"{db.as_uri()}?mode=ro", uri=True) as conn:
+        assert config["vector_normalization"] == get_vector_normalization(conn.cursor())
 
 
-def test_metadata_features_match(pair):
-    train, pred = pair["train_additional"][:12], pair["pred_additional"][:12]
-    mismatched = np.flatnonzero(~np.isclose(train, pred, rtol=1e-5))
-    names = inference.ADDITIONAL_FEATURE_NAMES[:12]
-    assert not mismatched.size, "\n" + describe(names, train, pred, mismatched)
+def test_recommender_has_every_mod(pair):
+    assert pair["mods"] == set(inference.STAT_MODS)
 
 
-def test_cnn_input_matches(pair):
-    # Regression test: precompute used to feed the CNN raw milliseconds and
-    # slider lengths, while training divided them by 86087 and 500.
-    n = pair["n"]
-    train, pred = pair["train_cnn"][:n], pair["pred_cnn"][:n]
+def test_rich_sequence_matches(pair):
+    train, pred = pair["train_sequence"], pair["pred_sequence"]
     assert pred.shape == train.shape
-
-    channel_ok = [np.allclose(train[:, c], pred[:, c], rtol=1e-4, atol=1e-6) for c in range(8)]
-    bad = [CNN_CHANNELS[c] for c, ok in enumerate(channel_ok) if not ok]
-    assert not bad, f"{pair['label']}: CNN channels differ: {bad}"
+    bad = [name for c, name in enumerate(fusion.RICH_CHANNELS) if not np.allclose(train[:, c], pred[:, c], rtol=1e-5, atol=1e-6)]
+    assert not bad, f"{pair['label']}: rich channels differ: {bad}"
 
 
-def test_movement_features_match(pair):
-    train, pred = pair["train_additional"][12:], pair["pred_additional"][12:]
+def test_tabular_features_match(pair):
+    train, pred = pair["train_tabular"], pair["pred_tabular"]
     mismatched = np.flatnonzero(~np.isclose(train, pred, rtol=1e-4, atol=1e-6))
-    names = inference.ADDITIONAL_FEATURE_NAMES[12:]
-    assert not mismatched.size, "\n" + describe(names, train, pred, mismatched)
+    assert not mismatched.size, "\n" + describe(fusion.TABULAR_FEATURES, train, pred, mismatched)

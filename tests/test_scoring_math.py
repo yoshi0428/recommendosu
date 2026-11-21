@@ -1,6 +1,6 @@
 """
-Unit tests for the numeric scoring helpers: ability.py, pp_potential.py and
-the classifier score in cnn_xgboost_influence.py.
+Unit tests for the numeric scoring helpers: ability.py and the classifier
+score in classifier_influence.py.
 
 Testing math code well mostly comes down to:
     * Work out a few results by hand and check the code agrees.
@@ -17,14 +17,11 @@ import pytest
 from beatmap_recommender.content_similarity.core_modules.ability import (
     get_ability_score_weight,
     get_recency_weight,
+    weighted_mean_and_std,
 )
-from beatmap_recommender.content_similarity.core_modules.cnn_xgboost_influence import (
+from beatmap_recommender.content_similarity.core_modules.classifier_influence import (
     NM_LABELS,
     calculate_classifier_scores,
-)
-from beatmap_recommender.content_similarity.core_modules.pp_potential import (
-    calculate_pp_potentials,
-    weighted_mean_and_std,
 )
 
 
@@ -90,7 +87,7 @@ def test_old_high_pp_play_can_weigh_less_than_new_one():
 
 
 # ---------------------------------------------------------------------------
-# pp_potential.weighted_mean_and_std
+# ability.weighted_mean_and_std
 # ---------------------------------------------------------------------------
 def test_weighted_mean_and_std_matches_numpy():
     values = [1.0, 2.0, 3.0, 10.0]
@@ -111,74 +108,7 @@ def test_weighted_mean_and_std_with_zero_weights_falls_back_to_unweighted():
 
 
 # ---------------------------------------------------------------------------
-# pp_potential.calculate_pp_potentials
-# ---------------------------------------------------------------------------
-def calculate_pp_potential(variant, difficulty_profile, difficulty_std_floors, difficulty_feature_weights, **kwargs):
-    """calculate_pp_potentials() for one variant dict, with non-numbers as missing (NaN)."""
-
-    def as_float(value):
-        try:
-            return float(value)
-        except (TypeError, ValueError):
-            return np.nan
-
-    columns = {name: np.array([as_float(variant.get(name))]) for name in ("pp", *difficulty_feature_weights)}
-    return float(
-        calculate_pp_potentials(columns, difficulty_profile, difficulty_std_floors, difficulty_feature_weights, **kwargs)[0]
-    )
-
-
-PROFILE = {
-    "pp_mean": 200.0, "pp_std": 20.0,
-    "star_rating_mean": 5.0, "star_rating_std": 0.5,
-}
-FLOORS = {"star_rating": 0.35}
-WEIGHTS = {"star_rating": 1.0}
-
-
-def pp_potential(pp, stars=5.0, **kwargs):
-    variant = {"pp": pp, "star_rating": stars}
-    kwargs.setdefault("pp_min", 250.0)
-    kwargs.setdefault("pp_max", 300.0)
-    return calculate_pp_potential(variant, PROFILE, FLOORS, WEIGHTS, **kwargs)
-
-
-@pytest.mark.parametrize(
-    ("pp", "expected"),
-    [
-        (249.9, 0.0),  # Below the push window: filtered out.
-        (250.0, 0.0),  # Exactly the entry level maps to 0.
-        (275.0, 0.5),  # Halfway through the window.
-        (300.0, 1.0),  # Top of the window.
-        (300.1, 0.0),  # Above the window: filtered out, not clamped to 1.
-        (0, 0.0),
-        ("garbage", 0.0),
-    ],
-)
-def test_pp_potential_is_linear_inside_the_push_window(pp, expected):
-    assert pp_potential(pp) == pytest.approx(expected)
-
-
-def test_pp_potential_penalizes_maps_that_are_much_too_hard():
-    comfortable = pp_potential(290, stars=5.4)  # z = 0.8, inside the comfort zone.
-    too_hard = pp_potential(290, stars=7.0)     # z = 4.0, well past feature_max_z.
-
-    assert comfortable == pytest.approx(0.8)
-    assert 0.0 < too_hard < comfortable
-
-
-def test_pp_potential_without_profile_is_zero():
-    assert calculate_pp_potential({"pp": 280}, {}, FLOORS, WEIGHTS) == 0.0
-
-
-def test_pp_potential_falls_back_to_profile_bounds():
-    # Without explicit pp_min/pp_max, the window is
-    # [mean + 2.5 std, mean + 7.5 std] = [250, 350] using the defaults.
-    assert pp_potential(300, pp_min=None, pp_max=None) == pytest.approx(0.5)
-
-
-# ---------------------------------------------------------------------------
-# cnn_xgboost_influence.calculate_classifier_scores
+# classifier_influence.calculate_classifier_scores
 # ---------------------------------------------------------------------------
 def calculate_classifier_score(probabilities, preferences):
     """calculate_classifier_scores() for one {label: probability} dict; missing data scores 0."""

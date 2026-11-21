@@ -45,7 +45,6 @@ HIDE_OPTIONS = {
 
 # /rec's choice options: the name Discord shows -> the value build_settings
 # takes. /help describes them by these names too.
-GOAL_CHOICES = {"Balanced": "balanced", "PP Potential": "pp_potential"}
 HIDE_CHOICES = {
     "Already played": "played",
     "Already played and recent plays": "played_recent",
@@ -256,7 +255,6 @@ def parse_range(name, text):
 
 def build_settings(
     player_id,
-    goal=None,
     mods=None,
     exact_mods=None,
     hide=None,
@@ -270,9 +268,6 @@ def build_settings(
     `ranges` holds the range options as typed, e.g. stars="5.5-6.5".
     """
     settings = {"player_id": player_id, **mod_settings(mods, exact_mods)}
-
-    if goal is not None:
-        settings["goal"] = goal
 
     if hide is not None:
         settings["exclude_already_played"], settings["exclude_recent_plays"] = HIDE_OPTIONS[hide]

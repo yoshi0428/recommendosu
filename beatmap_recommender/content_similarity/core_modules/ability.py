@@ -81,3 +81,21 @@ def get_ability_score_weight(
             weight *= 1.0 + ability_pp_weight * np.sqrt(pp) / 10.0
 
     return weight
+
+
+def weighted_mean_and_std(values, weights):
+    """
+    Calculate a weighted mean and population standard deviation.
+    """
+    values = np.asarray(values, dtype=np.float64)
+    weights = np.asarray(weights, dtype=np.float64)
+    total_weight = weights.sum()
+
+    if total_weight <= 0:
+        return float(values.mean()), float(values.std())
+
+    mean = np.sum(weights * values) / total_weight
+    variance = np.sum(weights * (values - mean) ** 2) / total_weight
+    std = np.sqrt(max(variance, 0.0))
+
+    return float(mean), float(std)

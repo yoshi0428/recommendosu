@@ -46,7 +46,8 @@ from beatmap_recommender.cancellation import (
     create_cancellation_event,
     remove_cancellation_event,
 )
-from beatmap_recommender.content_similarity.core_modules.cnn_xgboost_influence import NM_LABELS
+from beatmap_recommender.content_similarity.core_modules.classifier_influence import NM_LABELS
+from beatmap_recommender.content_similarity.core_modules.played_maps import start_sync_worker
 from beatmap_recommender.content_similarity.core_modules.score_collector import (
     PlayerNotFoundError,
 )
@@ -108,11 +109,22 @@ BOT_RECOMMENDATION_PAGE_SIZE = 50
 MAX_BOT_RECOMMENDATION_PAGE_SIZE = 100
 
 
+def make_background_api_client():
+    """The app's own client-credentials client, at low priority (played_maps.py's worker)."""
+    from beatmap_recommender.recommender_db_setup.osu_api_client import OsuAPIClient as AppOsuAPIClient
+
+    client = AppOsuAPIClient()
+    client.low_priority = True
+    return client
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("OAuth client ID: %r, redirect URI: %r", OSU_CLIENT_ID, OSU_REDIRECT_URI)
     initialize_auth_db()
     load_variant_table()
+    if os.getenv("PLAYED_MAPS_SYNC", "1") != "0":
+        start_sync_worker(connect=connect_db, make_api=make_background_api_client)
     yield
 
 
@@ -302,11 +314,6 @@ class Recommendation(BaseModel):
         examples=[0.82],
     )
 
-    pp_potential: float = Field(
-        description="Score representing the estimated PP-push potential.",
-        examples=[0.68],
-    )
-
     final_score: float = Field(
         description="Final recommendation score used for ranking.",
         examples=[0.84],
@@ -323,11 +330,6 @@ class RecommendationResponse(BaseModel):
     player_id: int = Field(
         description="osu! player ID used to generate the recommendations.",
         examples=[12345678],
-    )
-
-    recommendation_goal: str = Field(
-        description="Recommendation strategy used for this request.",
-        examples=["balanced"],
     )
 
     total_count: int = Field(
@@ -415,7 +417,6 @@ async def cache_and_first_page(
     return {
         "recommendation_id": recommendation_id,
         "player_id": settings.player_id,
-        "recommendation_goal": settings.goal,
         "total_count": len(recommendations),
         "offset": 0,
         "recommendations": recommendations[:page_size],
@@ -447,7 +448,7 @@ def result_page(recommendation_id: str, owner: int | str, offset: int, limit: in
         "Generate personalized beatmap recommendations using a complete "
         "RecommendationSettings object. This endpoint exposes advanced "
         "recommendation filters, weighting, difficulty-profile settings, "
-        "mod preferences, and recommendation-goal configuration. "
+        "mod preferences, and score weighting. "
         "Only the first page of results is returned; fetch the rest from "
         f"{API_PREFIX}/recommend/{{recommendation_id}}/page."
     ),
@@ -698,7 +699,7 @@ class BotClassifyResponse(BaseModel):
     status: str
     star_rating: float
     predictions: dict[str, float] = Field(
-        description="CNN-XGBoost probability for each NM tournament category.",
+        description="Fusion classifier probability for each NM tournament category (they sum to 1).",
         examples=[{"NM1": 0.05, "NM2": 0.8, "NM3": 0.1, "NM4": 0.03, "NM5": 0.02}],
     )
 

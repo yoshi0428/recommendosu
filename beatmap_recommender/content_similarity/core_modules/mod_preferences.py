@@ -282,6 +282,8 @@ def get_player_mod_preferences(conn, player_id, top_weight, recent_weight, pp_we
             pp
         FROM scores
         WHERE player_id = ?
+          -- Failed plays (rank F) aren't evidence of what the player can do.
+          AND COALESCE(rank, '') != 'F'
     """,
         (player_id,),
     ).fetchall()

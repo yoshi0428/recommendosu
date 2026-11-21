@@ -27,7 +27,6 @@ from bot.changelog import changelog_embed_parts
 from bot.links import LinkStore
 from bot.help import help_embed_parts
 from bot.options import (
-    GOAL_CHOICES,
     HIDE_CHOICES,
     STATUS_CHOICES,
     OptionError,
@@ -110,7 +109,6 @@ class RecommendationView(discord.ui.View):
         self.player_id = player_id
         self.username = username
         self.recommendation_id = result["recommendation_id"]
-        self.goal = result["recommendation_goal"].replace("_", " ")
         self.total_count = result["total_count"]
         self.page_count = math.ceil(self.total_count / RECOMMENDATIONS_PER_PAGE)
         self.page = 0
@@ -156,7 +154,7 @@ class RecommendationView(discord.ui.View):
         embed.set_footer(
             text=(
                 f"Page {self.page + 1:,}/{self.page_count:,} · "
-                f"{self.total_count:,} matching maps · goal: {self.goal} · "
+                f"{self.total_count:,} matching maps · "
                 f"full list at {SITE_URL.removeprefix('https://')}"
             )
         )
@@ -235,7 +233,6 @@ def register_commands(bot: RecommendOsuBot):
     @tree.command(name="rec", description="Recommend beatmaps. With no options, uses the website's default settings.")
     @app_commands.describe(
         user="osu! username (defaults to the account you linked with /link)",
-        goal="What to optimise for",
         mods="e.g. HD HR. -FL excludes, ~EZ allows EZ/HT/FL (off by default), =HDDT is that exact combination",
         exact_mods="Only the exact combination in mods, e.g. mods: HDDT gives HDDT but not HD or DT",
         hide="Maps to leave out (default: already played)",
@@ -251,7 +248,6 @@ def register_commands(bot: RecommendOsuBot):
         combo="Max combo range, e.g. 500-1500 or <1000",
     )
     @app_commands.choices(
-        goal=[app_commands.Choice(name=name, value=value) for name, value in GOAL_CHOICES.items()],
         hide=[app_commands.Choice(name=name, value=value) for name, value in HIDE_CHOICES.items()],
         status=[app_commands.Choice(name=name, value=value) for name, value in STATUS_CHOICES.items()],
     )
@@ -259,7 +255,6 @@ def register_commands(bot: RecommendOsuBot):
     async def rec(
         interaction: discord.Interaction,
         user: str | None = None,
-        goal: app_commands.Choice[str] | None = None,
         mods: str | None = None,
         exact_mods: bool | None = None,
         hide: app_commands.Choice[str] | None = None,
@@ -287,7 +282,6 @@ def register_commands(bot: RecommendOsuBot):
         try:
             settings = build_settings(
                 player_id=None,
-                goal=goal.value if goal else None,
                 mods=mods,
                 exact_mods=exact_mods,
                 hide=hide.value if hide else None,

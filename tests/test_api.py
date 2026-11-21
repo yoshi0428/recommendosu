@@ -62,7 +62,7 @@ def fake_recommendation(beatmap_id, final_score=0.5, beatmapset_id="set"):
         "length_seconds": 120.0, "object_count": 500,
         "pp": 250.0, "pp_aim": 100.0, "pp_speed": 90.0, "pp_acc": 60.0, "pp_flashlight": 0.0,
         "content_similarity": 0.9, "mod_preference": 1.0, "difficulty_score": 0.8,
-        "classifier_score": 0.5, "pp_potential": 0.0, "final_score": final_score,
+        "classifier_score": 0.5, "final_score": final_score,
     }
 
 
@@ -307,13 +307,7 @@ def test_recommend_end_to_end_with_test_database(logged_in_client, seeded_db, mo
     monkeypatch.setattr(recommender, "connect_db", lambda read_only=False: sqlite3.connect(seeded_db.path))
     monkeypatch.setattr(recommender, "update_player_scores", lambda conn, api, player_id: None)
 
-    # The pp_potential goal only keeps maps inside the PP push range. The
-    # default range (mean + 2.5..5 std) is above every seeded candidate, so
-    # widen it to leave something to rank.
-    response = post_recommend(
-        logged_in_client,
-        {"goal": "pp_potential", "pp_push_target_z": 0.0, "pp_push_max_z": 20.0},
-    )
+    response = post_recommend(logged_in_client, {})
 
     assert response.status_code == 200, response.text
     body = response.json()

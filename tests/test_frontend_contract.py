@@ -7,7 +7,7 @@ change (difficulty tables, scoring weights...). The frontend sends its copy
 with every request, so it's what the site actually uses. Change a weight in
 model.py and forget the JS file, and the change silently never reaches users.
 
-Settings the UI can't change (goal weights, similarity weights, the result
+Settings the UI can't change (score weights, similarity weights, the result
 limit...) aren't copied or sent at all, so the backend's defaults apply.
 
 These tests load the JavaScript module with Node, print its defaults as JSON,
@@ -55,7 +55,7 @@ def test_feature_weight_tables_match(frontend_defaults):
 
 @pytest.mark.parametrize(
     "field",
-    ["limit", "similarity_feature_weights", "recommendation_config", "feature_target_z", "feature_max_z"],
+    ["limit", "similarity_feature_weights", "recommendation_config"],
 )
 def test_settings_the_ui_cant_change_are_left_to_the_backend(frontend_defaults, field):
     # Not sent, so a change in model.py reaches the site without a JS change.
@@ -67,11 +67,10 @@ def test_settings_the_ui_cant_change_are_left_to_the_backend(frontend_defaults, 
 @pytest.mark.parametrize(
     "field",
     [
-        "goal", "beatmap_status",
+        "beatmap_status",
         "top_weight", "recent_weight", "pp_weight",
         "ability_top_weight", "ability_recent_weight", "ability_pp_weight",
         "recency_half_life_days",
-        "pp_push_target_z", "pp_push_max_z",
     ],
 )
 def test_default_settings_match(frontend_defaults, field):

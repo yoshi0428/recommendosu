@@ -52,6 +52,8 @@ def get_player_category_preferences(
         JOIN variant_predictions vp
             ON vp.variant_id = bv.variant_id
         WHERE s.player_id = ?
+          -- Failed plays (rank F) aren't evidence of what the player can do.
+          AND COALESCE(s.rank, '') != 'F'
           AND vp.nm1 IS NOT NULL
           AND vp.nm2 IS NOT NULL
           AND vp.nm3 IS NOT NULL

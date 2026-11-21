@@ -6,7 +6,7 @@ from beatmap_recommender.api.model import RecommendationSettings
 from beatmap_recommender.api.osu_api_client import OsuAPIClient
 from beatmap_recommender.auth.osu_oauth import get_access_token, get_application_access_token
 from beatmap_recommender.cancellation import check_cancelled
-from beatmap_recommender.content_similarity.core_modules.cnn_xgboost_influence import (
+from beatmap_recommender.content_similarity.core_modules.classifier_influence import (
     get_player_category_preferences,
 )
 from beatmap_recommender.content_similarity.core_modules.content_similarity import (
@@ -15,6 +15,7 @@ from beatmap_recommender.content_similarity.core_modules.content_similarity impo
 from beatmap_recommender.content_similarity.core_modules.mod_preferences import (
     get_preferred_mods,
 )
+from beatmap_recommender.content_similarity.core_modules.played_maps import request_sync
 from beatmap_recommender.content_similarity.core_modules.score_collector import (
     scores_refreshed_recently,
     update_player_scores,
@@ -43,13 +44,7 @@ def recommend_player_sync(
     cancel_event: threading.Event | None = None,
 ):
     recommendation_config = settings.recommendation_config
-    if settings.goal not in recommendation_config:
-        raise ValueError(f"Unknown recommendation goal: {settings.goal}")
-
-    goal_config = recommendation_config[settings.goal]
-
     logger.debug("Recommendation config: %s", recommendation_config)
-    logger.debug("Goal config: %s", goal_config)
 
     check_cancelled(cancel_event)
     # Read-only unless fetched scores need writing.
@@ -171,14 +166,9 @@ def recommend_player_sync(
                 name: (getattr(settings, f"min_{name}"), getattr(settings, f"max_{name}"))
                 for name in RANGE_COLUMNS
             },
-            recommendation_goal=settings.goal,
             recommendation_config=recommendation_config,
             difficulty_std_floors=settings.difficulty_std_floors,
             difficulty_feature_weights=settings.difficulty_feature_weights,
-            pp_push_target_z=settings.pp_push_target_z,
-            pp_push_max_z=settings.pp_push_max_z,
-            feature_target_z=settings.feature_target_z,
-            feature_max_z=settings.feature_max_z,
             cancel_event=cancel_event,
         )
 
@@ -186,10 +176,9 @@ def recommend_player_sync(
 
         # ── Output ─────────────────────────────────────────────
         logger.info(
-            "Player %s: %d recommendations (goal=%s)",
+            "Player %s: %d recommendations",
             settings.player_id,
             len(ranked_variants),
-            settings.goal,
         )
 
         top_variants = ranked_variants[:10]
@@ -209,7 +198,6 @@ def recommend_player_sync(
                 f"mod_pref={variant['mod_preference']:.4f}, "
                 f"difficulty={variant['difficulty_score']:.4f}, "
                 f"classifier={variant['classifier_score']:.4f}, "
-                f"pp_potential={variant['pp_potential']:.4f}, "
                 f"final={variant['final_score']:.4f}"
             )
         return ranked_variants
@@ -225,6 +213,10 @@ async def recommend_player(
     update_scores=True,
     cancel_event: threading.Event | None = None,
 ):
+    # Fetch the player's full played-beatmap list in the background (if it's
+    # missing or stale), so later requests exclude every map they've played.
+    request_sync(settings.player_id)
+
     async with _recommendation_semaphore:
         check_cancelled(cancel_event)
         access_token = None

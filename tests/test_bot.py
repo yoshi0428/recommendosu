@@ -16,7 +16,6 @@ from bot.api import BackendClient, BackendError
 from bot.help import EXAMPLES, help_embed_parts
 from bot.links import LinkStore
 from bot.options import (
-    GOAL_CHOICES,
     HIDE_CHOICES,
     HIDE_OPTIONS,
     RANGE_FILTERS,
@@ -158,7 +157,6 @@ def test_no_options_only_sends_the_player_and_default_mods():
 def test_options_map_to_recommendation_settings():
     settings = build_settings(
         player_id=7,
-        goal="pp_potential",
         hide="recent",
         status="loved",
         stars="5.5-6.5",
@@ -168,7 +166,6 @@ def test_options_map_to_recommendation_settings():
         bpm=None,
     )
 
-    assert settings["goal"] == "pp_potential"
     assert settings["exclude_already_played"] is False
     assert settings["exclude_recent_plays"] is True
     assert settings["beatmap_status"] == "loved"
@@ -195,7 +192,7 @@ def test_settings_keys_exist_in_recommendation_settings():
     every_range["year"] = "2015-2020"
 
     settings = build_settings(
-        player_id=7, goal="balanced", mods="HD", hide="played_recent", status="all", **every_range,
+        player_id=7, mods="HD", hide="played_recent", status="all", **every_range,
     )
 
     assert set(settings) <= set(RecommendationSettings.model_fields)
@@ -413,7 +410,7 @@ class FakePagingBackend:
 
     def first_response(self, size=50):
         return {
-            "recommendation_id": "rec", "recommendation_goal": "balanced",
+            "recommendation_id": "rec",
             "total_count": len(self.rows), "recommendations": self.rows[:size],
         }
 
@@ -510,7 +507,7 @@ def test_help_examples_are_valid_rec_input(options, note):
     options = dict(options)
     options.pop("user", None)
 
-    for key, choices in (("goal", GOAL_CHOICES), ("hide", HIDE_CHOICES), ("status", STATUS_CHOICES)):
+    for key, choices in (("hide", HIDE_CHOICES), ("status", STATUS_CHOICES)):
         if key in options:
             options[key] = choices[options[key]]
 
@@ -522,6 +519,6 @@ def test_help_mentions_every_rec_option():
     names = " ".join(name for name, _ in fields)
     text = " ".join(value for _, value in fields)
 
-    for option in ("user", "goal", "mods", "hide", "status", *RANGE_FILTERS):
+    for option in ("user", "mods", "hide", "status", *RANGE_FILTERS):
         assert option in names
     assert "exact_mods" in text

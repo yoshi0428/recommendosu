@@ -4,6 +4,8 @@ import time
 import numpy as np
 from tqdm import tqdm
 
+from beatmap_recommender.content_similarity.core_modules.played_maps import get_played_beatmap_ids
+
 from beatmap_recommender.content_similarity.core_modules.variant_table import (
     get_variant_table,
 )
@@ -71,6 +73,8 @@ def get_player_seed_maps(conn, player_id):
             ON bv.beatmap_id = s.beatmap_id
             AND bv.mods = 'NM'
         WHERE s.player_id = ?
+          -- Failed plays (rank F) aren't evidence of what the player can do; they still count as played.
+          AND COALESCE(s.rank, '') != 'F'
     """
     return _fetch_maps_as_numpy(conn, query, (player_id,))
 
@@ -78,7 +82,8 @@ def get_player_seed_maps(conn, player_id):
 def get_maps(conn, mods="NM", player_id=None, status=None):
     """
     Every variant with these mods (and status), minus the beatmaps player_id
-    has scores on, as (beatmap_ids, feature matrix) like get_player_seed_maps().
+    has played (played_maps.get_played_beatmap_ids()), as (beatmap_ids,
+    feature matrix) like get_player_seed_maps().
 
     Read from the in-memory variant table, in rowid order (the order a scan
     of beatmap_variants returns), instead of from SQLite on every request.
@@ -92,13 +97,7 @@ def get_maps(conn, mods="NM", player_id=None, status=None):
         mask &= table.category_mask("status", lambda value: value == status)[table.columns["status"]]
 
     if player_id is not None:
-        played_beatmap_ids = [
-            beatmap_id
-            for (beatmap_id,) in conn.execute(
-                "SELECT DISTINCT beatmap_id FROM scores WHERE player_id = ?",
-                (player_id,),
-            )
-        ]
+        played_beatmap_ids = list(get_played_beatmap_ids(conn, player_id))
         played = np.zeros(len(beatmap_categories), dtype=bool)
         played[table.codes_of("beatmap_id", played_beatmap_ids)] = True
         mask &= ~played[table.columns["beatmap_id"]]

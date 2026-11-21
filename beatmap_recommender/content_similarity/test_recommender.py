@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
 
-from beatmap_recommender.content_similarity.core_modules.cnn_xgboost_influence import (
+from beatmap_recommender.content_similarity.core_modules.classifier_influence import (
     get_player_category_preferences,
 )
 from beatmap_recommender.content_similarity.core_modules.content_similarity import (
@@ -41,8 +41,6 @@ PLAYER_IDS = [
 ]
 PLAYER_ID = PLAYER_IDS[3]
 
-RECOMMENDATION_GOAL = "balanced"
-
 
 # ── Mod filters ────────────────────────────────────────────────
 
@@ -71,39 +69,18 @@ RANGES = {}
 
 # ── Recommendation configurations ─────────────────────────────
 RECOMMENDATION_CONFIG = {
-    "balanced": {
-        "weights": {
-            "content": 0.50,
-            "mod_preference": 0.05,
-            "difficulty": 0.25,
-            "classifier": 0.20,
-            "pp_potential": 0.00,
-        },
-        "sort_keys": (
-            "final_score",
-            "content_similarity",
-            "difficulty_score",
-            "classifier_score",
-        ),
+    "weights": {
+        "content": 0.50,
+        "mod_preference": 0.05,
+        "difficulty": 0.25,
+        "classifier": 0.20,
     },
-    "pp_potential": {
-        "weights": {
-            "content": 0.50,
-            "mod_preference": 0.05,
-            "difficulty": 0.10,
-            "classifier": 0.10,
-            "pp_potential": 0.25,
-        },
-        # Only recommend maps whose pp falls inside the PP push range.
-        "pp_push_filter": True,
-        "sort_keys": (
-            "final_score",
-            "content_similarity",
-            "pp_potential",
-            "difficulty_score",
-            "classifier_score",
-        ),
-    },
+    "sort_keys": (
+        "final_score",
+        "content_similarity",
+        "difficulty_score",
+        "classifier_score",
+    ),
 }
 
 # ── Difficulty ─────────────────────────────────────────────────
@@ -156,14 +133,6 @@ ABILITY_PP_WEIGHT = 0.05
 RECENCY_HALF_LIFE_DAYS = 30.0
 
 
-# ── PP push ────────────────────────────────────────────────────
-
-PP_PUSH_TARGET_Z = 0.75
-PP_PUSH_MAX_Z = 2.0
-FEATURE_TARGET_Z = 1.00
-FEATURE_MAX_Z = 3.00
-
-
 # ── Play filtering ─────────────────────────────────────────────
 
 EXCLUDE_RECENT_PLAYS = True
@@ -171,11 +140,7 @@ EXCLUDE_ALREADY_PLAYED = True
 
 
 def main():
-    if RECOMMENDATION_GOAL not in RECOMMENDATION_CONFIG:
-        raise ValueError(f"Unknown recommendation goal: {RECOMMENDATION_GOAL}")
-
-    config = RECOMMENDATION_CONFIG[RECOMMENDATION_GOAL]
-    classifier_weight = config["weights"]["classifier"]
+    classifier_weight = RECOMMENDATION_CONFIG["weights"]["classifier"]
 
     database.DB_PATH = LOCAL_DB_PATH
     conn = database.connect_db()
@@ -316,14 +281,9 @@ def main():
             requested_mods=REQUESTED_MODS,
             excluded_mods=EXCLUDED_MODS,
             ranges=RANGES,
-            recommendation_goal=RECOMMENDATION_GOAL,
             recommendation_config=RECOMMENDATION_CONFIG,
             difficulty_std_floors=DIFFICULTY_STD_FLOORS,
             difficulty_feature_weights=DIFFICULTY_FEATURE_WEIGHTS,
-            pp_push_target_z=PP_PUSH_TARGET_Z,
-            pp_push_max_z=PP_PUSH_MAX_Z,
-            feature_target_z=FEATURE_TARGET_Z,
-            feature_max_z=FEATURE_MAX_Z,
         )
 
         # ── Results ────────────────────────────────────────────
@@ -345,7 +305,6 @@ def main():
             print("\nVARIANT KEYS:")
             print(ranked_variants[0].keys())
 
-        print(f"\nRecommendation goal: {RECOMMENDATION_GOAL}")
         print(f"\nTop {len(ranked_variants)} recommendations:")
         for i, variant in enumerate(ranked_variants, 1):
             print(
@@ -362,7 +321,6 @@ def main():
                 f"mod_pref={variant['mod_preference']:.4f}, "
                 f"difficulty={variant['difficulty_score']:.4f}, "
                 f"classifier={variant['classifier_score']:.4f}, "
-                f"pp_potential={variant['pp_potential']:.4f}, "
                 f"final={variant['final_score']:.4f}"
             )
 

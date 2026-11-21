@@ -56,10 +56,9 @@ def dummy_db_path():
         yield
 
 
-@pytest.mark.parametrize("goal", ["balanced", "pp_potential"])
-def test_recommendations_for_real_players(player_ids, goal):
+def test_recommendations_for_real_players(player_ids):
     for player_id in player_ids:
-        settings = RecommendationSettings(player_id=player_id, goal=goal, limit=500)
+        settings = RecommendationSettings(player_id=player_id, limit=500)
 
         # update_scores=False: use the scores already in dummy.db instead of
         # calling the osu! API.

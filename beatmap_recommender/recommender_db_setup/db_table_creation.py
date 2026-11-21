@@ -96,6 +96,9 @@ def create_tables(conn):
 
 
 def create_recommender_tables(conn):
+    from beatmap_recommender.content_similarity.core_modules.played_maps import create_played_tables
+
+    create_played_tables(conn)
     cursor = conn.cursor()
 
     cursor.execute("""

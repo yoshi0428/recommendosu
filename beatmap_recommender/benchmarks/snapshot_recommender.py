@@ -47,8 +47,6 @@ FROZEN_NOW = datetime(2026, 10, 16, tzinfo=timezone.utc)
 CASES = {
     # No star bounds and every mod: all ~3 million variants.
     "worst_balanced": {"min_stars": 0.0, "max_stars": float("inf")},
-    # Same, through the pp_potential goal and its per-variant pp scoring.
-    "worst_pp": {"min_stars": 0.0, "max_stars": float("inf"), "goal": "pp_potential"},
     "default": {},
     "filtered": {
         "mods": ["HD", "DT"],

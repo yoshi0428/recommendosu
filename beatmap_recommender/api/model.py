@@ -43,47 +43,23 @@ ABILITY_RECENT_WEIGHT = 2.0
 ABILITY_PP_WEIGHT = 0.05
 RECENCY_HALF_LIFE_DAYS = 30.0
 
-PP_PUSH_TARGET_Z = 2.50
-PP_PUSH_MAX_Z = 5.00
-FEATURE_TARGET_Z = 1.00
-FEATURE_MAX_Z = 3.00
-
 DIFFICULTY_STAR_STD_MULTIPLIER = 1.00
 
+# How the scores combine into final_score, and the tie-breaking sort order.
+# To aim at more pp, players set min_pp instead.
 RECOMMENDATION_CONFIG = {
-    "balanced": {
-        "weights": {
-            "content": 0.50,
-            "mod_preference": 0.05,
-            "difficulty": 0.25,
-            "classifier": 0.20,
-            "pp_potential": 0.00,
-        },
-        "sort_keys": (
-            "final_score",
-            "content_similarity",
-            "difficulty_score",
-            "classifier_score",
-        ),
+    "weights": {
+        "content": 0.50,
+        "mod_preference": 0.05,
+        "difficulty": 0.25,
+        "classifier": 0.20,
     },
-    "pp_potential": {
-        "weights": {
-            "content": 0.50,
-            "mod_preference": 0.05,
-            "difficulty": 0.10,
-            "classifier": 0.10,
-            "pp_potential": 0.25,
-        },
-        # Only recommend maps whose pp falls inside the PP push range.
-        "pp_push_filter": True,
-        "sort_keys": (
-            "final_score",
-            "content_similarity",
-            "pp_potential",
-            "difficulty_score",
-            "classifier_score",
-        ),
-    },
+    "sort_keys": (
+        "final_score",
+        "content_similarity",
+        "difficulty_score",
+        "classifier_score",
+    ),
 }
 
 
@@ -97,8 +73,6 @@ class RecommendationSettings(BaseModel):
 
     # ── Basic recommendation options ───────────────────────────
     player_id: int | None = None
-
-    goal: str = "balanced"
 
     min_year: int | None = Field(
         default=None, ge=MIN_BEATMAP_YEAR, le=MAX_BEATMAP_YEAR
@@ -193,12 +167,6 @@ class RecommendationSettings(BaseModel):
     ability_recent_weight: float = ABILITY_RECENT_WEIGHT
     ability_pp_weight: float = ABILITY_PP_WEIGHT
     recency_half_life_days: float = RECENCY_HALF_LIFE_DAYS
-
-    # ── PP push ────────────────────────────────────────────────
-    pp_push_target_z: float = PP_PUSH_TARGET_Z
-    pp_push_max_z: float = PP_PUSH_MAX_Z
-    feature_target_z: float = FEATURE_TARGET_Z
-    feature_max_z: float = FEATURE_MAX_Z
 
     # ── Recommendation scoring ────────────────────────────────
     recommendation_config: dict = Field(

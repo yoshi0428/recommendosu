@@ -241,6 +241,7 @@ class RecommenderDB:
         source="top",
         pp=200.0,
         created_at="2026-10-01T00:00:00Z",
+        rank="S",
     ):
         # Note: the osu! API gives mods like "HD,DT", and NM is an empty string.
         # That's the format stored in the real scores table, so tests use it too.
@@ -250,11 +251,11 @@ class RecommenderDB:
             INSERT INTO scores (
                 score_id, player_id, beatmap_id, status, score, max_combo,
                 accuracy, pp, rank, mods, created_at, source
-            ) VALUES (?, ?, ?, 'ranked', 1000000, 700, 0.98, ?, 'S', ?, ?, ?)
+            ) VALUES (?, ?, ?, 'ranked', 1000000, 700, 0.98, ?, ?, ?, ?, ?)
             """,
             (
                 f"score-{self._score_counter}", player_id, str(beatmap_id),
-                pp, mods, created_at, source,
+                pp, rank, mods, created_at, source,
             ),
         )
         self.conn.commit()
