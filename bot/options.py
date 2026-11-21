@@ -62,7 +62,7 @@ NM_SKILLS = {
     "NM2": "Streams",
     "NM3": "Alt",
     "NM4": "Tech",
-    "NM5": "Speed & Stamina",
+    "NM5": "Speed",
 }
 
 BEATMAP_URL_PATTERNS = (
