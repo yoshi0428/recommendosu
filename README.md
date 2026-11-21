@@ -442,6 +442,12 @@ Make sure that this value is also in your OAuth application:
 
 ![Example](./oauth-example.png)
 
-This is the database schema. [SQLite to ER Diagram](https://sqltoerdiagram.com/sqlite/) made the diagram.
+[SQLite to ER Diagram](https://sqltoerdiagram.com/sqlite/) made the following diagrams.
 
-![Schema](./schema.png)
+This is the recommender + auth + bot database schema.
+
+![Schema](./recommender_schema.png)
+
+This is the classifier database schema.
+
+![Schema](./classifier_schema.png)
