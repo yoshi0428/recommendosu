@@ -1,5 +1,23 @@
 [
   {
+    "date": "2026-11-20",
+    "title": "new NM1-5 classifier, full play history, dark mode only",
+    "changes": [
+      "New NM1-5 classifier! It's trained on ~17k tournament maps from osu!collector pools instead of the previous ~3.9k, and one network now reads both the map's hit objects and its NM/HD/HR/DT stats instead of a CNN feeding an XGBoost model",
+      "It guesses one of a map's pooled slots ~0.5% more often than the old model on the same maps, and since a lot of maps get pooled in more than one slot, it can now say a map fits several",
+      "The old model almost never picked NM5, the new one does, so expect your NM1-5 percentages to shift a bit",
+      "\"Exclude already played\" now knows every map you've ever played, not just your top and recent plays. The first time you run a recommendation it fetches your full play history in the background (a minute or two for most players), so maps you played long ago stop showing up from the next run on",
+      "Failed plays don't count towards your difficulty, mod, or NM1-5 preferences anymore, so a few fails on maps way above your level won't drag your recommendations up. They still count as played",
+      "Removed the PP Potential goal, set a minimum PP filter instead. Without star rating filters, a minimum PP also lifts the automatic star rating ceiling so harder maps that reach it can still show up",
+      "The Discord bot's /rec doesn't have the goal option anymore for the same reason",
+      "The site is dark mode only now, the light mode toggle is gone",
+      "The audio preview player sits in the bottom left now, with previous/next buttons (they skip variants of the same map) and a repeat toggle",
+      "The score breakdown pops up in the bottom right instead, next to the player, and only on wider screens",
+      "If a page fails to load (like right after I update the site), you get a message with a way back instead of a blank page",
+      "See the collections here: https://osucollector.com/users/18473778/uploads/collections"
+    ]
+  },
+  {
     "date": "2026-11-01",
     "title": "changelog page and /changelog",
     "changes": [
