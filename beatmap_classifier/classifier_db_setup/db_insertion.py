@@ -1,4 +1,4 @@
-from beatmap_classifier.classifier.utils_training import TOURNAMENT_MODS
+from beatmap_classifier.classifier.training_data import TOURNAMENT_MODS
 from beatmap_recommender.content_similarity.core_modules.mod_preferences import canonicalize_mods
 from beatmap_recommender.recommender_db_setup.beatmap_mods import (
     apply_bpm_mod,

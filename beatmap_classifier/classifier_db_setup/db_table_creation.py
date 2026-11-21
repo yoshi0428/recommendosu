@@ -148,20 +148,31 @@ def create_tables(conn):
             nm4 REAL,
             nm5 REAL,
             nm6 REAL,
+            nm7 REAL,
+            nm8 REAL,
             
             dt1 REAL,
-            dt2_and_dt3 REAL,
+            dt2 REAL,
+            dt3 REAL,
             dt4 REAL,
+            dt5 REAL,
             
             hr1 REAL,
             hr2 REAL,
             hr3 REAL,
+            hr4 REAL,
             
             hd1 REAL,
             hd2 REAL,
             hd3 REAL,
+            hd4 REAL,
+
+            fm1 REAL,
+            fm2 REAL,
+            fm3 REAL,
+            fm4 REAL,
             
-            tiebreaker REAL,
+            tb REAL,
             
             FOREIGN KEY (variant_id)
                 REFERENCES beatmap_variants(variant_id)

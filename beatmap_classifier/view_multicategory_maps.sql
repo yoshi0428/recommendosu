@@ -1,25 +1,39 @@
+-- Beatmaps labeled with two or more tournament slots, counted over all of a
+-- beatmap's variants: an NM1 + HD2 map has its labels on two different variants.
+SELECT beatmap_id, label_count
+FROM (
 SELECT
-    variant_id,
-    nm1, nm2, nm3, nm4, nm5, nm6,
-    dt1, dt2_and_dt3, dt4,
-    hr1, hr2, hr3,
-    hd1, hd2, hd3,
-    tiebreaker
-FROM tournament_predictions
-WHERE
-    (CASE WHEN nm1 IS NOT NULL THEN 1 ELSE 0 END +
-     CASE WHEN nm2 IS NOT NULL THEN 1 ELSE 0 END +
-     CASE WHEN nm3 IS NOT NULL THEN 1 ELSE 0 END +
-     CASE WHEN nm4 IS NOT NULL THEN 1 ELSE 0 END +
-     CASE WHEN nm5 IS NOT NULL THEN 1 ELSE 0 END +
-     CASE WHEN nm6 IS NOT NULL THEN 1 ELSE 0 END +
-     CASE WHEN dt1 IS NOT NULL THEN 1 ELSE 0 END +
-     CASE WHEN dt2_and_dt3 IS NOT NULL THEN 1 ELSE 0 END +
-     CASE WHEN dt4 IS NOT NULL THEN 1 ELSE 0 END +
-     CASE WHEN hr1 IS NOT NULL THEN 1 ELSE 0 END +
-     CASE WHEN hr2 IS NOT NULL THEN 1 ELSE 0 END +
-     CASE WHEN hr3 IS NOT NULL THEN 1 ELSE 0 END +
-     CASE WHEN hd1 IS NOT NULL THEN 1 ELSE 0 END +
-     CASE WHEN hd2 IS NOT NULL THEN 1 ELSE 0 END +
-     CASE WHEN hd3 IS NOT NULL THEN 1 ELSE 0 END +
-     CASE WHEN tiebreaker IS NOT NULL THEN 1 ELSE 0 END) >= 2;
+    bv.beatmap_id,
+    SUM(
+         CASE WHEN tp.nm1 IS NOT NULL THEN 1 ELSE 0 END +
+         CASE WHEN tp.nm2 IS NOT NULL THEN 1 ELSE 0 END +
+         CASE WHEN tp.nm3 IS NOT NULL THEN 1 ELSE 0 END +
+         CASE WHEN tp.nm4 IS NOT NULL THEN 1 ELSE 0 END +
+         CASE WHEN tp.nm5 IS NOT NULL THEN 1 ELSE 0 END +
+         CASE WHEN tp.nm6 IS NOT NULL THEN 1 ELSE 0 END +
+         CASE WHEN tp.nm7 IS NOT NULL THEN 1 ELSE 0 END +
+         CASE WHEN tp.nm8 IS NOT NULL THEN 1 ELSE 0 END +
+         CASE WHEN tp.dt1 IS NOT NULL THEN 1 ELSE 0 END +
+         CASE WHEN tp.dt2 IS NOT NULL THEN 1 ELSE 0 END +
+         CASE WHEN tp.dt3 IS NOT NULL THEN 1 ELSE 0 END +
+         CASE WHEN tp.dt4 IS NOT NULL THEN 1 ELSE 0 END +
+         CASE WHEN tp.dt5 IS NOT NULL THEN 1 ELSE 0 END +
+         CASE WHEN tp.hr1 IS NOT NULL THEN 1 ELSE 0 END +
+         CASE WHEN tp.hr2 IS NOT NULL THEN 1 ELSE 0 END +
+         CASE WHEN tp.hr3 IS NOT NULL THEN 1 ELSE 0 END +
+         CASE WHEN tp.hr4 IS NOT NULL THEN 1 ELSE 0 END +
+         CASE WHEN tp.hd1 IS NOT NULL THEN 1 ELSE 0 END +
+         CASE WHEN tp.hd2 IS NOT NULL THEN 1 ELSE 0 END +
+         CASE WHEN tp.hd3 IS NOT NULL THEN 1 ELSE 0 END +
+         CASE WHEN tp.hd4 IS NOT NULL THEN 1 ELSE 0 END +
+         CASE WHEN tp.fm1 IS NOT NULL THEN 1 ELSE 0 END +
+         CASE WHEN tp.fm2 IS NOT NULL THEN 1 ELSE 0 END +
+         CASE WHEN tp.fm3 IS NOT NULL THEN 1 ELSE 0 END +
+         CASE WHEN tp.fm4 IS NOT NULL THEN 1 ELSE 0 END +
+         CASE WHEN tp.tb IS NOT NULL THEN 1 ELSE 0 END
+    ) AS label_count
+FROM tournament_predictions tp
+JOIN beatmap_variants bv ON bv.variant_id = tp.variant_id
+GROUP BY bv.beatmap_id
+)
+WHERE label_count >= 2;

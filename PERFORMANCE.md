@@ -1,7 +1,9 @@
 # Performance
 
-Two scripts in `/beatmap_recommender/benchmarks/` run the recommender offline, using the scores already stored for a player (no osu! API calls). 
-Both load `beatmap_recommender/recommender.local.db` read-only by default (`--db` to change it, `--player-id` for another player).
+Two scripts in `/beatmap_recommender/benchmarks/` run the recommender offline.
+They use the scores that the database already has for a player. They do not send osu! API requests.
+By default, the two scripts open `beatmap_recommender/recommender.local.db` read-only.
+To use a different database, use `--db`. To use a different player, use `--player-id`.
 
 ```
 ### per-stage timings of the worst case (no star bounds, every mod combination: ~3 million variants)
@@ -19,13 +21,23 @@ PYTHONPATH=. python beatmap_recommender/benchmarks/snapshot_recommender.py save 
 PYTHONPATH=. python beatmap_recommender/benchmarks/snapshot_recommender.py compare before.pkl after.pkl
 ```
 
-cProfile slows down code that makes millions of small calls, so use it to find where the time goes, and the plain timings to measure it. 
-The snapshot script freezes the clock, because scores lose weight with age and two runs minutes apart would otherwise score slightly differently.
+cProfile makes code with millions of small calls slower.
+Use cProfile to find where the time goes. Use the plain timings to measure the time.
+
+The snapshot script stops the clock.
+This is necessary because the weight of a score decreases with its age.
+Without this, two runs some minutes apart give slightly different scores.
 
 ### Where the time goes
 
-Worst-case request on my PC (specs in the [README](README.md)), timing `recommend_player_sync` (Python 3.13). 
-*Original* is the code before any optimization, *numpy scoring* the first round, *columns* the second, and *cached data* the current code:
+The table shows the worst-case request on my PC (specifications in the [README](README.md)).
+The measurement is the time of `recommend_player_sync` (Python 3.13).
+The columns are:
+
+- *Original*: the code before the optimization.
+- *Numpy scoring*: the code after the first round of optimization.
+- *Columns*: the code after the second round.
+- *Cached data*: the current code.
 
 | Stage | Original | Numpy scoring | Columns | Cached data |
 |---|---|---|---|---|
@@ -37,39 +49,64 @@ Worst-case request on my PC (specs in the [README](README.md)), timing `recommen
 | Sort and truncate | 14.0s | 8.5s | 1.1s | 0.58s |
 | **Total** | **~37s** | **~21.5s** | **~2.8s** | **~1.5s** |
 
-Difficulty scores weren't changed in the last round; that row varies between measurement sessions. 
-A typical request (the default settings, ~146k variants) went from ~3.2s to ~1.2s, then to ~0.5s. 
-The `pp_potential` goal went from ~1.4s to ~0.5s for a typical request, and from ~1.7s to ~0.46s in the worst case.
+The last round did not change the difficulty scores. The time of this row changes between measurement sessions.
 
-- **Scoring** uses numpy arrays, and values that only depend on the beatmap or the mods (content similarity, classifier score, mod preference) are calculated once per distinct value, not once per variant.
-- **Candidates** come from `beatmap_variants` held as numpy columns (`core_modules/variant_table.py`), and the filters are numpy masks instead of SQL. 
-  The table is built once when the server starts (~12s, ~0.55GB of memory), read directly from the database file; the recommender never writes to `beatmap_variants`. 
-  Building it frees ~0.5GB of temporary Python objects, which glibc would otherwise keep for the life of the process, so `load_variant_table()` hands it back with `malloc_trim`. 
-  `tests/test_variant_ranking.py` checks the masks return the same rows, in the same order and with the same Python types, as the SQL they replaced.
-- **Requests query the database file directly**, not an in-memory copy of it. The variant table is the only copy of the data held in memory: 
-  once candidates come from it, the SQL left per request is a few indexed lookups on `scores` (~1.7ms for a typical player, the same as from an in-memory copy, since the OS page cache holds the pages they read). 
-  The in-memory SQLite copy of the whole ~560MB file this replaced held `beatmap_variants` twice, and every score had to be written to it and to the file. 
-  Startup memory went from ~1.17GB to ~0.61GB resident (peak ~1.63GB to ~1.06GB). Requests that don't update scores (the benchmarks) open the file read-only.
-- **Results are only turned into dicts when they're read.** `rank_variants` returns a `VariantRows`, which holds the ranked row numbers and score arrays, and builds dicts for the slice being read. 
-  The result cache stores it as-is, so a page of 1,000 rows takes ~2ms to build, and a cached worst-case result takes ~0.12GB instead of ~6GB of 3 million dicts.
-- **Static data is read once, at startup.** The NM candidate pool for content similarity comes from the variant table instead of a ~151k-row SQLite query per request (`get_maps`), 
-  and the variant table also holds every beatmap's NM1 to NM5 probabilities (~6MB), so the classifier score is one array calculation instead of ~70 SQL queries and a Python loop per beatmap. 
-  `tests/test_content_similarity.py` checks `get_maps` against the SQL it replaced.
-- **`pp_potential` is computed for all variants at once** (`calculate_pp_potentials`) instead of in a per-variant loop (~10µs each). 
-  To give bit-identical results it reproduces two details of the old Python arithmetic: `sum()` over floats uses compensated (Neumaier) summation since Python 3.12, and Python's `x ** 2` calls C `pow()` while numpy's multiplies, which can differ in the last bit.
-- **Sorting** sorts on `final_score` alone and only re-sorts the rows that tie on it by the other keys, instead of a full `np.lexsort` pass per key. 
-  `tests/test_variant_ranking.py` checks it against `np.lexsort` with many ties, NaNs and signed zeros.
-- **Content similarity** takes the square root of each candidate's smallest squared distance, instead of one square root per seed × candidate pair (the same result, since the square root preserves order).
+A typical request uses the default settings (approximately 146,000 variants).
+Its time decreased from approximately 3.2 seconds to 1.2 seconds, and then to 0.5 seconds.
 
-The output is identical to the original code (checked with `snapshot_recommender.py`, including smaller `neighbors_k` values, and the `pp_potential` goal).
+These are the changes:
+
+- **Scoring** uses numpy arrays.
+  Some values change only with the beatmap or the mods: the content similarity, the classifier score, and the mod preference.
+  The recommender calculates these values one time for each different value, not one time for each variant.
+- **Candidates** come from `beatmap_variants`, which the recommender keeps as numpy columns (`core_modules/variant_table.py`).
+  - The filters are numpy masks, not SQL.
+  - The recommender makes this table one time, when the server starts. This takes approximately 12 seconds and 0.55 GB of memory.
+  - The recommender reads the table directly from the database file. It never writes to `beatmap_variants`.
+  - The table build releases approximately 0.5 GB of temporary Python objects. Without action, glibc keeps this memory until the process stops. Thus, `load_variant_table()` releases it with `malloc_trim`.
+  - `tests/test_variant_ranking.py` makes sure that the masks give the same rows as the old SQL. The rows must have the same sequence and the same Python types.
+- **Requests read the database file directly.** They do not use a copy of the database in memory.
+  - The variant table is the only copy of the data in memory.
+  - Each request still sends some SQL queries to `scores`. These queries use indexes and take approximately 1.7 ms for a typical player.
+  - This is the same time as from a copy in memory, because the page cache of the operating system keeps the pages that these queries read.
+  - The old copy of the full SQLite file in memory (approximately 560 MB) had `beatmap_variants` two times. Also, the backend had to write each score to the copy and to the file.
+  - The resident memory at startup decreased from approximately 1.17 GB to 0.61 GB. The peak decreased from approximately 1.63 GB to 1.06 GB.
+  - Requests that do not change scores (for example, the benchmarks) open the file read-only.
+- **The recommender makes dicts from the results only when something reads them.**
+  - `rank_variants` returns a `VariantRows` object. This object keeps the ranked row numbers and the score arrays.
+  - It makes dicts only for the slice that is read.
+  - The result cache keeps this object without a change. Thus, a page of 1,000 rows takes approximately 2 ms to make.
+  - A worst-case result in the cache uses approximately 0.12 GB of memory. Before, it used approximately 6 GB for 3 million dicts.
+- **The recommender reads static data one time, at startup.**
+  - The NM candidates for content similarity come from the variant table. Before, each request sent a SQLite query of approximately 151,000 rows (`get_maps`).
+  - The variant table also keeps the NM1 to NM5 probabilities of each beatmap (approximately 6 MB).
+  - Thus, the classifier score is one array calculation. Before, it was approximately 70 SQL queries and a Python loop for each beatmap.
+  - `tests/test_content_similarity.py` makes sure that `get_maps` gives the same result as the old SQL.
+- **Sorting** sorts only on `final_score`.
+  Then, it sorts again only the rows that have the same `final_score`, with the other keys.
+  Before, it did a full `np.lexsort` pass for each key.
+  `tests/test_variant_ranking.py` compares it with `np.lexsort` on data with many equal values, NaNs, and signed zeros.
+- **Content similarity** calculates one square root for each candidate, from the smallest squared distance of that candidate.
+  Before, it calculated one square root for each pair of seed and candidate.
+  The result is the same, because the square root does not change the order.
+
+The output is the same as the output of the original code.
+`snapshot_recommender.py` makes sure of this, also with smaller `neighbors_k` values.
 
 ### Python version
 
-The backend runs on Python 3.15 with the JIT on (`PYTHON_JIT=1`), installed with uv in the Dockerfile, since the official `python:3.15-slim` image doesn't include the JIT. 
-Measured in Docker with the backend's Dockerfile, changing only how Python is installed (Python 3.13.16 and 3.15.0, numpy 2.5.4 in all of them). 
-*Official* is the `python:3.x-slim` image; *uv* is python-build-standalone installed with uv, the only one of these with the 3.15 JIT compiled in. 
-Request times are the mean of 3 worst-case runs or 5 typical runs, with the production site running on the same PC, so differences of ~5% are noise. 
-These were measured before the *cached data* round above, so the request times are higher than the current ones:
+The backend runs on Python 3.15 with the JIT on (`PYTHON_JIT=1`).
+The Dockerfile installs Python with uv, because the official `python:3.15-slim` image does not include the JIT.
+
+The measurements used the Dockerfile of the backend. Only the Python installation changed between them.
+The versions were Python 3.13.16 and 3.15.0, with numpy 2.5.4 in all of them.
+
+- *Official* is the `python:3.x-slim` image.
+- *uv* is python-build-standalone, installed with uv. This is the only one that has the 3.15 JIT.
+
+Each request time is the mean of 3 worst-case runs or 5 typical runs.
+The production site ran on the same PC at the same time. Thus, differences of approximately 5% are noise.
+These measurements were before the *cached data* round. Thus, the request times are higher than the current times.
 
 | | 3.13 official | 3.13 uv | 3.15 official | 3.15 uv | 3.15 uv, JIT on |
 |---|---|---|---|---|---|
@@ -78,20 +115,33 @@ These were measured before the *cached data* round above, so the request times a
 | Typical request (default settings) | 1.35s | 1.27s | 1.34s | 1.29s | 1.26s |
 | Building the variant table at startup | 13.0s | 13.0s | 13.0s | 13.4s | 11.3s |
 
-- **The Python version and the JIT don't change request times** anymore: the remaining work is numpy, which runs the same compiled code under every interpreter. 
-  Garbage collection takes ~0.1s per worst-case request on every version.
-- **The JIT only helps the startup table build** (~13% faster), the one remaining Python-heavy loop, and only once per restart. 
-  It isn't available in the official image either: `python:3.15-slim` is built without `--enable-experimental-jit`, so `PYTHON_JIT=1` does nothing there.
-- **Earlier, 3.15 was slower.** Before the variant table, every request created millions of Python objects and every cached result kept them alive. 
-  3.15's garbage collector took longer the more objects were alive (worst case 23s on 3.13 vs 26s, 31s, then 34s on 3.15 as results piled up), and uv's Clang builds were ~10% faster than the official images. 
-  Neither difference shows up now that results are numpy arrays.
-- Other compilers (Numba, Cython, PyPy) or rewriting parts in another language wouldn't help much either, for the same reason as the JIT.
+- **The Python version and the JIT do not change the request times now.**
+  The remaining work is in numpy. Numpy runs the same compiled code with all interpreters.
+  Garbage collection takes approximately 0.1 seconds for each worst-case request with all versions.
+- **The JIT makes only the table build at startup faster** (approximately 13%).
+  This build is the last loop with much Python work, and it occurs only one time at each restart.
+  The official image does not have the JIT. `python:3.15-slim` is built without `--enable-experimental-jit`. Thus, `PYTHON_JIT=1` has no effect in it.
+- **Before, 3.15 was slower.**
+  - Before the variant table, each request made millions of Python objects, and each cached result kept them in memory.
+  - The garbage collector of 3.15 took more time when more objects were in memory.
+  - The worst case took 23 seconds on 3.13. On 3.15, it took 26, 31, and then 34 seconds as the number of results increased.
+  - Also, the Clang builds of uv were approximately 10% faster than the official images.
+  - These differences do not occur now, because the results are numpy arrays.
+- Other compilers (Numba, Cython, PyPy) or a different language for some parts would also not help much. The reason is the same as for the JIT.
 
 ### Memory allocator (`MALLOC_ARENA_MAX=1`)
 
-The server runs each request in an `asyncio.to_thread` worker thread, while the benchmark scripts run on the main thread, and that difference made production ~2-3x slower than the benchmarks. 
-glibc gives worker threads their own malloc arenas, which hand the recommender's large numpy temporaries (e.g. the 64MB seed × candidate distance batches) back to the OS after each use, so every request page-faults that memory in again. 
-The Dockerfile sets `MALLOC_ARENA_MAX=1`, so every thread uses the main arena. Measured in the backend container, through `asyncio.to_thread` like the server:
+The server runs each request in an `asyncio.to_thread` worker thread.
+The benchmark scripts run on the main thread.
+Because of this difference, production was 2 to 3 times slower than the benchmarks.
+
+glibc gives each worker thread its own malloc arena.
+These arenas give the large numpy temporaries of the recommender back to the operating system after each use.
+An example is the 64 MB batches of seed × candidate distances.
+Thus, each request must page-fault this memory in again.
+
+The Dockerfile sets `MALLOC_ARENA_MAX=1`. Thus, all threads use the main arena.
+The measurements below are from the backend container, through `asyncio.to_thread`, as in the server:
 
 | | Default | `MALLOC_ARENA_MAX=1` |
 |---|---|---|
@@ -99,5 +149,12 @@ The Dockerfile sets `MALLOC_ARENA_MAX=1`, so every thread uses the main arena. M
 | Typical request | ~1.17s | ~0.48s |
 | Worst case | ~2.5s | ~1.33s |
 
-`MALLOC_ARENA_MAX=2` only helps some requests. With one arena, threads share malloc's lock, which doesn't matter here: requests are limited by `RECOMMENDATION_CONCURRENCY` and spend their time in numpy, not in malloc. 
-On the host (outside Docker) the same slowdown is smaller (~0.5s instead of ~0.22s for content similarity), so measure in the container when timing the server.
+`MALLOC_ARENA_MAX=2` helps only some requests.
+
+With one arena, the threads share the malloc lock. This is not a problem here, for two reasons:
+
+- `RECOMMENDATION_CONCURRENCY` limits the number of requests at the same time.
+- The requests use their time in numpy, not in malloc.
+
+On the host (outside Docker), the same slowdown is smaller: approximately 0.5 seconds, not 0.22 seconds, for content similarity.
+Thus, when you measure the time of the server, do the measurement in the container.

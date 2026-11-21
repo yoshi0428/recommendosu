@@ -1,11 +1,12 @@
-import glob
 import os
 import random
 import sys
 import time
+from pathlib import Path
 
 import requests
 
+OUTPUTS = Path(__file__).resolve().parent / "outputs"
 BASE_URL = "https://osu.direct/api/osu"
 REQUEST_DELAY = 0.75
 MAX_RETRIES = 8
@@ -131,16 +132,24 @@ def download_beatmaps(input_file, output_folder):
                 time.sleep(delay)
 
 
+def output_folder(txt_file):
+    """
+    outputs/<list folder>/<LABEL>/, for example tournament/NM1.txt ->
+    outputs/tournament/NM1/ and expanded_collection/NM1.txt ->
+    outputs/expanded_collection/NM1/, so lists from different folders never
+    share an output folder.
+    """
+    path = Path(txt_file).resolve()
+    return OUTPUTS / path.parent.name / path.stem
+
+
 if __name__ == "__main__":
-    if len(sys.argv) == 1:
-        txt_files = glob.glob("*.txt")
-        for txt_file in txt_files:
-            output_folder = f"./outputs/{os.path.splitext(txt_file)[0]}"
-            download_beatmaps(txt_file, output_folder)
-    elif len(sys.argv) == 2:
-        input_file = sys.argv[1]
-        output_folder = f"./outputs/{os.path.splitext(input_file)[0]}"
-        download_beatmaps(input_file, output_folder)
-    else:
-        print("Usage: python downloader_backoff.py [input.txt]")
+    # No argument: every .txt in the current folder. A .txt file: that list.
+    # A folder (for example expanded_collection): every .txt in it.
+    if len(sys.argv) > 2:
+        print("Usage: python downloader_backoff.py [input.txt | folder]")
         sys.exit(1)
+    target = Path(sys.argv[1]) if len(sys.argv) == 2 else Path(".")
+    txt_files = sorted(target.glob("*.txt")) if target.is_dir() else [target]
+    for txt_file in txt_files:
+        download_beatmaps(txt_file, output_folder(txt_file))

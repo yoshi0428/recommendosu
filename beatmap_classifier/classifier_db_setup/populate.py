@@ -1,3 +1,4 @@
+import argparse
 import os
 import sqlite3
 from concurrent.futures import ProcessPoolExecutor
@@ -21,7 +22,7 @@ from beatmap_recommender.recommender_db_setup.star_calculator import VersionAwar
 # ============================================================
 
 CLASSIFIER_DIR = Path(__file__).resolve().parents[1]
-DATABASE_PATH = CLASSIFIER_DIR / "unexpanded_beatmaps.db"
+DATABASE_PATH = CLASSIFIER_DIR / "expanded_collection.db"
 ROOT_DIR = CLASSIFIER_DIR / "data"
 VIEW_MULTICATEGORY_SQL = CLASSIFIER_DIR / "view_multicategory_maps.sql"
 CLEAN_MULTICATEGORY_SQL = CLASSIFIER_DIR / "clean_multicategory_maps.sql"
@@ -78,9 +79,9 @@ def process_difficulty(file_path):
     }
 
 
-def main():
+def main(database_path=DATABASE_PATH, root_dir=ROOT_DIR, keep_multicategory=False):
 
-    conn = sqlite3.connect(DATABASE_PATH)
+    conn = sqlite3.connect(database_path)
     conn.execute("PRAGMA journal_mode = WAL")
     conn.execute(
         "PRAGMA synchronous = NORMAL"
@@ -91,7 +92,7 @@ def main():
     create_tables(conn)
 
     osu_files = []
-    for dirpath, _, filenames in os.walk(ROOT_DIR):
+    for dirpath, _, filenames in os.walk(root_dir):
         for filename in filenames:
             if filename.lower().endswith(".osu"):
                 osu_files.append(os.path.join(dirpath, filename))
@@ -207,7 +208,8 @@ def main():
     multicategory_count = conn.execute(
         f"SELECT COUNT(*) FROM ({view_sql})"
     ).fetchone()[0]
-    conn.executescript(CLEAN_MULTICATEGORY_SQL.read_text())
+    if not keep_multicategory:
+        conn.executescript(CLEAN_MULTICATEGORY_SQL.read_text())
     conn.close()
 
     print()
@@ -218,8 +220,19 @@ def main():
     print(f"Successful:        {successful}")
     print(f"Skipped:            {skipped}")
     print(f"Failed variants:   {failed_variants}")
-    print(f"Multi-category:    {multicategory_count} (removed)")
+    print(f"Multi-category:    {multicategory_count} ({'kept' if keep_multicategory else 'removed'})")
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Build a classifier database from .osu files in slot-named folders.")
+    parser.add_argument("--db", type=Path, default=DATABASE_PATH, help=f"database to create/extend (default {DATABASE_PATH.name})")
+    parser.add_argument(
+        "--data-dir", type=Path, default=ROOT_DIR, help="root holding one folder per slot, e.g. NM1/123.osu (default data/)"
+    )
+    parser.add_argument(
+        "--keep-multicategory",
+        action="store_true",
+        help="keep maps pooled in several slots (train_fusion.py gives them each slot as a label); by default they're removed",
+    )
+    args = parser.parse_args()
+    main(args.db.expanduser(), args.data_dir.expanduser(), args.keep_multicategory)
