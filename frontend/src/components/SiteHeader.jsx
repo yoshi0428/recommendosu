@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Form, Button } from "react-bootstrap";
 import { Link } from "react-router-dom";
 import { ChevronUp, Funnel } from "react-bootstrap-icons";
-import useTheme from "../hooks/useTheme";
 import ModCheckboxes from "./ModCheckboxes";
 import "./SiteHeader.css";
 
@@ -60,7 +59,6 @@ function SiteHeader({
   advancedSettingsButton,
   logout,
 }) {
-  const { theme, toggleTheme } = useTheme();
   // Phones only: the quick filters and nav buttons are hidden behind a toggle
   // so the results get most of the screen. Larger screens always show them.
   const [controlsOpen, setControlsOpen] = useState(false);
@@ -90,11 +88,7 @@ function SiteHeader({
               href="https://buymeacoffee.com/recommendosu"
               target="_blank"
               rel="noopener noreferrer"
-              className={`btn btn-sm text-decoration-none text-nowrap ${
-                theme === "dark"
-                  ? "btn-outline-warning"
-                  : "btn-outline-secondary"
-              }`}
+              className="btn btn-sm text-decoration-none text-nowrap btn-outline-warning"
             >
               Buy me a coffee! ☕
             </a>
@@ -190,16 +184,6 @@ function SiteHeader({
               >
                 About
               </Button>
-
-              {/* Theme */}
-              <button
-                type="button"
-                className="btn btn-outline-secondary btn-sm"
-                onClick={toggleTheme}
-                aria-label="Toggle color theme"
-              >
-                {theme === "dark" ? "☀" : "🌙"}
-              </button>
 
               {/* Logout */}
               {logout && (

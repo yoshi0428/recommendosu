@@ -1,24 +1,11 @@
 import { Button, Container } from "react-bootstrap";
 import { Link } from "react-router-dom";
 
-import useTheme from "../hooks/useTheme";
-
 function About() {
-  const { theme } = useTheme();
-
-  const sectionClass =
-    theme === "dark"
-      ? "bg-secondary bg-opacity-10 border-secondary"
-      : "app-surface";
+  const sectionClass = "bg-secondary bg-opacity-10 border-secondary";
 
   return (
-    <div
-      className={
-        theme === "dark"
-          ? "bg-dark text-light min-vh-100"
-          : "bg-body text-body min-vh-100"
-      }
-    >
+    <div className="bg-dark text-light min-vh-100">
       <Container className="py-5">
         <div className="mb-4 d-flex flex-wrap gap-2">
           <Button as={Link} to="/" variant="outline-secondary">
@@ -123,31 +110,19 @@ function About() {
           </p>
 
           <p className="mb-0">
-            On the Balanced profile, setting a minimum PP without setting a star
+            Setting a minimum PP without setting a star
             rating filter will set the maximum star rating to infinity, so
             harder maps that reach your PP target can still be recommended. The
             minimum difficulty threshold still applies.
           </p>
         </div>
 
-        {/* RECOMMENDATION GOALS */}
+        {/* HOW RECOMMENDATIONS ARE RANKED */}
         <div className={`p-4 mb-4 rounded border ${sectionClass}`}>
-          <h3 className="mb-3">Recommendation Goals</h3>
+          <h3 className="mb-3">How Recommendations Are Ranked</h3>
 
           <p>
-            recommendosu offers several recommendation profiles that adjust how
-            candidate beatmaps are ranked. Each profile combines content
-            similarity, difficulty, mod preference, and additional signals such
-            as tournament category classification or PP potential.
-          </p>
-
-          <hr className="my-4" />
-
-          <h4 className="mt-4 mb-3">Balanced</h4>
-
-          <p>
-            The <strong>Balanced</strong> profile is the default recommendation
-            mode. It primarily prioritizes maps that are similar to your
+            Recommendations primarily prioritize maps that are similar to your
             existing plays, while also considering the types of tournament
             categories you tend to play. Difficulty provides a smaller
             adjustment to help keep recommendations near your demonstrated
@@ -160,31 +135,16 @@ function About() {
             --- 20% NM1–5 category match --- 5% mod preference
           </p>
 
-          <hr className="my-4" />
-
-          <h4 className="mt-4 mb-3">PP Potential</h4>
-
           <p>
-            The <strong>PP Potential</strong> profile places additional emphasis
-            on maps that may offer higher performance-point potential. Content
-            similarity remains the largest factor, while PP potential and
-            tournament category classification provide additional signals.
-            Difficulty has a smaller influence, helping recommendations remain
-            appropriate for the player's demonstrated ability without dominating
-            the ranking.
-          </p>
-
-          <p>
-            <strong>Weights:</strong> 50% content similarity --- 25% PP
-            potential --- 10% NM1–5 category match --- 10% difficulty --- 5% mod
-            preference
+            To look for maps worth more PP, set a minimum PP filter. Without
+            star rating filters, a minimum PP also lifts the automatic star
+            rating ceiling, so harder maps that reach it can appear.
           </p>
 
           <hr className="my-4" />
 
           <p>
-            The <strong>NM1–5 classifier</strong> is used in both recommendation
-            profiles. It estimates the tournament category characteristics of
+            The <strong>NM1–5 classifier</strong> estimates the tournament category characteristics of
             each beatmap and compares them with the player's category
             preferences. These preferences are derived from past plays, taking
             into account factors such as recency, top-play performance, and PP
@@ -193,7 +153,7 @@ function About() {
 
           <p>
             For each candidate, the recommendation system compares the player's
-            category preferences against the CNN-XGBoost model's precomputed
+            category preferences against the classifier's precomputed
             classification probabilities of the beatmap's NM variant. The
             resulting similarity contributes to the final recommendation score.
           </p>
@@ -208,8 +168,8 @@ function About() {
 
           {/* QUICK NOTICE */}
           <h5 className="mb-0">
-            The following sections will go into more depth on difficulty, PP
-            potential, and mod preference scores. I find content similarity
+            The following sections will go into more depth on difficulty and
+            mod preference scores. I find content similarity
             pretty intuitive, but just know that it compares every ranked map
             against each of your top & recent plays, and keeps each map's
             closest match.
@@ -228,8 +188,7 @@ function About() {
               BPM
             </strong>
             . The difficulty score is then combined with content similarity and
-            other recommendation signals according to the selected
-            recommendation goal.
+            other recommendation signals according to the weights above.
           </p>
 
           <hr className="my-4" />
@@ -357,54 +316,6 @@ function About() {
 
           <p className="mb-0">
             <strong>PP influence:</strong> 1 + ABILITY_PP_WEIGHT * sqrt(PP) / 10
-          </p>
-        </div>
-
-        {/* PP POTENTIAL EXPLAINED */}
-        <div className={`p-4 mb-4 rounded border ${sectionClass}`}>
-          <h3 className="mb-3">PP Potential Explained</h3>
-
-          <p>
-            The <strong>PP Potential</strong> signal estimates how promising a
-            candidate is for earning PP relative to your demonstrated
-            difficulty. It is not an estimate of how much PP you are guaranteed
-            to gain.
-          </p>
-
-          <p>
-            Candidates receive more PP-potential value when they offer higher PP
-            while remaining within a reasonable range of your demonstrated
-            difficulty. Maps below your usual difficulty receive a reduced
-            score, while maps that are substantially beyond your demonstrated
-            difficulty are penalized.
-          </p>
-
-          <p>
-            The system uses <strong>2.50 standard deviations</strong> above your
-            demonstrated difficulty as the point at which the below-ability
-            penalty stops. Candidates closer than 2.50 standard deviations to
-            your profile receive a reduced PP-potential score. Candidates
-            between <strong>2.50 and 5.00 standard deviations</strong> above or
-            below this range do not receive an additional difficulty penalty.
-          </p>
-
-          <p>
-            Candidates more than <strong>5.00 standard deviations</strong> from
-            your demonstrated difficulty receive an increasingly strong penalty.
-            This prevents extremely difficult maps from receiving a high
-            PP-potential score solely because their raw PP is high.
-          </p>
-
-          <p className="mb-0">
-            <strong>PP potential parameters</strong>{" "}
-            <span className="d-block">
-              Below-ability threshold (PP Push Target Z) --- 2.50 standard
-              deviations
-            </span>
-            <span className="d-block">
-              Maximum difficulty range (PP Push Maximum Z) --- 5.00 standard
-              deviations
-            </span>
           </p>
         </div>
 

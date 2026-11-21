@@ -1,20 +1,11 @@
 import { Button, Container } from "react-bootstrap";
 
 import { login } from "../api/client";
-import useTheme from "../hooks/useTheme";
 
 function AuthScreen() {
-  const { theme } = useTheme();
-
-  const isDark = theme === "dark";
-
   return (
     <div
-      className={
-        isDark
-          ? "bg-dark text-light min-vh-100 d-flex align-items-center"
-          : "bg-body text-body min-vh-100 d-flex align-items-center"
-      }
+      className="bg-dark text-light min-vh-100 d-flex align-items-center"
     >
       <Container className="py-5">
         <div className="text-center">

@@ -3,7 +3,6 @@ import { Alert, Button, Container, Spinner } from "react-bootstrap";
 import { Link } from "react-router-dom";
 
 import { getChangelog } from "../api/client";
-import useTheme from "../hooks/useTheme";
 
 // "2026-11-01" -> "November 1, 2026". Parsed as UTC and shown as UTC, so the
 // day doesn't shift with the visitor's time zone.
@@ -33,7 +32,6 @@ const withLinks = (text) =>
 
 // Public like About: beatmap_recommender/changelog.json, via GET /api/v1/changelog.
 function Changelog() {
-  const { theme } = useTheme();
   const [entries, setEntries] = useState(null);
   const [error, setError] = useState(null);
 
@@ -43,19 +41,10 @@ function Changelog() {
       .catch((err) => setError(err.message));
   }, []);
 
-  const sectionClass =
-    theme === "dark"
-      ? "bg-secondary bg-opacity-10 border-secondary"
-      : "app-surface";
+  const sectionClass = "bg-secondary bg-opacity-10 border-secondary";
 
   return (
-    <div
-      className={
-        theme === "dark"
-          ? "bg-dark text-light min-vh-100"
-          : "bg-body text-body min-vh-100"
-      }
-    >
+    <div className="bg-dark text-light min-vh-100">
       <Container className="py-5">
         <div className="mb-4 d-flex flex-wrap gap-2">
           <Button as={Link} to="/" variant="outline-secondary">

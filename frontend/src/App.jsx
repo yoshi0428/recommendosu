@@ -1,9 +1,9 @@
 import { lazy, Suspense } from "react";
 import { Container, Spinner } from "react-bootstrap";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 
+import PageErrorBoundary from "./components/PageErrorBoundary";
 import { useAuth } from "./hooks/useAuth";
-import useTheme from "./hooks/useTheme";
 
 // Each page is its own chunk, so a visitor only downloads the page they land
 // on (signed-out visitors never load the recommendations UI).
@@ -17,17 +17,10 @@ const Changelog = lazy(() => import("./pages/Changelog"));
 
 function App() {
   const { user, loading, logout } = useAuth();
-
-  const { theme } = useTheme();
+  const { pathname } = useLocation();
 
   const loadingScreen = (label) => (
-    <div
-      className={
-        theme === "dark"
-          ? "bg-dark text-light min-vh-100"
-          : "bg-body text-body min-vh-100"
-      }
-    >
+    <div className="bg-dark text-light min-vh-100">
       <Container className="py-5 text-center">
         <Spinner animation="border" />
 
@@ -42,23 +35,26 @@ function App() {
 
   return (
     <Suspense fallback={loadingScreen("Loading...")}>
-      <Routes>
-        <Route path="/about" element={<About />} />
-        <Route path="/changelog" element={<Changelog />} />
+      {/* A page that fails to load shows a way back instead of a blank screen. */}
+      <PageErrorBoundary key={pathname}>
+        <Routes>
+          <Route path="/about" element={<About />} />
+          <Route path="/changelog" element={<Changelog />} />
 
-        <Route
-          path="/"
-          element={
-            user ? (
-              <RecommendationsPage user={user} logout={logout} />
-            ) : (
-              <AuthScreen />
-            )
-          }
-        />
+          <Route
+            path="/"
+            element={
+              user ? (
+                <RecommendationsPage user={user} logout={logout} />
+              ) : (
+                <AuthScreen />
+              )
+            }
+          />
 
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </PageErrorBoundary>
     </Suspense>
   );
 }

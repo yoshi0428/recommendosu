@@ -14,10 +14,10 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_EXCLUDED_MODS, createDefaultSettings } from "@/utils/recommendation";
 
 describe("createDefaultSettings", () => {
-  it("starts with the default goal, status and mod exclusions", () => {
+  it("starts with the default status and mod exclusions", () => {
     const settings = createDefaultSettings();
 
-    expect(settings.goal).toBe("balanced");
+    expect(settings).not.toHaveProperty("goal");
     expect(settings.beatmap_status).toBe("all");
     expect(settings.mods).toEqual([]);
     expect(settings.excluded_mods).toEqual(["EZ", "HT", "FL"]);

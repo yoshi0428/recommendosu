@@ -1,64 +1,16 @@
-/* Light theme: Bootstrap's defaults are pure white, which is harsh next to
-   the cover art. The page gets a soft grey and inputs a lighter grey, so
-   they still stand out without glaring.
+/* The site is dark only (data-bs-theme="dark" in index.html).
    Loaded after Bootstrap so these variables win. */
-[data-bs-theme="light"] {
-  --app-surface: #f3f4f6;
 
-  --bs-body-bg: #e9eaee;
-  --bs-body-bg-rgb: 233, 234, 238;
-  --bs-secondary-bg: #dcdee4;
-  --bs-secondary-bg-rgb: 220, 222, 228;
-  --bs-tertiary-bg: #e2e4e9;
-  --bs-tertiary-bg-rgb: 226, 228, 233;
-  --bs-border-color: #c4c7cf;
-}
-
-[data-bs-theme="light"] .form-control,
-[data-bs-theme="light"] .form-select {
-  background-color: var(--app-surface);
-}
-
-[data-bs-theme="light"] .form-check-input {
-  --bs-form-check-bg: var(--app-surface);
-}
-
-/* Settings modal: the same grey as the page for the background and section
-   cards (the cards stand out by their borders and headers), with inputs on
-   the light surface like the header's. */
-[data-bs-theme="light"] .modal-content {
-  --bs-modal-bg: var(--bs-body-bg);
-}
-
-[data-bs-theme="light"] .card {
-  --bs-card-bg: var(--bs-body-bg);
-}
-
-/* Bootstrap's grey (#6c757d) drops below WCAG AA on the darker page, so use
-   its hover shade for the outline buttons' text and border. */
-[data-bs-theme="light"] .btn-outline-secondary {
-  --bs-btn-color: #5c636a;
-  --bs-btn-border-color: #5c636a;
-}
-
-/* Same problem on the dark page (3.3:1), so lighten it there (5.2:1). */
-[data-bs-theme="dark"] .btn-outline-secondary {
+/* Bootstrap's grey outline buttons are 3.3:1 on the dark page, below WCAG AA,
+   so lighten them (5.2:1). */
+.btn-outline-secondary {
   --bs-btn-color: #8f969d;
   --bs-btn-border-color: #8f969d;
 }
 
-.app-surface {
-  background-color: var(--app-surface);
-}
-
 /* Thin, rounded scrollbars for the results list and the settings modal on
    desktop. Phones keep their native overlay scrollbars. */
-[data-bs-theme="light"] {
-  --app-scrollbar-thumb: #b4b8c3;
-  --app-scrollbar-thumb-hover: #9097a3;
-}
-
-[data-bs-theme="dark"] {
+:root {
   --app-scrollbar-thumb: #4a5058;
   --app-scrollbar-thumb-hover: #646b75;
 }

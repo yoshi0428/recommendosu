@@ -27,7 +27,7 @@ vi.mock("@/components/recommendations/RecommendationBody", () => ({
 }));
 
 beforeEach(() => {
-  // jsdom's localStorage isn't usable here; useTheme only needs get/set.
+  // jsdom's localStorage isn't usable here; AudioPreview (its volume) only needs get/set.
   const store = new Map();
   vi.stubGlobal("localStorage", {
     getItem: (key) => store.get(key) ?? null,

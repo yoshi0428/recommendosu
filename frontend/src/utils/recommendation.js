@@ -16,13 +16,12 @@ const DEFAULT_DIFFICULTY_FEATURE_WEIGHTS = {
 export const DEFAULT_EXCLUDED_MODS = ["EZ", "HT", "FL"];
 
 // The settings the UI can change, as POST /recommend's body. Everything else
-// (the result limit, similarity weights, goal weights...) is left out, so the
+// (the result limit, similarity weights, score weights...) is left out, so the
 // backend uses its own defaults (RecommendationSettings in
 // beatmap_recommender/api/model.py).
 export function createDefaultSettings() {
   return {
     player_id: null,
-    goal: "balanced",
     beatmap_status: "all",
     mods: [],
     excluded_mods: [...DEFAULT_EXCLUDED_MODS],
@@ -54,8 +53,5 @@ export function createDefaultSettings() {
     ability_recent_weight: 2.0,
     ability_pp_weight: 0.05,
     recency_half_life_days: 30.0,
-
-    pp_push_target_z: 2.5,
-    pp_push_max_z: 5.0,
   };
 }

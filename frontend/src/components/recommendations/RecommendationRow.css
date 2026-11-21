@@ -1,11 +1,6 @@
 /* Title colours follow osu!'s ranked (green) and loved (pink) statuses,
-   tuned to stay readable (WCAG AA) on each theme's table background. */
-[data-bs-theme="light"] {
-  --status-ranked-color: #276a2b;
-  --status-loved-color: #c2185b;
-}
-
-[data-bs-theme="dark"] {
+   tuned to stay readable (WCAG AA) on the dark table background. */
+:root {
   --status-ranked-color: #9be15d;
   --status-loved-color: #ff79b4;
 }

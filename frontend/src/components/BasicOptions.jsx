@@ -5,11 +5,6 @@ import {useState} from "react";
 const MIN_YEAR = 2007;
 const MAX_YEAR = 2026;
 
-const GOALS = [
-  ["balanced", "Balanced"],
-  ["pp_potential", "PP Potential"],
-];
-
 const BEATMAP_STATUSES = [
   ["all", "All"],
   ["ranked", "Ranked"],
@@ -93,23 +88,6 @@ function BasicOptions({settings, updateSetting}) {
           </Col>
 
           <Col xl={2}>
-            <Form.Group controlId="goal">
-              <Form.Label>Goal</Form.Label>
-
-              <Form.Select
-                value={settings.goal}
-                onChange={(event) => updateSetting("goal", event.target.value)}
-              >
-                {GOALS.map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </Form.Select>
-            </Form.Group>
-          </Col>
-
-          <Col xl={2}>
             <Form.Group controlId="exclude-already-played">
               <Form.Label>Already Played</Form.Label>
 
@@ -166,7 +144,7 @@ function BasicOptions({settings, updateSetting}) {
             </Form.Group>
           </Col>
 
-          <Col xl={2}>
+          <Col xl={4}>
             <Form.Group>
               <Form.Label as="div">Year range</Form.Label>
 

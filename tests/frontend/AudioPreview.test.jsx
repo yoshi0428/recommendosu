@@ -117,3 +117,64 @@ describe("AudioPreviewProvider", () => {
     expect(container.querySelector("audio").hasAttribute("src")).toBe(false);
   });
 });
+
+describe("previous, next and repeat", () => {
+  // Two variants of mapset 2 (same preview audio), then mapset 3, then a row
+  // that hasn't been fetched yet, then mapset 4.
+  const PLAYLIST = [
+    { ...RECOMMENDATION, variant_id: 10 },
+    { ...RECOMMENDATION, variant_id: 11 },
+    { ...RECOMMENDATION, beatmap_id: 3, beatmapset_id: 3, variant_id: 12 },
+    undefined,
+    { ...RECOMMENDATION, beatmap_id: 4, beatmapset_id: 4, variant_id: 13 },
+  ];
+
+  function Player() {
+    return (
+      <AudioPreviewProvider playlist={PLAYLIST}>
+        <table>
+          <tbody>
+            <RecommendationRow
+              recommendation={PLAYLIST[0]}
+              virtualRow={{ index: 0 }}
+              rowVirtualizer={{ measureElement: () => {} }}
+            />
+          </tbody>
+        </table>
+      </AudioPreviewProvider>
+    );
+  }
+
+  it("skips variants with the same preview and rows not fetched yet", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<Player />);
+    const src = () => container.querySelector("audio").getAttribute("src");
+
+    await user.click(container.querySelector(".recommendation-cover"));
+    await screen.findByRole("button", { name: "Pause preview" });
+    expect(screen.getByRole("button", { name: "Previous preview" })).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "Next preview" }));
+    await waitFor(() => expect(src()).toBe("https://b.ppy.sh/preview/3.mp3"));
+
+    await user.click(screen.getByRole("button", { name: "Next preview" }));
+    await waitFor(() => expect(src()).toBe("https://b.ppy.sh/preview/4.mp3"));
+    expect(screen.getByRole("button", { name: "Next preview" })).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "Previous preview" }));
+    await waitFor(() => expect(src()).toBe("https://b.ppy.sh/preview/3.mp3"));
+  });
+
+  it("repeat loops the preview", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<Player />);
+
+    await user.click(container.querySelector(".recommendation-cover"));
+    const repeat = await screen.findByRole("button", { name: "Repeat preview" });
+    expect(container.querySelector("audio").loop).toBe(false);
+
+    await user.click(repeat);
+    expect(container.querySelector("audio").loop).toBe(true);
+    expect(repeat).toHaveAttribute("aria-pressed", "true");
+  });
+});

@@ -3,7 +3,7 @@ import "./RecommendationRow.css";
 import { Spinner } from "react-bootstrap";
 import { PauseFill, PlayFill } from "react-bootstrap-icons";
 
-import { useAudioPreview } from "./AudioPreview";
+import { previewKeyOf, useAudioPreview } from "./AudioPreview";
 
 // helper function to format seconds into mm:ss or hh:mm:ss
 const formatDuration = (totalSeconds) => {
@@ -58,7 +58,7 @@ function RecommendationRow({
     isPlaying: previewPlaying,
     togglePreview,
   } = useAudioPreview();
-  const previewKey = recommendation.variant_id ?? beatmap_id;
+  const previewKey = previewKeyOf(recommendation);
   const isPlaying = activeKey === previewKey && previewPlaying;
   const isLoading = loadingKey === previewKey;
 

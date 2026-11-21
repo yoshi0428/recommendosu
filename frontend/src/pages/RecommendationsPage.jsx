@@ -14,6 +14,8 @@ import { createDefaultSettings } from "../utils/recommendation";
 import SiteHeader from "../components/SiteHeader.jsx";
 import RecommendationSettingsModal from "../components/recommendations/RecommendationSettingsModal.jsx";
 
+import "./RecommendationsPage.css";
+
 // Must match RECOMMENDATION_PAGE_SIZE in main.py, which also sizes the first
 // page returned by POST /recommend.
 const RECOMMENDATION_PAGE_SIZE = 1000;
@@ -25,7 +27,6 @@ const SCORE_BREAKDOWN = [
   ["Difficulty", "difficulty_score"],
   ["Mod Preference", "mod_preference"],
   ["Classifier", "classifier_score"],
-  ["PP Potential", "pp_potential"],
 ];
 
 const EMPTY_RESULT = {
@@ -237,7 +238,7 @@ function RecommendationsPage({ user, logout }) {
   };
 
   return (
-    <AudioPreviewProvider>
+    <AudioPreviewProvider playlist={result.rows}>
       <div
         className="recommendations-page d-flex flex-column position-relative"
         style={{
@@ -299,15 +300,10 @@ function RecommendationsPage({ user, logout }) {
           </Container>
         </main>
 
-        {/* Hidden on phones, where it would cover the results and audio player. */}
+        {/* Bottom right, beside the audio player; hidden on smaller screens
+            (see RecommendationsPage.css). */}
         {selectedRecommendation && (
-          <div
-            className="d-none d-md-block position-fixed bottom-0 start-50 translate-middle-x mb-3 shadow-lg"
-            style={{
-              zIndex: 1050,
-              width: "80%",
-            }}
-          >
+          <div className="score-breakdown shadow-lg">
             <Alert
               variant="info"
               dismissible

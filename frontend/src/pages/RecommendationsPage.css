@@ -1,0 +1,18 @@
+/* The score breakdown shown when a row is clicked: bottom right, reaching
+   left up to the audio player in the bottom-left corner (1rem gaps), so the
+   two never overlap. Only on wide screens: narrower ones have no room for it
+   beside the player. */
+.score-breakdown {
+  display: none;
+}
+
+@media (min-width: 992px) {
+  .score-breakdown {
+    display: block;
+    position: fixed;
+    right: 1rem;
+    bottom: 1rem;
+    left: calc(2rem + var(--audio-preview-width));
+    z-index: 1050;
+  }
+}

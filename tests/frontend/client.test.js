@@ -48,7 +48,7 @@ describe("getRecommendations", () => {
     fetchMock.mockResolvedValue(jsonResponse({ recommendation_id: "abc", recommendations: [] }));
     const signal = new AbortController().signal;
 
-    const data = await getRecommendations({ goal: "balanced" }, { recommendationId: "abc", signal });
+    const data = await getRecommendations({ beatmap_status: "all" }, { recommendationId: "abc", signal });
 
     expect(data.recommendation_id).toBe("abc");
 
@@ -57,7 +57,7 @@ describe("getRecommendations", () => {
     expect(options.method).toBe("POST");
     expect(options.credentials).toBe("include"); // Sends the session cookie.
     expect(options.headers["X-Recommendation-Id"]).toBe("abc");
-    expect(JSON.parse(options.body)).toEqual({ goal: "balanced" });
+    expect(JSON.parse(options.body)).toEqual({ beatmap_status: "all" });
     expect(options.signal).toBe(signal); // So the request can be aborted.
   });
 
@@ -75,7 +75,7 @@ describe("getRecommendations", () => {
         {
           detail: [
             { loc: ["body", "min_year"], msg: "Input should be greater than or equal to 2007" },
-            { loc: ["body", "goal"], msg: "Field required" },
+            { loc: ["body", "beatmap_status"], msg: "Field required" },
           ],
         },
         422,
@@ -83,7 +83,7 @@ describe("getRecommendations", () => {
     );
 
     await expect(getRecommendations({})).rejects.toThrow(
-      "body.min_year: Input should be greater than or equal to 2007\nbody.goal: Field required",
+      "body.min_year: Input should be greater than or equal to 2007\nbody.beatmap_status: Field required",
     );
   });
 

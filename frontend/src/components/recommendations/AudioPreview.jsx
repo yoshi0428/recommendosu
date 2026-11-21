@@ -8,8 +8,11 @@ import {
 } from "react";
 
 import {
+  ArrowRepeat,
   PauseFill,
   PlayFill,
+  SkipEndFill,
+  SkipStartFill,
   VolumeMuteFill,
   VolumeUpFill,
   X,
@@ -56,10 +59,37 @@ const saveVolume = (volume) => {
   }
 };
 
+// The key a recommendation's preview is played under (RecommendationRow uses
+// it too): one per variant, so only the clicked row shows as playing.
+export const previewKeyOf = (recommendation) =>
+  recommendation.variant_id ?? recommendation.beatmap_id;
+
+// The nearest row before (step -1) or after (step 1) the playing one whose
+// preview is different audio: variants of one mapset share a preview, so
+// they're skipped. Rows not fetched yet (holes in the list) are skipped too.
+const neighbour = (playlist, activeKey, step) => {
+  if (!playlist || activeKey === null) return null;
+
+  const index = playlist.findIndex(
+    (row) => row !== undefined && previewKeyOf(row) === activeKey
+  );
+  if (index === -1) return null;
+
+  const currentSet = playlist[index].beatmapset_id;
+  for (let i = index + step; i >= 0 && i < playlist.length; i += step) {
+    const row = playlist[i];
+    if (row !== undefined && row.beatmapset_id && row.beatmapset_id !== currentSet) {
+      return row;
+    }
+  }
+  return null;
+};
+
 // Plays one audio preview at a time for the whole page. It sits above the
 // virtualized table, so playback keeps going when its row scrolls out of view
 // (and is unmounted).
-export function AudioPreviewProvider({ children }) {
+// playlist: the result rows in table order, for the previous/next buttons.
+export function AudioPreviewProvider({ children, playlist = null }) {
   // Key of the row whose preview is loaded, or null when the player is closed.
   const [activeKey, setActiveKey] = useState(null);
   // Key of the row whose preview is loading.
@@ -69,6 +99,7 @@ export function AudioPreviewProvider({ children }) {
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(loadVolume);
   const [muted, setMuted] = useState(false);
+  const [repeat, setRepeat] = useState(false);
 
   const audioRef = useRef(null);
   const activeKeyRef = useRef(null);
@@ -178,6 +209,11 @@ export function AudioPreviewProvider({ children }) {
     [activeKey, loadingKey, isPlaying, togglePreview]
   );
 
+  const previous = neighbour(playlist, activeKey, -1);
+  const next = neighbour(playlist, activeKey, 1);
+  const playRow = (row) =>
+    row && togglePreview(previewKeyOf(row), { beatmapsetId: row.beatmapset_id });
+
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
   const volumeFill = muted ? 0 : (volume / MAX_VOLUME) * 100;
 
@@ -188,6 +224,7 @@ export function AudioPreviewProvider({ children }) {
       <audio
         ref={audioRef}
         muted={muted}
+        loop={repeat}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
         onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
@@ -200,22 +237,38 @@ export function AudioPreviewProvider({ children }) {
 
       {activeKey !== null && (
         <div
-          className="audio-preview-bar position-fixed start-50 translate-middle-x rounded-pill shadow d-flex align-items-center"
+          className="audio-preview-bar position-fixed d-flex align-items-center shadow"
           role="region"
           aria-label="Audio preview"
         >
           <button
             type="button"
-            className="audio-preview-play btn rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+            className="audio-preview-icon-button btn"
+            onClick={() => playRow(previous)}
+            disabled={!previous}
+            aria-label="Previous preview"
+          >
+            <SkipStartFill size={16} />
+          </button>
+
+          <button
+            type="button"
+            className="audio-preview-icon-button audio-preview-play btn"
             onClick={togglePlayback}
             aria-label={isPlaying ? "Pause preview" : "Play preview"}
           >
-            {isPlaying ? <PauseFill size={20} /> : <PlayFill size={20} />}
+            {isPlaying ? <PauseFill size={22} /> : <PlayFill size={22} />}
           </button>
 
-          <span className="audio-preview-time flex-shrink-0">
-            {formatAudioTime(currentTime)}
-          </span>
+          <button
+            type="button"
+            className="audio-preview-icon-button btn"
+            onClick={() => playRow(next)}
+            disabled={!next}
+            aria-label="Next preview"
+          >
+            <SkipEndFill size={16} />
+          </button>
 
           <label htmlFor="audio-preview-seek" className="visually-hidden">
             Audio progress
@@ -223,7 +276,7 @@ export function AudioPreviewProvider({ children }) {
           <input
             id="audio-preview-seek"
             type="range"
-            className="form-range audio-preview-range audio-preview-seek flex-grow-1"
+            className="audio-preview-range audio-preview-seek flex-grow-1"
             style={{ "--fill": `${progress}%` }}
             min="0"
             max={duration || 0}
@@ -241,18 +294,19 @@ export function AudioPreviewProvider({ children }) {
             aria-valuetext={`${formatAudioTime(currentTime)} of ${formatAudioTime(duration)}`}
           />
 
-          <span className="audio-preview-time audio-preview-duration flex-shrink-0">
-            {formatAudioTime(duration)}
+          <span className="audio-preview-time flex-shrink-0">
+            {formatAudioTime(currentTime)}
+            <span className="audio-preview-duration"> / {formatAudioTime(duration)}</span>
           </span>
 
           <button
             type="button"
-            className="audio-preview-icon-button btn d-flex align-items-center justify-content-center flex-shrink-0"
+            className="audio-preview-icon-button btn"
             onClick={() => setMuted((current) => !current)}
             aria-label={muted ? "Unmute preview" : "Mute preview"}
             aria-pressed={muted}
           >
-            {muted ? <VolumeMuteFill size={18} /> : <VolumeUpFill size={18} />}
+            {muted ? <VolumeMuteFill size={16} /> : <VolumeUpFill size={16} />}
           </button>
 
           <label htmlFor="audio-preview-volume" className="visually-hidden">
@@ -261,7 +315,7 @@ export function AudioPreviewProvider({ children }) {
           <input
             id="audio-preview-volume"
             type="range"
-            className="form-range audio-preview-range audio-preview-volume flex-shrink-0"
+            className="audio-preview-range audio-preview-volume flex-shrink-0"
             style={{ "--fill": `${volumeFill}%` }}
             min="0"
             max={MAX_VOLUME}
@@ -272,11 +326,21 @@ export function AudioPreviewProvider({ children }) {
 
           <button
             type="button"
-            className="audio-preview-icon-button btn d-flex align-items-center justify-content-center flex-shrink-0"
+            className={`audio-preview-icon-button btn${repeat ? " active" : ""}`}
+            onClick={() => setRepeat((current) => !current)}
+            aria-label="Repeat preview"
+            aria-pressed={repeat}
+          >
+            <ArrowRepeat size={16} />
+          </button>
+
+          <button
+            type="button"
+            className="audio-preview-icon-button btn"
             onClick={closePreview}
             aria-label="Close audio preview"
           >
-            <X size={22} />
+            <X size={20} />
           </button>
         </div>
       )}

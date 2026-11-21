@@ -24,14 +24,6 @@ const SECTIONS = [
       ["recency_half_life_days", "Recency Half-Life (days)"],
     ],
   ],
-  [
-    "PP Potential",
-    "g-3",
-    [
-      ["pp_push_target_z", "PP Push Target Z"],
-      ["pp_push_max_z", "PP Push Maximum Z"],
-    ],
-  ],
 ];
 
 function ScoringOptions({ settings, updateSetting }) {
