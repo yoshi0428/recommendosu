@@ -277,18 +277,6 @@ Claude Code wrote these items:
 - The test configuration.
 - The comments that explain each test technique where the tests use it.
 
-The tests found real bugs. These bugs are now fixed:
-
-- **The classifier got inputs with a different scale from the training inputs.**
-  - The training divides the time gap of each note by 86,087 and each slider length by 500.
-  - `precompute_nm1-5.py` used the raw values. Thus, the model got values up to approximately 86,000 times larger than the values in its training.
-  - The accuracy in the notebook did not show this problem, because its test data does not go through `precompute_nm1-5.py`.
-  - The test used one tournament map from each of NM1 to NM5. Before the fix, the predictions were correct for 2 of the 5 categories. Most predictions were NM1. After the fix, all 5 predictions were correct.
-  - The scale values are now saved with the model. `tests/test_classifier_features.py` makes sure that the training and the prediction make the same inputs.
-- The application stopped when a player had no applicable plays.
-- The application removed NC scores. It now counts them as DT.
-- The filter labels of the frontend were not linked to their number boxes in the HTML. Thus, a click on a label did not select its box, and screen readers could not identify the 16 boxes.
-
 # osu! API usage
 
 The osu! API asks for [a maximum of 60 requests each minute](https://osu.ppy.sh/docs/). It permits some short bursts.
