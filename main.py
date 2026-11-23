@@ -34,6 +34,7 @@ from beatmap_recommender.auth.osu_oauth import (
     get_application_access_token,
 )
 from beatmap_recommender.auth.session import (
+    SESSION_EXPIRATION_SECONDS,
     create_session,
     delete_session,
     get_current_player,
@@ -857,7 +858,7 @@ async def osu_callback(
         httponly=True,
         samesite="lax",
         secure=SESSION_COOKIE_SECURE,  # SET TO FALSE IF CAUSING ISSUE IN DEV
-        max_age=86400,
+        max_age=SESSION_EXPIRATION_SECONDS,
     )
 
     return redirect_response

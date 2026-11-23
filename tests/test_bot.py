@@ -318,11 +318,11 @@ def test_format_predictions_bolds_the_best_category():
 
     assert best == "Streams"
     assert lines.splitlines() == [
-        "`Aim            ` ░░░░░░░░░░   5.0%",
-        "**`Streams        ` ████████░░  80.0%**",
-        "`Alt            ` █░░░░░░░░░  10.0%",
-        "`Tech           ` ░░░░░░░░░░   3.0%",
-        "`Speed & Stamina` ░░░░░░░░░░   2.0%",
+        "`Aim    ` ░░░░░░░░░░   5.0%",
+        "**`Streams` ████████░░  80.0%**",
+        "`Alt    ` █░░░░░░░░░  10.0%",
+        "`Tech   ` ░░░░░░░░░░   3.0%",
+        "`Speed  ` ░░░░░░░░░░   2.0%",
     ]
 
 

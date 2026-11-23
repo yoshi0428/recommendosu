@@ -3,7 +3,9 @@ import time
 
 from beatmap_recommender.auth.db import auth_db
 
-SESSION_EXPIRATION_SECONDS = 86400
+# Long-lived so users stay logged in; the osu! access token behind the session
+# refreshes itself (osu_oauth.get_access_token), so only this limits a login.
+SESSION_EXPIRATION_SECONDS = 30 * 86400
 
 
 def create_session(player_id: int) -> str:
