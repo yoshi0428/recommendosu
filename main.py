@@ -328,6 +328,8 @@ async def recommend_post(
             session_id=session_id,
             session_player_id=session_player_id,
             cancel_event=cancel_event,
+            # Keep the full play history only of the logged-in player.
+            sync_play_history=settings.player_id == session_player_id,
         )
     except RecommendationCancelled:
         return Response(
@@ -444,6 +446,8 @@ async def bot_recommend(
     settings: RecommendationSettings,
     bot_key: str | None = Header(default=None, alias="X-Bot-Key"),
     discord_user_id: int = Header(alias="X-Discord-User-Id"),
+    # The bot sets this when player_id is the account that the Discord user linked with /link.
+    linked_player: bool = Header(default=False, alias="X-Linked-Player"),
 ):
     require_bot(bot_key)
 
@@ -451,8 +455,12 @@ async def bot_recommend(
         raise HTTPException(status_code=400, detail="player_id is required.")
 
     # There is no session. A session_player_id that never matches makes the
-    # recommender fetch the scores with the token of the app.
-    recommendations = await run_recommender(settings, session_id=None, session_player_id=None)
+    # recommender fetch the scores with the token of the app. Keep the full
+    # play history only of a linked account, not of each player that someone
+    # looks up.
+    recommendations = await run_recommender(
+        settings, session_id=None, session_player_id=None, sync_play_history=linked_player
+    )
 
     # Cache the result for the Discord user who asked, as the website does for
     # its logged-in player. Thus each Discord user keeps a separate latest

@@ -201,6 +201,7 @@ async def recommend_player(
     session_player_id: int,
     update_scores=True,
     cancel_event: threading.Event | None = None,
+    sync_play_history=False,
 ):
     """
     Make the recommendations for settings.player_id in a thread, and return
@@ -209,11 +210,17 @@ async def recommend_player(
     For the logged-in player, fetch the scores with the token of the session.
     For another player, use the token of the app. If the scores were refreshed
     recently, do not fetch them.
+
+    sync_play_history: True only for a player who uses the site or the bot
+    (the logged-in player, or the linked account of a Discord user). For other
+    players, the code does not fetch the full play history. Their top and
+    recent scores are still excluded.
     """
     # If the full list of played beatmaps of the player is missing or old,
     # fetch it in the background. Then later requests exclude all the maps
     # that the player played.
-    request_sync(settings.player_id)
+    if sync_play_history:
+        request_sync(settings.player_id)
 
     async with _recommendation_semaphore:
         check_cancelled(cancel_event)

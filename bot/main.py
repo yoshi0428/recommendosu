@@ -316,7 +316,9 @@ def register_commands(bot: RecommendOsuBot):
                 player_id, username = player["player_id"], player["username"]
 
             settings["player_id"] = player_id
-            result = await bot.backend.recommend(settings, interaction.user.id)
+            # /rec for your own linked account (with or without `user`) keeps your full play history.
+            own_account = linked is not None and player_id == linked[0]
+            result = await bot.backend.recommend(settings, interaction.user.id, linked=own_account)
         except BackendError as exc:
             await interaction.followup.send(str(exc))
             return

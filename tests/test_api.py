@@ -78,7 +78,13 @@ def fake_recommender(monkeypatch):
     state = {"rows": [fake_recommendation(i, final_score=1 - i / 10000) for i in range(2500)], "calls": []}
 
     async def fake_recommend_player(settings, session_id, session_player_id, cancel_event=None, **kwargs):
-        state["calls"].append({"settings": settings, "session_player_id": session_player_id})
+        state["calls"].append(
+            {
+                "settings": settings,
+                "session_player_id": session_player_id,
+                "sync_play_history": kwargs.get("sync_play_history"),
+            }
+        )
         if "raise" in state:
             # type: ignore
             raise state["raise"]
@@ -210,6 +216,15 @@ def test_post_recommend_returns_first_page(logged_in_client, fake_recommender):
 
     # The player ID came from the session. The endpoint did not trust the body.
     assert fake_recommender["calls"][0]["settings"].player_id == PLAYER_ID
+
+
+@pytest.mark.parametrize(("player_id", "synced"), [(None, True), (PLAYER_ID, True), (555, False)])
+def test_post_recommend_syncs_only_the_logged_in_players_history(logged_in_client, fake_recommender, player_id, synced):
+    # The full play history costs many osu! API requests, so the site keeps it
+    # only for its own users. Another player ID in the body gets no sync.
+    post_recommend(logged_in_client, body={"player_id": player_id})
+
+    assert fake_recommender["calls"][0]["sync_play_history"] is synced
 
 
 def test_post_recommend_requires_recommendation_id_header(logged_in_client, fake_recommender):
@@ -373,6 +388,15 @@ def test_bot_recommend_uses_any_player_without_a_session(bot_client, fake_recomm
     assert call["settings"].min_stars == 5.0
     # There is no session player, so the recommender uses the token of the app.
     assert call["session_player_id"] is None
+
+
+@pytest.mark.parametrize(("headers", "synced"), [({}, False), ({"X-Linked-Player": "true"}, True)])
+def test_bot_recommend_syncs_only_linked_accounts(bot_client, fake_recommender, headers, synced):
+    # A /rec for any player that someone looks up must not fetch the full play
+    # history of that player. Only a linked account (the bot sends the header) does.
+    bot_client.post(f"{API}/bot/recommend", json={"player_id": 555}, headers=headers)
+
+    assert fake_recommender["calls"][0]["sync_play_history"] is synced
 
 
 def test_bot_recommend_requires_the_discord_user(bot_client, fake_recommender):

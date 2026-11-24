@@ -337,6 +337,23 @@ def make_backend(handler):
     return BackendClient("http://backend:8000/", "secret", transport=httpx.MockTransport(handler))
 
 
+def test_backend_client_marks_a_linked_account():
+    seen = []
+
+    def handler(request):
+        seen.append(request)
+        return httpx.Response(200, json={"recommendations": []})
+
+    async def go():
+        backend = make_backend(handler)
+        await backend.recommend({"player_id": 7}, discord_user_id=123, linked=True)
+        await backend.aclose()
+
+    run(go())
+
+    assert seen[0].headers["X-Linked-Player"] == "true"
+
+
 def test_backend_client_sends_the_key_and_settings():
     seen = []
 
@@ -356,6 +373,7 @@ def test_backend_client_sends_the_key_and_settings():
     assert seen[0].url == "http://backend:8000/api/v1/bot/recommend"
     assert seen[0].headers["X-Bot-Key"] == "secret"
     assert seen[0].headers["X-Discord-User-Id"] == "123"
+    assert "X-Linked-Player" not in seen[0].headers
     assert json.loads(seen[0].content) == {"player_id": 7}
     # Spaces and slashes in a username stay in one path segment.
     assert seen[1].url.raw_path == b"/api/v1/bot/players/Some%20One%2Fx"

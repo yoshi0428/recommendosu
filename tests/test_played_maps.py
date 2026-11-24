@@ -72,12 +72,40 @@ def test_sync_skips_a_fresh_list_and_refetches_a_stale_one(recommender_db):
     api = FakeMostPlayedAPI([entry(1), entry(2)])
 
     assert played_maps.sync_player(conn, api, PLAYER_ID, now=NOW) == 2
-    assert played_maps.sync_player(conn, api, PLAYER_ID, now=NOW + timedelta(days=1)) is None
+    just_before = NOW + played_maps.RESYNC_INTERVAL - timedelta(minutes=1)
+    assert played_maps.sync_player(conn, api, PLAYER_ID, now=just_before) is None
     assert len(api.calls) == 1
 
     api.entries.append(entry(3))
     later = NOW + played_maps.RESYNC_INTERVAL
     assert played_maps.sync_player(conn, api, PLAYER_ID, now=later) == 3
+
+
+def test_resync_interval_covers_the_recent_scores_gap():
+    # /scores/recent returns only the plays of the last 24 hours. A play that
+    # no score refresh saw is excluded only after the next most_played sync.
+    # With a longer interval, a map played a few days ago could still show
+    # as unplayed for up to a week.
+    assert played_maps.RESYNC_INTERVAL <= timedelta(days=1)
+
+
+@pytest.mark.parametrize("sync", [True, False])
+def test_recommend_player_syncs_only_when_asked(monkeypatch, sync):
+    import asyncio
+
+    from beatmap_recommender import recommender
+    from beatmap_recommender.api.model import RecommendationSettings
+
+    requested = []
+    monkeypatch.setattr(recommender, "request_sync", requested.append)
+    monkeypatch.setattr(recommender, "recommend_player_sync", lambda *args: [])
+    settings = RecommendationSettings(player_id=PLAYER_ID)
+
+    asyncio.run(
+        recommender.recommend_player(settings, None, None, update_scores=False, sync_play_history=sync)
+    )
+
+    assert requested == ([PLAYER_ID] if sync else [])
 
 
 # ---------------------------------------------------------------------------

@@ -10,11 +10,17 @@ request:
     recommend_player() -> request_sync(player_id)   queue the player, return at once
     worker thread      -> sync_player()             fetch, replace their played_beatmaps rows
 
+recommend_player() asks for a sync only for a player who uses the site or the
+bot: the logged-in player, or the linked account of a Discord user. Other
+players that someone looks up keep only their top and recent scores.
+
 The worker takes a request slot only when no live request waits (see
 RateLimiter.acquire_background()). Thus it delays a score refresh by one
 request at most. The worker fetches a player again after RESYNC_INTERVAL.
 The plays after the last fetch go into the scores table through the usual
-score refresh. get_played_beatmap_ids() combines the two tables.
+score refresh, but /scores/recent covers only the last 24 hours. Thus the
+interval is also 24 hours: a play that no score refresh saw is missing for
+about one day at most. get_played_beatmap_ids() combines the two tables.
 
 The worker runs only after a call to start_sync_worker() (in the lifespan of
 main.py). Thus scripts, benchmarks and tests that call the recommender do
@@ -34,8 +40,10 @@ logger = logging.getLogger(__name__)
 # The maximum number of entries that osu! returns for one most_played request.
 PAGE_SIZE = 100
 
-# The worker fetches the list of a player again when the list is older than this.
-RESYNC_INTERVAL = timedelta(days=7)
+# The worker fetches the list of a player again when the list is this old or
+# older. It matches the 24-hour window of /scores/recent (see the docstring of
+# this module). Each sync costs about one API request for each 100 played maps.
+RESYNC_INTERVAL = timedelta(days=1)
 
 CREATE_TABLES = """
     CREATE TABLE IF NOT EXISTS played_beatmaps (

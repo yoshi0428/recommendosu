@@ -34,18 +34,20 @@ class BackendClient:
         """Return {"player_id": int, "username": str} for an osu! username."""
         return await self._request("GET", f"/players/{quote(username, safe='')}")
 
-    async def recommend(self, settings, discord_user_id):
+    async def recommend(self, settings, discord_user_id, linked=False):
         """
         Return a RecommendationResponse with the first page of recommendations.
         The backend keeps the full result for this Discord user. Read the other
         pages with recommendation_page.
+
+        linked: True if the player is the account that this Discord user linked.
+        Only then does the backend keep the full play history of the player.
         """
-        return await self._request(
-            "POST",
-            "/recommend",
-            json=settings,
-            headers={"X-Discord-User-Id": str(discord_user_id)},
-        )
+        headers = {"X-Discord-User-Id": str(discord_user_id)}
+        if linked:
+            headers["X-Linked-Player"] = "true"
+
+        return await self._request("POST", "/recommend", json=settings, headers=headers)
 
     async def recommendation_page(self, recommendation_id, discord_user_id, offset, limit):
         """Return a RecommendationPageResponse with the rows from offset to offset + limit."""

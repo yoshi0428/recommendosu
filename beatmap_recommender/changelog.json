@@ -7,7 +7,8 @@
       "\"Exclude already played\" also no longer changes the scores of the other maps",
       "One loved gimmick map (186 stars, over 6 million aim pp) made aim pp count for almost nothing in the similarity of every other map. Extreme maps no longer change the scale for everyone, so aim pp counts again",
       "Expect your All recommendations to change: about a third of the top 50 is different. Ranked barely changes",
-      "About 80 of the least similar maps never showed up with All, because of a fixed search limit. The limit is gone"
+      "About 80 of the least similar maps never showed up with All, because of a fixed search limit. The limit is gone",
+      "Maps that you played a few days ago could still show up for up to a week. Your full play history now updates once a day, not once a week"
     ]
   },
   {
