@@ -1,17 +1,17 @@
 """
 recommendosu Discord bot: /rec, /link and /classify.
 
-A separate process that talks to the backend's /api/v1/bot endpoints over
-HTTP, so it never loads the recommender database itself. Run it with
-`python -m bot` from the project root.
+The bot is a separate process. It uses the /api/v1/bot endpoints of the
+backend over HTTP, so it never loads the recommender database. To run it,
+use `python -m bot` from the project root.
 
 Environment:
     DISCORD_TOKEN      the bot's token from the Discord developer portal
     BOT_API_KEY        the same value as the backend's BOT_API_KEY
     BOT_BACKEND_URL    default http://backend:8000 (the compose service)
     BOT_LINKS_DB       default bot/data/links.db
-    BOT_DEV_GUILD_ID   optional; sync commands to this server only, which
-                       updates instantly instead of within about an hour
+    BOT_DEV_GUILD_ID   optional. Sync the commands to this server only. The
+                       update is instant, not within about an hour.
 """
 
 import logging
@@ -49,12 +49,13 @@ logger = logging.getLogger(__name__)
 BOT_DIR = Path(__file__).resolve().parent
 
 RECOMMENDATIONS_PER_PAGE = 5
-# Rows fetched from the backend at once: 10 pages. Its first response holds
-# the same number (BOT_RECOMMENDATION_PAGE_SIZE in main.py).
+# The number of rows that the bot fetches from the backend at a time: 10 pages.
+# The first response of the backend has the same number
+# (BOT_RECOMMENDATION_PAGE_SIZE in main.py).
 RECOMMENDATION_CHUNK_SIZE = 50
-# Buttons stop working after this long without a click.
+# The buttons stop working after this many seconds without a click.
 VIEW_TIMEOUT_SECONDS = 10 * 60
-# Per Discord user, so one person can't use up the osu! API budget.
+# For each Discord user, so that one person cannot use all of the osu! API budget.
 REC_COOLDOWN_SECONDS = 10.0
 
 EMBED_COLOR = discord.Color.from_rgb(255, 102, 170)
@@ -63,14 +64,15 @@ SITE_URL = "https://recommendosu.com"
 
 class RecommendOsuBot(discord.Client):
     def __init__(self, backend: BackendClient, links: LinkStore, dev_guild_id: int | None):
-        # Slash commands need no privileged intents.
+        # Slash commands need no privileged intents (special Discord permissions).
         super().__init__(intents=discord.Intents.default())
         self.tree = app_commands.CommandTree(self)
         self.backend = backend
         self.links = links
         self.dev_guild_id = dev_guild_id
-        # Discord user ID -> recommendation_id of their last /rec, so
-        # /classify can take an index. Kept in memory: a restart forgets it.
+        # Discord user ID -> the recommendation_id of the last /rec of the user,
+        # so that /classify can take an index. This is in memory only, so a
+        # restart forgets it.
         self.last_recommendation_ids: dict[int, str] = {}
 
     async def setup_hook(self):
@@ -95,11 +97,10 @@ class RecommendOsuBot(discord.Client):
 
 class RecommendationView(discord.ui.View):
     """
-    Buttons to move through a /rec result, a page or 10 pages at a time.
+    Buttons that move through a /rec result, one page or 10 pages at a time.
 
-    The backend keeps the full result, which can be millions of rows, and
-    the view fetches it RECOMMENDATION_CHUNK_SIZE rows at a time as pages are
-    turned.
+    The backend keeps the full result, which can be millions of rows. When the
+    user turns the pages, the view fetches RECOMMENDATION_CHUNK_SIZE rows at a time.
     """
 
     def __init__(self, backend, owner_id, player_id, username, result):
@@ -112,13 +113,14 @@ class RecommendationView(discord.ui.View):
         self.total_count = result["total_count"]
         self.page_count = math.ceil(self.total_count / RECOMMENDATIONS_PER_PAGE)
         self.page = 0
-        # The rows fetched last, starting at row chunk_offset of the result.
+        # The rows of the last fetch. They start at row chunk_offset of the result.
         self.chunk_offset = 0
         self.chunk_rows = result["recommendations"]
         self.message: discord.Message | None = None
         self.update_buttons()
 
     async def page_rows(self, page):
+        """Return the rows of a page. If they are not in the current chunk, fetch a new chunk."""
         start = page * RECOMMENDATIONS_PER_PAGE
         end = min(start + RECOMMENDATIONS_PER_PAGE, self.total_count)
 
@@ -144,8 +146,8 @@ class RecommendationView(discord.ui.View):
             ),
             color=EMBED_COLOR,
         )
-        # Author and footer text is shown as-is (no markdown), so the
-        # username needs no escaping there.
+        # Discord shows the author and footer text as it is (no markdown), so
+        # the username needs no escapes there.
         embed.set_author(
             name=f"Recommendations for {self.username}",
             url=f"https://osu.ppy.sh/users/{self.player_id}",
@@ -182,7 +184,7 @@ class RecommendationView(discord.ui.View):
         return True
 
     async def turn_page(self, interaction: discord.Interaction, step):
-        # Jumps past either end stop at the first or last page.
+        # A jump past either end stops at the first page or the last page.
         page = min(max(self.page + step, 0), self.page_count - 1)
 
         try:
@@ -195,7 +197,7 @@ class RecommendationView(discord.ui.View):
         self.update_buttons()
         await interaction.response.edit_message(embed=self.embed(rows), view=self)
 
-    # Decorated buttons appear in the order they're defined.
+    # The buttons show in the order of their definitions.
     @discord.ui.button(label="« 10", style=discord.ButtonStyle.secondary)
     async def back_10(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.turn_page(interaction, -10)
@@ -220,14 +222,25 @@ class RecommendationView(discord.ui.View):
             try:
                 await self.message.edit(view=self)
             except discord.HTTPException:
-                # The message was deleted, or the interaction token expired.
+                # The message is deleted, or the interaction token expired.
                 pass
 
 
 # ── Commands ──────────────────────────────────────────────────────────────────
 
 
+def embed_with_fields(title, description, fields, url=None):
+    """Return an embed with one full-width field for each (name, value) in fields."""
+    embed = discord.Embed(title=title, url=url, description=description, color=EMBED_COLOR)
+
+    for name, value in fields:
+        embed.add_field(name=name, value=value, inline=False)
+
+    return embed
+
+
 def register_commands(bot: RecommendOsuBot):
+    """Add the slash commands (/rec, /link, /unlink, /classify, /changelog, /help) to the tree of the bot."""
     tree = bot.tree
 
     @tree.command(name="rec", description="Recommend beatmaps. With no options, uses the website's default settings.")
@@ -278,7 +291,7 @@ def register_commands(bot: RecommendOsuBot):
             )
             return
 
-        # Check the options before deferring, so mistakes get a private reply.
+        # Check the options before the defer, so that a mistake gets a private reply.
         try:
             settings = build_settings(
                 player_id=None,
@@ -339,8 +352,8 @@ def register_commands(bot: RecommendOsuBot):
 
     @tree.command(name="unlink", description="Remove your linked osu! account and forget your last /rec")
     async def unlink(interaction: discord.Interaction):
-        # The backend's cached result expires on its own, 30 minutes after
-        # its last use; without its ID here, nothing can read it before then.
+        # The cached result on the backend expires 30 minutes after its last
+        # use. Without its ID here, nothing can read it before then.
         bot.last_recommendation_ids.pop(interaction.user.id, None)
 
         if bot.links.delete(interaction.user.id):
@@ -421,21 +434,12 @@ def register_commands(bot: RecommendOsuBot):
             return
 
         description, fields = changelog_embed_parts(entries)
-        embed = discord.Embed(title="Changelog", url=f"{SITE_URL}/changelog", description=description, color=EMBED_COLOR)
-
-        for name, value in fields:
-            embed.add_field(name=name, value=value, inline=False)
-
+        embed = embed_with_fields("Changelog", description, fields, url=f"{SITE_URL}/changelog")
         await interaction.followup.send(embed=embed, ephemeral=True)
 
     @tree.command(name="help", description="What /rec can do, with examples")
     async def help(interaction: discord.Interaction):
-        title, description, fields = help_embed_parts()
-        embed = discord.Embed(title=title, description=description, color=EMBED_COLOR)
-
-        for name, value in fields:
-            embed.add_field(name=name, value=value, inline=False)
-
+        embed = embed_with_fields(*help_embed_parts())
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @tree.error
@@ -457,13 +461,10 @@ def main():
     dev_guild_id = os.getenv("BOT_DEV_GUILD_ID")
 
     bot = RecommendOsuBot(
-        backend=BackendClient(
-            os.getenv("BOT_BACKEND_URL", "http://backend:8000"),
-            os.environ["BOT_API_KEY"],
-        ),
+        backend=BackendClient(os.getenv("BOT_BACKEND_URL", "http://backend:8000"), os.environ["BOT_API_KEY"]),
         links=LinkStore(os.getenv("BOT_LINKS_DB", BOT_DIR / "data" / "links.db")),
         dev_guild_id=int(dev_guild_id) if dev_guild_id else None,
     )
     register_commands(bot)
-    # discord.py would set up its own logging otherwise; ours is above.
+    # Without log_handler=None, discord.py sets up its own logging. Our logging setup is at the top of this file.
     bot.run(token, log_handler=None)

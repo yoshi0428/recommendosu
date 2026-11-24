@@ -5,15 +5,12 @@ import numpy as np
 from tqdm import tqdm
 
 from beatmap_recommender.content_similarity.core_modules.played_maps import get_played_beatmap_ids
-
-from beatmap_recommender.content_similarity.core_modules.variant_table import (
-    get_variant_table,
-)
+from beatmap_recommender.content_similarity.core_modules.variant_table import get_variant_table
 
 logger = logging.getLogger(__name__)
 
-# Upper bound on seed x candidate distances held in memory per batch
-# (float64, so 8_000_000 is about 64MB).
+# The maximum number of seed x candidate distances in memory for each batch.
+# The values are float64, so 8_000_000 is about 64MB.
 MAX_BATCH_DISTANCES = 8_000_000
 
 SIMILARITY_FEATURES = [
@@ -30,32 +27,27 @@ SIMILARITY_FEATURES = [
 ]
 
 
-def _fetch_maps_as_numpy(conn, query, params=()):
-    """Helper to fetch DB rows directly into NumPy arrays without DataFrame overhead."""
-    cursor = conn.execute(query, params)
-    rows = cursor.fetchall()
+def _no_maps():
+    """The (beatmap_ids, feature matrix) pair for zero maps."""
+    return np.array([], dtype=object), np.empty((0, len(SIMILARITY_FEATURES)), dtype=np.float32)
 
-    if not rows:
-        return np.array([], dtype=object), np.empty(
-            (0, len(SIMILARITY_FEATURES)), dtype=np.float32
-        )
 
-    # Fast unpacking
-    beatmap_ids = np.array([str(r[0]) for r in rows], dtype=object)
-
-    # Extract feature matrix and replace None/nulls with 0.0 directly
-    matrix_data = [[0.0 if val is None else val for val in r[1:]] for r in rows]
-    matrix = np.array(matrix_data, dtype=np.float32)
-
-    # Some loved gimmick maps store inf BPM; a single inf turns every
-    # mean/std into NaN and wipes out all similarities.
+def _clean_features(matrix):
+    """
+    Change NaN and inf to 0.0, in place. Some loved gimmick maps store an inf
+    BPM. One inf makes every mean and std NaN, and then all similarities fail.
+    """
     np.nan_to_num(matrix, copy=False, nan=0.0, posinf=0.0, neginf=0.0)
-
-    return beatmap_ids, matrix
+    return matrix
 
 
 def get_player_seed_maps(conn, player_id):
-    query = """
+    """
+    Return (beatmap_ids, feature matrix) for the NM variants of the maps that
+    the player has scores on. These maps are the seeds of the similarity search.
+    """
+    rows = conn.execute(
+        """
         SELECT DISTINCT
             bv.beatmap_id,
             COALESCE(bv.star_rating, 0.0),
@@ -73,20 +65,31 @@ def get_player_seed_maps(conn, player_id):
             ON bv.beatmap_id = s.beatmap_id
             AND bv.mods = 'NM'
         WHERE s.player_id = ?
-          -- Failed plays (rank F) aren't evidence of what the player can do; they still count as played.
+          -- A failed play (rank F) does not show what the player can do.
+          -- It still counts as played.
           AND COALESCE(s.rank, '') != 'F'
-    """
-    return _fetch_maps_as_numpy(conn, query, (player_id,))
+        """,
+        (player_id,),
+    ).fetchall()
+
+    if not rows:
+        return _no_maps()
+
+    beatmap_ids = np.array([str(row[0]) for row in rows], dtype=object)
+    # The query changes NULL to 0.0 with COALESCE, so each value is a number.
+    matrix = np.array([row[1:] for row in rows], dtype=np.float32)
+    return beatmap_ids, _clean_features(matrix)
 
 
 def get_maps(conn, mods="NM", player_id=None, status=None):
     """
-    Every variant with these mods (and status), minus the beatmaps player_id
-    has played (played_maps.get_played_beatmap_ids()), as (beatmap_ids,
-    feature matrix) like get_player_seed_maps().
+    Return all the variants with these mods (and this status), without the
+    beatmaps that player_id played (played_maps.get_played_beatmap_ids()).
+    The result is (beatmap_ids, feature matrix), as in get_player_seed_maps().
 
-    Read from the in-memory variant table, in rowid order (the order a scan
-    of beatmap_variants returns), instead of from SQLite on every request.
+    The data comes from the variant table in memory, not from SQLite on each
+    request. The order is the rowid order, which is the order of a scan of
+    beatmap_variants.
     """
     table = get_variant_table(conn)
     beatmap_categories = table.categories["beatmap_id"]
@@ -105,22 +108,18 @@ def get_maps(conn, mods="NM", player_id=None, status=None):
     rows = np.flatnonzero(mask)
 
     if len(rows) == 0:
-        return np.array([], dtype=object), np.empty((0, len(SIMILARITY_FEATURES)), dtype=np.float32)
+        return _no_maps()
 
     beatmap_ids = np.array(beatmap_categories, dtype=object)[table.columns["beatmap_id"][rows]]
 
-    # NULL is NaN in float_columns; COALESCE(..., 0.0) made it 0.0. Values
-    # too large for float32 become inf, which is zeroed below.
+    # In float_columns, NULL is NaN. A value too large for float32 becomes inf.
+    # _clean_features() changes both to 0.0, the same as COALESCE(..., 0.0).
     with np.errstate(over="ignore"):
-        matrix = np.column_stack(
-            [np.nan_to_num(table.float_columns[feature][rows], nan=0.0) for feature in SIMILARITY_FEATURES]
-        ).astype(np.float32)
+        matrix = np.column_stack([table.float_columns[feature][rows] for feature in SIMILARITY_FEATURES]).astype(
+            np.float32
+        )
 
-    # Some loved gimmick maps store inf BPM; a single inf turns every
-    # mean/std into NaN and wipes out all similarities.
-    np.nan_to_num(matrix, copy=False, nan=0.0, posinf=0.0, neginf=0.0)
-
-    return beatmap_ids, matrix
+    return beatmap_ids, _clean_features(matrix)
 
 
 def calculate_seed_similarity(
@@ -133,12 +132,12 @@ def calculate_seed_similarity(
     similarity_feature_weights=None,
 ):
     """
-    Find each seed's top_k nearest candidates and keep, per candidate,
+    Find the top_k nearest candidates of each seed. For each candidate, keep
     the best similarity to any seed.
 
     Returns:
-        dict[str, float]: candidate beatmap_id -> best similarity, for
-        every candidate that is within top_k of at least one seed.
+        dict[str, float]: candidate beatmap_id -> best similarity, for each
+        candidate that is in the top_k of one or more seeds.
     """
     if len(seed_beatmap_ids) == 0 or len(candidate_beatmap_ids) == 0:
         return {}
@@ -158,15 +157,15 @@ def calculate_seed_similarity(
         seed_matrix *= weights
         candidate_matrix *= weights
 
-    # float64 because the |s|^2 + |c|^2 - 2 s.c expansion loses precision
-    # in float32 (sklearn upcasts for the same reason).
+    # Use float64, because the |s|^2 + |c|^2 - 2 s.c expansion loses precision
+    # in float32. sklearn changes to float64 for the same reason.
     seed_matrix = seed_matrix.astype(np.float64)
     candidate_matrix = candidate_matrix.astype(np.float64)
 
     n_candidates = len(candidate_beatmap_ids)
     query_k = min(top_k, n_candidates)
 
-    # Cap each batch's seed x candidate distance matrix to bound memory.
+    # Limit the size of the seed x candidate distance matrix of each batch, to limit memory.
     batch_size = max(1, min(batch_size, MAX_BATCH_DISTANCES // n_candidates))
 
     candidate_sq_norms = np.einsum("ij,ij->i", candidate_matrix, candidate_matrix)
@@ -177,7 +176,7 @@ def calculate_seed_similarity(
         range(0, n_seeds, batch_size),
         desc="Calculating seed similarities",
         unit="batch",
-        # Hidden when stderr isn't a terminal, e.g. in the server container.
+        # The bar does not show when stderr is not a terminal, for example in the server container.
         disable=None,
     ):
         batch_seeds = seed_matrix[start : start + batch_size]
@@ -196,8 +195,8 @@ def calculate_seed_similarity(
             sim_scores = 1.0 / (1.0 + np.take_along_axis(distances, indices, axis=1))
             np.maximum.at(best_similarity, indices.ravel(), sim_scores.ravel())
         else:
-            # sqrt preserves order, so the square root of the smallest squared
-            # distance is the smallest distance, without a sqrt per pair.
+            # sqrt keeps the order. Thus the square root of the smallest squared
+            # distance is the smallest distance, without a sqrt for each pair.
             sim_scores = 1.0 / (1.0 + np.sqrt(distances.min(axis=0)))
             np.maximum(best_similarity, sim_scores, out=best_similarity)
 
@@ -231,15 +230,10 @@ def build_seed_similarity_index(
 
     start = time.perf_counter()
 
-    # excludes already played beatmaps within your scores, if True
-    if exclude_already_played:
-        candidate_beatmap_ids, candidate_matrix = get_maps(
-            conn, mods="NM", player_id=player_id, status=status
-        )
-    else:
-        candidate_beatmap_ids, candidate_matrix = get_maps(
-            conn, mods="NM", player_id=None, status=status
-        )
+    # With player_id, get_maps() leaves out the beatmaps that the player played.
+    candidate_beatmap_ids, candidate_matrix = get_maps(
+        conn, mods="NM", player_id=player_id if exclude_already_played else None, status=status
+    )
 
     if len(candidate_beatmap_ids) == 0:
         logger.info("No unplayed NM candidate maps remain.")

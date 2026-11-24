@@ -1,16 +1,16 @@
 """
-beatmap_variants held as numpy columns, so candidate filtering and ranking
-don't create a Python object per row.
+The beatmap_variants table, kept as numpy columns. Thus the candidate filter
+and the ranking do not make a Python object for each row.
 
-The worst-case request (no star bounds, every mod) selects ~3 million
-variants. Reading them from SQLite as tuples and turning them into dicts took
-longer than ranking them, and a cached result of 3 million dicts held ~6GB.
-Instead, the table is loaded once, filters are numpy masks, and rows are only
-turned into dicts for the page the frontend asks for (see VariantRows).
+The worst request (no star limits, all mods) selects about 3 million
+variants. To read them from SQLite as tuples and change them into dicts took
+longer than to rank them. A cached result of 3 million dicts used about 6GB.
+Thus the table loads one time, the filters are numpy masks, and only the rows
+of the page that the frontend asks for become dicts (see VariantRows).
 
-Only the table of the recommender database (DB_PATH) is cached: the
-recommender never writes to beatmap_variants or beatmaps, only to scores.
-Any other connection, such as a test database, gets a fresh table per call.
+Only the table of the recommender database (DB_PATH) is cached. The
+recommender writes only to scores, never to beatmap_variants or beatmaps.
+Any other connection, such as a test database, gets a new table on each call.
 """
 
 import ctypes
@@ -27,8 +27,8 @@ from beatmap_recommender import database
 
 logger = logging.getLogger(__name__)
 
-# Columns of each variant dict, in the order get_candidate_variants() has
-# always returned them.
+# The columns of each variant dict, in the order that get_candidate_variants()
+# always used.
 VARIANT_COLUMNS = (
     "variant_id",
     "beatmap_id",
@@ -51,20 +51,20 @@ VARIANT_COLUMNS = (
     "status",
 )
 
-# Loaded for filtering, but not part of the variant dicts.
+# Columns that the filters use, but that are not in the variant dicts.
 FILTER_ONLY_COLUMNS = ("year",)
 
 TEXT_COLUMNS = ("beatmap_id", "beatmapset_id", "mods", "status")
 
 METADATA_FIELDS = ("title", "artist", "creator", "version")
 
-# variant_predictions columns: the classifier's NM1-NM5 probabilities.
+# The variant_predictions columns: the NM1-NM5 probabilities from the classifier.
 PREDICTION_COLUMNS = ("nm1", "nm2", "nm3", "nm4", "nm5")
 
-# Rows read from SQLite per fetchmany() while loading the table.
+# The number of rows that each fetchmany() reads from SQLite during the load.
 LOAD_CHUNK_SIZE = 65_536
 
-# Rows are built in chunks of this many when iterating over a VariantRows.
+# The number of rows that iteration over a VariantRows builds at a time.
 ITERATION_CHUNK_SIZE = 10_000
 
 # (database path, table) of the cached table.
@@ -73,7 +73,7 @@ _shared_table_lock = threading.Lock()
 
 
 def get_variant_table(conn):
-    """Return the variant table for conn, cached for the recommender database (DB_PATH)."""
+    """Return the variant table for conn. The table of the recommender database (DB_PATH) is cached."""
     global _shared_table
 
     if not database.is_db_path(conn):
@@ -89,7 +89,7 @@ def get_variant_table(conn):
 
 
 def load_variant_table():
-    """Build the shared table now, e.g. at startup, instead of on the first request."""
+    """Build the shared table now (for example, at startup), not on the first request."""
     conn = database.connect_db(read_only=True)
 
     try:
@@ -102,13 +102,13 @@ def load_variant_table():
 
 def _release_freed_memory():
     """
-    Hand the memory freed while building the table back to the OS (~440MB).
+    Give back to the OS the memory that the table build freed (about 440MB).
 
-    Loading reads every row as Python objects, which are freed once they're in
-    numpy arrays, but glibc keeps freed memory in its heap instead of returning
-    it. With MALLOC_ARENA_MAX=1 (see the Dockerfile) it stays there for the
-    life of the process. Not available outside glibc (e.g. macOS), where it's
-    skipped.
+    The load reads each row as Python objects. These objects are freed when
+    they are in numpy arrays, but glibc keeps the freed memory in its heap.
+    With MALLOC_ARENA_MAX=1 (see the Dockerfile), the memory stays there for
+    the life of the process. Systems without glibc (for example, macOS) skip
+    this step.
     """
     try:
         libc = ctypes.CDLL("libc.so.6")
@@ -118,13 +118,13 @@ def _release_freed_memory():
 
 
 def _numeric_array(values):
-    """int64 or float64 when every value is that Python type, otherwise object."""
+    """Return an int64 or float64 array if all the values have that Python type. If not, return an object array."""
     array = np.array(values)
 
     if array.dtype == np.int64:
         return array
 
-    # A mix of ints and floats also becomes float64, which would turn ints into floats.
+    # A mix of ints and floats also becomes float64. That would change the ints into floats.
     if array.dtype == np.float64 and not any(type(value) is int for value in values):
         return array
 
@@ -132,14 +132,16 @@ def _numeric_array(values):
 
 
 def _concatenate(chunks):
+    """Join the chunks of one column. If the chunks have different dtypes, use an object array."""
     if len({chunk.dtype for chunk in chunks}) > 1:
-        # astype(object) turns numpy ints and floats back into Python ones.
+        # astype(object) changes numpy ints and floats back into Python ints and floats.
         chunks = [chunk.astype(object) for chunk in chunks]
 
     return np.concatenate(chunks) if chunks else np.empty(0, dtype=np.int64)
 
 
 def _float_array(column):
+    """Return the column as float64. A value that is not a number (NULL or text) becomes NaN."""
     if column.dtype != object:
         return column.astype(np.float64, copy=False)
 
@@ -150,7 +152,7 @@ def _float_array(column):
 
 
 def sql_like(pattern, value):
-    """SQLite's `value LIKE pattern`: % and _ wildcards, ASCII case-insensitive."""
+    """Do the SQLite `value LIKE pattern`: % and _ are wildcards, and ASCII case does not matter."""
     if value is None:
         return None
 
@@ -163,26 +165,26 @@ def sql_like(pattern, value):
 
 class VariantTable:
     """
-    Every row of beatmap_variants, in rowid order (the order a full table scan
-    returns them in), plus the beatmaps metadata for each beatmap.
+    All the rows of beatmap_variants, in rowid order (the order of a full
+    table scan), plus the metadata of each beatmap from the beatmaps table.
 
-    Numeric columns are int64/float64 arrays when every value has that type,
-    so values come back as the same Python ints and floats SQLite returned.
-    Text columns are stored as codes into a list of distinct values.
-    Anything else (NULLs, mixed types) falls back to an object array.
+    A numeric column is an int64 or float64 array if all its values have that
+    type. Thus the values come back as the same Python ints and floats that
+    SQLite returned. A text column is stored as codes into a list of its
+    distinct values. Other columns (with NULLs or mixed types) are object arrays.
 
-    nm_predictions holds each beatmap's NM variant classifier probabilities,
-    indexed by beatmap_id code: a [beatmaps, 5] float64 array with 0.0 for
-    NULL, and has_nm_prediction marks the beatmaps that have a row.
+    nm_predictions holds the classifier probabilities of the NM variant of each
+    beatmap, indexed by beatmap_id code. It is a [beatmaps, 5] float64 array,
+    with 0.0 for NULL. has_nm_prediction marks the beatmaps that have a row.
     """
 
     def __init__(self, columns, categories, float_columns, metadata, nm_predictions, has_nm_prediction):
         self.columns = columns
         self.categories = categories
-        # Numeric columns as float64 with NaN for NULL, for filtering. int64
-        # columns (which have no NULLs) stay int64; float_column() converts.
+        # The numeric columns as float64 with NaN for NULL, for the filters.
+        # An int64 column has no NULLs, so it stays int64. float_column() changes it.
         self.float_columns = float_columns
-        # Metadata arrays indexed by beatmap_id code.
+        # The metadata arrays, indexed by beatmap_id code.
         self.metadata = metadata
         self.nm_predictions = nm_predictions
         self.has_nm_prediction = has_nm_prediction
@@ -190,13 +192,14 @@ class VariantTable:
 
     @classmethod
     def load(cls, conn):
+        """Read the full table from conn into numpy columns."""
         start = time.perf_counter()
         names = VARIANT_COLUMNS + FILTER_ONLY_COLUMNS
         selects = [f"CAST({name} AS TEXT)" if name == "beatmap_id" else name for name in names]
 
-        # One scan in rowid order, converted chunk by chunk so the whole table
-        # never exists as Python objects at once. (ORDER BY rowid matters: a
-        # query that only needs indexed columns can return them in index order.)
+        # Do one scan in rowid order, and change it chunk by chunk. Thus the full
+        # table never exists as Python objects at one time. ORDER BY rowid is
+        # necessary: a query that needs only indexed columns can use index order.
         cursor = conn.execute(f"SELECT {', '.join(selects)} FROM beatmap_variants ORDER BY rowid")
         chunks = {name: [] for name in names}
         text_indexes = {name: {} for name in TEXT_COLUMNS}
@@ -218,9 +221,9 @@ class VariantTable:
         columns = {name: _concatenate(chunks[name]) for name in names}
         categories = {name: list(text_indexes[name]) for name in TEXT_COLUMNS}
 
-        # Like SQLite, NULLs (and text) never pass a numeric filter. int64
-        # columns have no NULLs, so they're used as-is instead of a float64
-        # copy (~23MB each); comparing them gives the same results.
+        # As in SQLite, a NULL (or text) never passes a numeric filter. An int64
+        # column has no NULLs, so the code uses it directly, not as a float64
+        # copy (about 23MB each). The comparisons give the same results.
         float_columns = {
             name: columns[name] if columns[name].dtype == np.int64 else _float_array(columns[name])
             for name in names
@@ -230,9 +233,7 @@ class VariantTable:
         beatmap_codes = {beatmap_id: code for code, beatmap_id in enumerate(categories["beatmap_id"])}
         metadata = {field: np.full(len(beatmap_codes), None, dtype=object) for field in METADATA_FIELDS}
 
-        rows = conn.execute(
-            "SELECT CAST(beatmap_id AS TEXT), title, artist, creator, version FROM beatmaps"
-        )
+        rows = conn.execute("SELECT CAST(beatmap_id AS TEXT), title, artist, creator, version FROM beatmaps")
 
         for beatmap_id, *fields in rows:
             code = beatmap_codes.get(beatmap_id)
@@ -267,25 +268,26 @@ class VariantTable:
 
     def category_mask(self, column, predicate):
         """
-        Boolean mask over the distinct values of a text column, for use as
-        mask[codes]. predicate follows SQL logic: None (NULL) counts as False.
+        Return a boolean mask over the distinct values of a text column, to use
+        as mask[codes]. predicate follows SQL logic: None (NULL) counts as False.
         """
         return np.array([bool(predicate(value)) for value in self.categories[column]], dtype=bool)
 
     def codes_of(self, column, values):
-        """Codes of the given values in a text column; unknown values are skipped."""
+        """Return the codes of the values in a text column. Skip the values that the column does not have."""
         index = {value: code for code, value in enumerate(self.categories[column])}
         return np.array([index[value] for value in values if value in index], dtype=np.int64)
 
 
 class VariantRows(Sequence):
     """
-    A selection of table rows, in order, read as variant dicts.
+    A selection of table rows, in order, that reads as variant dicts.
 
-    Indexing or slicing builds dicts only for the requested rows, so a ranked
-    result of millions of variants costs a few numpy arrays until a page of
-    it is read. extra_columns (arrays aligned with rows) are added after the
-    variant columns, followed by the beatmap metadata when with_metadata is set.
+    An index or a slice builds dicts only for the rows that it asks for. Thus a
+    ranked result of millions of variants is only a few numpy arrays until the
+    code reads a page of it. The dicts get the variant columns, then
+    extra_columns (arrays in the same order as rows), then the beatmap metadata
+    if with_metadata is set.
     """
 
     def __init__(self, table, rows, extra_columns=None, with_metadata=False):

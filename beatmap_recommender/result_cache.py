@@ -3,19 +3,20 @@ import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-# Ranked results can hold millions of variants, so each player keeps at most
-# one cached result and it expires after RESULT_TTL_SECONDS without access.
+# A ranked result can hold millions of variants. Thus each player keeps one
+# cached result at most, and the result expires after RESULT_TTL_SECONDS
+# without access.
 RESULT_TTL_SECONDS = 30 * 60
 
 
 @dataclass
 class CachedResult:
-    # Whoever may read the result: the logged-in osu! player ID for the
-    # website, or "discord:<user ID>" for the Discord bot.
+    # The owner who can read the result: the osu! player ID of the logged-in
+    # user on the website, or "discord:<user ID>" for the Discord bot.
     player_id: int | str
-    # Usually a VariantRows from rank_variants, which only builds the dicts
-    # of the page being read; a result of millions of rows is then a few
-    # numpy arrays rather than millions of dicts.
+    # Usually a VariantRows from rank_variants. It builds only the dicts of the
+    # page that the user reads. Thus a result of millions of rows stays a few
+    # numpy arrays, not millions of dicts.
     rows: Sequence[dict]
     last_access: float
 
@@ -40,7 +41,7 @@ def store_result(
     player_id: int | str,
     recommendations: Sequence[dict],
 ) -> None:
-    """Cache a ranked result, replacing any earlier result for the player."""
+    """Cache a ranked result. Delete the earlier result of the player, if there is one."""
     now = time.monotonic()
 
     with _results_lock:
@@ -71,8 +72,8 @@ def get_result_page(
     """
     Return (total_count, recommendations) for one page of a cached result.
 
-    Returns None if the result does not exist, has expired, or belongs to
-    another player.
+    Return None if the result does not exist, if it expired, or if another
+    player owns it.
     """
     now = time.monotonic()
 

@@ -10,7 +10,7 @@ def store_state(state: str):
     expiration_time = created_at - _STATE_EXPIRATION_SECONDS
 
     with auth_db() as conn:
-        # Remove expired states so they do not accumulate.
+        # Delete the expired states so that they do not collect in the table.
         conn.execute(
             """
             DELETE FROM oauth_states
@@ -36,10 +36,10 @@ def store_state(state: str):
 
 def consume_state(state: str) -> bool:
     """
-    Atomically validate and consume an OAuth state.
+    Use up an OAuth state, if it is valid.
 
-    Returns True only if the state exists and has not expired.
-    A valid state is deleted as part of the same atomic operation.
+    Return True only if the state exists and did not expire. One DELETE
+    statement finds and removes the state, so two requests cannot both use it.
     """
     expiration_time = time.time() - _STATE_EXPIRATION_SECONDS
 

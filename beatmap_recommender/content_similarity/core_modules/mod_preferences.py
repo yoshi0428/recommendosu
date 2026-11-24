@@ -4,107 +4,37 @@ from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
-"""
-
-Done like this to prevent unrecognizable mods from stopping a recommendation entirely
-
-"""
+# All the osu! mods that the parser knows, in the canonical order. The list is
+# long so that an unusual mod does not stop a recommendation.
 MOD_ORDER = [
-    # Original order
-    "EZ",
-    "NF",
-    "HT",
-    "HD",
-    "HR",
-    "DT",
-    "NC",
-    "FL",
-    # Difficulty Reduction
-    "DC",
-    "SR",
-    "NR",
-    # Difficulty Increase
-    "SD",
-    "PF",
-    "FI",
-    "TC",
-    "CO",
-    "BL",
-    "ST",
-    "AC",
+    # The original order
+    "EZ", "NF", "HT", "HD", "HR", "DT", "NC", "FL",
+    # Difficulty reduction
+    "DC", "SR", "NR",
+    # Difficulty increase
+    "SD", "PF", "FI", "TC", "CO", "BL", "ST", "AC",
     # Automation
-    "AT",
-    "CN",
-    "RX",
-    "AP",
-    "SO",
+    "AT", "CN", "RX", "AP", "SO",
     # Conversion
-    "TP",
-    "DA",
-    "CL",
-    "RD",
-    "DS",
-    "MR",
-    "AL",
-    "SW",
-    "SG",
-    "IN",
-    "CS",
-    "HO",
-    "1K",
-    "2K",
-    "3K",
-    "4K",
-    "5K",
-    "6K",
-    "7K",
-    "8K",
-    "9K",
-    "10K",
+    "TP", "DA", "CL", "RD", "DS", "MR", "AL", "SW", "SG", "IN", "CS", "HO",
+    "1K", "2K", "3K", "4K", "5K", "6K", "7K", "8K", "9K", "10K",
     # Fun
-    "TR",
-    "WG",
-    "SI",
-    "GR",
-    "DF",
-    "WU",
-    "WD",
-    "BR",
-    "AD",
-    "FF",
-    "MU",
-    "NS",
-    "MG",
-    "RP",
-    "AS",
-    "FR",
-    "BU",
-    "MF",
-    "SY",
-    "DP",
-    "BM",
+    "TR", "WG", "SI", "GR", "DF", "WU", "WD", "BR", "AD", "FF", "MU", "NS",
+    "MG", "RP", "AS", "FR", "BU", "MF", "SY", "DP", "BM",
     # System
-    "TD",
-    "SV2",
-]
+    "TD", "SV2",
+]  # fmt: skip
 
-# Longest first is important if parsing concatenated strings.
-KNOWN_MODS = sorted(
-    MOD_ORDER,
-    key=len,
-    reverse=True,
-)
-
-# --------------------------------------------------------
-# Preference weighting
-# --------------------------------------------------------
+# The parser tries the longest names first. Thus a long mod name wins over a
+# shorter name at the start of it.
+KNOWN_MODS = sorted(MOD_ORDER, key=len, reverse=True)
 
 
 def canonicalize_mods(mods):
     """
-    Convert a mod representation into a canonical mod string.
+    Change a set of mods into one canonical mod string.
 
-    Supported inputs include:
+    The function accepts these inputs:
 
         []
         ["HD", "DT"]
@@ -128,13 +58,7 @@ def canonicalize_mods(mods):
     if mods is None:
         return "NM"
 
-    # --------------------------------------------------------
-    # Iterable representation
-    # --------------------------------------------------------
-    if isinstance(
-        mods,
-        (list, tuple, set),
-    ):
+    if isinstance(mods, (list, tuple, set)):
         parsed_mods = []
 
         for mod in mods:
@@ -143,10 +67,6 @@ def canonicalize_mods(mods):
                 continue
 
             parsed_mods.extend(parse_mod_string(mod))
-
-    # --------------------------------------------------------
-    # String representation
-    # --------------------------------------------------------
     else:
         mods = str(mods).strip().upper()
         if not mods or mods == "NM":
@@ -154,32 +74,22 @@ def canonicalize_mods(mods):
 
         parsed_mods = parse_mod_string(mods)
 
-    # --------------------------------------------------------
-    # Empty means NM
-    # --------------------------------------------------------
     parsed_mods = set(parsed_mods)
     if not parsed_mods:
         return "NM"
 
-    # --------------------------------------------------------
-    # NC is DT with pitch-shifted audio, so it counts as DT.
-    # beatmap_variants only stores DT combinations.
-    # --------------------------------------------------------
+    # NC is DT with a higher audio pitch, so it counts as DT. beatmap_variants
+    # stores only the DT combinations.
     if "NC" in parsed_mods:
         parsed_mods.discard("NC")
         parsed_mods.add("DT")
 
-    # --------------------------------------------------------
-    # Canonical ordering
-    # --------------------------------------------------------
-    parsed_mods = sorted(parsed_mods, key=lambda mod: MOD_ORDER.index(mod))
-
-    return "".join(parsed_mods)
+    return "".join(sorted(parsed_mods, key=MOD_ORDER.index))
 
 
 def parse_mod_string(mod_string):
     """
-    Parse a string containing one or more osu! mods.
+    Split a string of one or more osu! mods into a list of mods.
 
     Examples:
 
@@ -190,63 +100,41 @@ def parse_mod_string(mod_string):
         HD,DT    -> ["HD", "DT"]
     """
 
-    # Handle common separators.
+    # Remove the usual separators.
     mod_string = mod_string.replace(",", "").replace(" ", "").replace("+", "")
-
-    if not mod_string:
-        return []
 
     parsed = []
     remaining = mod_string
 
     while remaining:
-        matched = False
         for mod in KNOWN_MODS:
             if remaining.startswith(mod):
                 parsed.append(mod)
                 remaining = remaining[len(mod) :]
-                matched = True
                 break
-
-        if not matched:
-            raise ValueError(
-                f"Unknown mod string: {mod_string!r}, remaining={remaining!r}"
-            )
+        else:
+            raise ValueError(f"Unknown mod string: {mod_string!r}, remaining={remaining!r}")
 
     return parsed
 
 
 def get_score_weight(source, pp, top_weight, recent_weight, pp_weight):
     """
-    Calculate the contribution of one score to mod preference.
-    Top plays receive more weight than recent plays.
-    A score appearing in both collections is treated as a top play only, preventing it from being counted twice.
-    PP provides a small additional weighting factor.
-    """
+    Return the weight of one score in the mod preferences.
 
+    Top plays get more weight than recent plays. A score that is in both lists
+    ("top,recent") counts as a top play only, so that it does not count twice.
+    The pp adds a small extra weight.
+    """
     source = (source or "").lower()
 
-    # --------------------------------------------------------
-    # Determine base source weight.
-    # --------------------------------------------------------
-    if source == "top":
-        base_weight = top_weight
-    elif source == "recent":
-        base_weight = recent_weight
-    elif source == "top,recent":
-        base_weight = top_weight  # Already a top play, so don't double-count it.
-    else:
-        # Unknown source.
-        # This also makes the function reasonably safe if additional score sources are added later.
-        base_weight = recent_weight
+    # A source that the code does not know gets the recent weight. Thus a new
+    # score source does not break this function.
+    base_weight = top_weight if source in ("top", "top,recent") else recent_weight
 
-    # --------------------------------------------------------
-    # Add a small PP contribution.
-    # sqrt keeps very high PP scores from dominating.
-    # --------------------------------------------------------
-    if pp is None:
-        pp_factor = 1.0
-    else:
+    # The square root stops very high pp scores from having too much effect.
+    pp_factor = 1.0
+    if pp is not None:
         try:
             pp = float(pp)
         except (TypeError, ValueError):
@@ -254,17 +142,14 @@ def get_score_weight(source, pp, top_weight, recent_weight, pp_weight):
 
         if pp > 0:
             pp_factor = 1.0 + pp_weight * (pp**0.5) / 10.0
-        else:
-            pp_factor = 1.0
 
     return base_weight * pp_factor
 
 
 def get_player_mod_preferences(conn, player_id, top_weight, recent_weight, pp_weight):
     """
-    Calculate weighted mod preferences from the player's scores.
-    Each score contributes according to:
-        source weight × PP factor
+    Return the weighted mod preferences from the scores of the player. Each
+    score adds its source weight x its pp factor to its mod combination.
 
     Returns:
         {
@@ -282,7 +167,7 @@ def get_player_mod_preferences(conn, player_id, top_weight, recent_weight, pp_we
             pp
         FROM scores
         WHERE player_id = ?
-          -- Failed plays (rank F) aren't evidence of what the player can do.
+          -- A failed play (rank F) does not show what the player can do.
           AND COALESCE(rank, '') != 'F'
     """,
         (player_id,),
@@ -297,19 +182,17 @@ def get_player_mod_preferences(conn, player_id, top_weight, recent_weight, pp_we
             logger.warning("Ignoring unsupported mod combination %r for player %s", mods, player_id)
             continue
 
-        weight = get_score_weight(source, pp, top_weight, recent_weight, pp_weight)
-        preferences[mods] += weight
+        preferences[mods] += get_score_weight(source, pp, top_weight, recent_weight, pp_weight)
 
     return dict(preferences)
 
 
 def normalize_mod_preferences(preferences):
+    """Scale the preferences to [0, 1] on a log scale. The top mod combination gets 1.0."""
     if not preferences:
         return {}
 
-    transformed = {
-        mods: math.log1p(preference) for mods, preference in preferences.items()
-    }
+    transformed = {mods: math.log1p(preference) for mods, preference in preferences.items()}
 
     max_preference = max(transformed.values())
     if max_preference <= 0:
@@ -327,8 +210,8 @@ def get_preferred_mods(
     min_preference=0.0,
 ):
     """
-    Get the player's preferred mod combinations.
-    Returns a list sorted from most preferred to least preferred.
+    Return the preferred mod combinations of the player, from the most
+    preferred to the least preferred.
 
     Example:
 
@@ -340,18 +223,11 @@ def get_preferred_mods(
         ]
     """
 
-    raw_preferences = get_player_mod_preferences(
-        conn, player_id, top_weight, recent_weight, pp_weight
-    )
+    raw_preferences = get_player_mod_preferences(conn, player_id, top_weight, recent_weight, pp_weight)
     normalized_preferences = normalize_mod_preferences(raw_preferences)
 
     preferred_mods = [
-        (
-            mods,
-            preference,
-        )
-        for mods, preference in normalized_preferences.items()
-        if preference >= min_preference
+        (mods, preference) for mods, preference in normalized_preferences.items() if preference >= min_preference
     ]
 
     preferred_mods.sort(key=lambda item: item[1], reverse=True)

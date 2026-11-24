@@ -8,20 +8,21 @@ from beatmap_recommender.recommender_db_setup.db_insertion import insert_score
 
 logger = logging.getLogger(__name__)
 
-# The most scores osu! returns from one /users/{id}/scores/* request.
+# The maximum number of scores that osu! returns for one /users/{id}/scores/* request.
 API_PAGE_SIZE = 100
 
-# A player whose scores were refreshed this recently isn't refreshed again,
-# e.g. when they change a setting and re-run. Saves 4 osu! API requests.
+# If the scores of a player were refreshed within this many seconds, the code
+# does not refresh them again. For example, the player changes a setting and
+# runs the recommender again. This saves 4 osu! API requests.
 SCORE_REFRESH_INTERVAL = 120.0
 
-# player_id -> time.monotonic() of their last successful refresh.
+# player_id -> time.monotonic() of the last successful refresh of the player.
 _last_refreshed = {}
 _last_refreshed_lock = threading.Lock()
 
 
 def scores_refreshed_recently(player_id):
-    """Whether update_player_scores() succeeded for player_id in the last SCORE_REFRESH_INTERVAL."""
+    """Return True if update_player_scores() succeeded for player_id in the last SCORE_REFRESH_INTERVAL."""
     with _last_refreshed_lock:
         refreshed_at = _last_refreshed.get(player_id)
 
@@ -33,7 +34,7 @@ def _mark_refreshed(player_id):
         now = time.monotonic()
         _last_refreshed[player_id] = now
 
-        # Drop expired entries so the dict doesn't grow with every player.
+        # Delete the expired entries, so that the dict does not grow with each new player.
         for stale in [key for key, value in _last_refreshed.items() if now - value >= SCORE_REFRESH_INTERVAL]:
             del _last_refreshed[stale]
 
@@ -51,53 +52,40 @@ class PlayerNotFoundError(LookupError):
 
 def fetch_player_scores(api, player_id, limit=200):
     """
-    Fetch a player's top and recent scores from the osu! API.
+    Fetch the top scores and the recent scores of a player from the osu! API.
 
     Returns:
-        tuple[list, list]:
-            top_scores, recent_scores
+        tuple[list, list]: top_scores, recent_scores
 
     Raises:
         PlayerNotFoundError: if osu! returns 404 for the player.
     """
+    # The two lists do not depend on each other, so fetch them at the same
+    # time. The shared rate limiter of the client still controls the requests.
     try:
-        return _fetch_player_scores(api, player_id, limit)
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            top = executor.submit(_fetch_paginated, api, f"/users/{player_id}/scores/best", limit)
+            recent = executor.submit(_fetch_paginated, api, f"/users/{player_id}/scores/recent", limit)
+            return top.result(), recent.result()
     except OsuAPINotFoundError as exc:
         raise PlayerNotFoundError(player_id) from exc
-
-
-def _fetch_player_scores(api, player_id, limit):
-    # The two lists are independent, so fetch them at the same time. The
-    # client's shared rate limiter still paces the requests.
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        top = executor.submit(_fetch_paginated, api, f"/users/{player_id}/scores/best", limit)
-        recent = executor.submit(_fetch_paginated, api, f"/users/{player_id}/scores/recent", limit)
-
-        return top.result(), recent.result()
 
 
 def _fetch_paginated(api, endpoint, limit):
     """
     Fetch up to `limit` scores from a /users/{id}/scores/* endpoint.
 
-    osu! returns at most API_PAGE_SIZE scores per request (a larger limit is
-    silently clamped), so anything beyond that has to be paged with offset.
-    The best-scores list itself stops at 200.
+    osu! returns API_PAGE_SIZE scores for each request at most. It lowers a
+    larger limit without an error. Thus the code gets more scores page by
+    page, with offset. The list of best scores stops at 200.
     """
     scores = []
     while len(scores) < limit:
         page_size = min(API_PAGE_SIZE, limit - len(scores))
-        page = api.get(
-            endpoint,
-            params={
-                "limit": page_size,
-                "offset": len(scores),
-                "include_fails": 1,
-            },
-        )
+        page = api.get(endpoint, params={"limit": page_size, "offset": len(scores), "include_fails": 1})
         scores.extend(page)
 
-        # A short page means the list has run out.
+        # A short page means that the list ended.
         if len(page) < page_size:
             break
 
@@ -106,21 +94,20 @@ def _fetch_paginated(api, endpoint, limit):
 
 def normalize_score(score, source):
     """
-    Convert an osu! API score response into our database format.
+    Change a score from the osu! API into the format of our database.
 
     Args:
-        score: Raw score dictionary returned by the osu! API.
+        score: The score dict that the osu! API returned.
         source: "top" or "recent".
 
     Returns:
-        Dictionary suitable for insert_score().
+        A dict for insert_score().
     """
     beatmap = score.get("beatmap") or {}
     player_id = score.get("user_id")
 
     if player_id is None:
-        user = score.get("user") or {}
-        player_id = user.get("id")
+        player_id = (score.get("user") or {}).get("id")
 
     if player_id is None:
         raise ValueError(f"Score {score.get('id')} is missing player_id")
@@ -146,26 +133,17 @@ def normalize_score(score, source):
 
 
 def store_player_scores(conn, top_scores, recent_scores):
-    """Store scores in the connected database."""
-    stored = 0
-    skipped = 0
+    """
+    Store the scores in the connected database. Skip a score if its beatmap
+    is not in the beatmaps table. Return the number of stored scores.
+    """
+    all_scores = [(score, "top") for score in top_scores] + [(score, "recent") for score in recent_scores]
     to_insert = []
-
-    all_scores = [(score, "top") for score in top_scores] + [
-        (score, "recent") for score in recent_scores
-    ]
 
     for score, source in all_scores:
         normalized = normalize_score(score, source)
 
-        exists = conn.execute(
-            """
-            SELECT 1
-            FROM beatmaps
-            WHERE beatmap_id = ?
-            """,
-            (normalized["beatmap_id"],),
-        ).fetchone()
+        exists = conn.execute("SELECT 1 FROM beatmaps WHERE beatmap_id = ?", (normalized["beatmap_id"],)).fetchone()
 
         if exists is None:
             logger.debug(
@@ -173,31 +151,30 @@ def store_player_scores(conn, top_scores, recent_scores):
                 normalized["score_id"],
                 normalized["beatmap_id"],
             )
-            skipped += 1
             continue
 
         to_insert.append(normalized)
-        stored += 1
 
     with conn:
         for normalized in to_insert:
             insert_score(conn, normalized)
 
-    logger.info("Stored: %d, Skipped: %d", stored, skipped)
+    stored = len(to_insert)
+    logger.info("Stored: %d, Skipped: %d", stored, len(all_scores) - stored)
     return stored
 
 
 def update_player_scores(conn, api, player_id, limit=200):
     """
-    Fetch and store a player's top and recent scores.
+    Fetch and store the top scores and the recent scores of a player.
 
-    Previously collected scores remain in the database, so repeated
-    API updates build up the player's score history over time.
+    The scores from earlier updates stay in the database. Thus each update
+    adds to the score history of the player.
 
-    A successful update is remembered, see scores_refreshed_recently().
+    The code remembers a successful update (see scores_refreshed_recently()).
 
     Returns:
-        Number of score records processed.
+        The number of stored score records.
     """
 
     top_scores, recent_scores = fetch_player_scores(api, player_id, limit=limit)

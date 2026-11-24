@@ -23,8 +23,8 @@ from beatmap_recommender.content_similarity.core_modules.variant_table import (
 
 logger = logging.getLogger(__name__)
 
-# Range filters: the name of each one (min_<name>/max_<name> in
-# RecommendationSettings, "min_bpm" etc.) and the variant column it filters.
+# The range filters: the name of each filter (min_<name>/max_<name> in
+# RecommendationSettings, for example "min_bpm") and the variant column that it filters.
 RANGE_COLUMNS = {
     "stars": "star_rating",
     "bpm": "bpm",
@@ -37,7 +37,7 @@ RANGE_COLUMNS = {
     "year": "year",
 }
 
-# Per-variant scores stored alongside each variant in rank_variants().
+# The scores that rank_variants() stores with each variant.
 SCORE_FIELDS = (
     "content_similarity",
     "mod_preference",
@@ -54,10 +54,11 @@ def get_player_played_variants(
     cancel_event=None,
 ):
     """
-    Get the actual beatmap variants represented in the player's scores.
+    Return the beatmap variants that the scores of the player are on.
 
-    Score-specific data comes from scores. Variant-specific data comes from beatmap_variants. Mod strings are
-    canonicalized before matching so representations such as DTHD and HDDT resolve to the same variant.
+    The score data comes from scores. The variant data comes from
+    beatmap_variants. The code makes the mod strings canonical before it
+    matches them. Thus DTHD and HDDT find the same variant.
     """
     check_cancelled(cancel_event)
 
@@ -67,7 +68,7 @@ def get_player_played_variants(
         SELECT beatmap_id, mods, source, pp, created_at
         FROM scores
         WHERE player_id = ?
-          -- Failed plays (rank F) aren't evidence of what the player can do.
+          -- A failed play (rank F) does not show what the player can do.
           AND COALESCE(rank, '') != 'F'
         """,
         (player_id,),
@@ -80,7 +81,7 @@ def get_player_played_variants(
     beatmap_ids = sorted({str(row[0]) for row in score_rows})
     check_cancelled(cancel_event)
 
-    # ── Fetch variants (Chunked to respect SQLite parameter limits) ─────────
+    # ── Fetch variants, in chunks below the SQLite parameter limit ──────────
     variant_rows = []
     chunk_size = 900
     for i in range(0, len(beatmap_ids), chunk_size):
@@ -108,8 +109,7 @@ def get_player_played_variants(
     check_cancelled(cancel_event)
     variants_by_key = {}
 
-    for row in variant_rows:
-        variant_id, beatmap_id, mods, star_rating, ar, od, bpm = row
+    for variant_id, beatmap_id, mods, star_rating, ar, od, bpm in variant_rows:
         canonical_mods = canonicalize_mods(mods)
         key = (str(beatmap_id), canonical_mods)
 
@@ -137,22 +137,9 @@ def get_player_played_variants(
         if variant is None:
             continue
 
-        # this is the target if you'd like to exclude recent plays...
-        # really trippy logic that is worth commenting here
-        #
-        # True True -> False True which would append top plays
-        # True False -> False False which would not append recent plays
-        # False True -> True True which would append top plays
-        # False False -> True False which would append recent plays
+        # Keep all scores. If exclude_recent_plays is set, keep only the top plays.
         if not exclude_recent_plays or source in ("top", "top,recent"):
-            played_variants.append(
-                {
-                    **variant,
-                    "source": source,
-                    "pp": pp,
-                    "created_at": created_at,
-                }
-            )
+            played_variants.append({**variant, "source": source, "pp": pp, "created_at": created_at})
 
     check_cancelled(cancel_event)
     return played_variants
@@ -169,12 +156,13 @@ def get_player_difficulty_profiles(
     cancel_event=None,
 ):
     """
-    Calculate the player's global difficulty profile.
-    The global profile is used by recommendation ranking as the player's overall demonstrated difficulty level.
+    Return the global difficulty profile of the player: the weighted mean and
+    std of each feature. The ranking uses it as the overall difficulty level
+    that the player showed.
     """
     check_cancelled(cancel_event)
 
-    played_variants = get_player_played_variants(
+    variants = get_player_played_variants(
         conn,
         player_id,
         exclude_recent_plays=exclude_recent_plays,
@@ -183,109 +171,82 @@ def get_player_difficulty_profiles(
 
     check_cancelled(cancel_event)
 
-    if not played_variants:
+    if not variants:
         return {}
 
-    features = ("star_rating", "ar", "od", "bpm", "pp")
+    profile = {}
 
-    def build_profile(variants):
-        profile = {}
+    top_plays = sorted(
+        (
+            variant
+            for variant in variants
+            if variant["source"] in ("top", "top,recent") and variant.get("pp") is not None
+        ),
+        key=lambda variant: float(variant["pp"]),
+        reverse=True,
+    )
 
-        top_plays = sorted(
-            (
-                variant
-                for variant in variants
-                if variant["source"] in ("top", "top,recent")
-                and variant.get("pp") is not None
-            ),
-            key=lambda variant: float(variant["pp"]),
-            reverse=True,
-        )
+    # The highest pp of the top plays.
+    top_pp = float(top_plays[0]["pp"]) if top_plays else 0.0
 
-        # Highest PP top play in this profile.
-        top_pp = float(top_plays[0]["pp"]) if top_plays else 0.0
+    for feature in ("star_rating", "ar", "od", "bpm", "pp"):
+        check_cancelled(cancel_event)
 
-        for feature in features:
-            check_cancelled(cancel_event)
+        values = []
+        weights = []
 
-            values = []
-            weights = []
+        for index, variant in enumerate(top_plays if feature == "pp" else variants):
+            if index % 1024 == 0:
+                check_cancelled(cancel_event)
+
+            value = variant.get(feature)
+
+            if value is None:
+                continue
+
+            try:
+                value = float(value)
+            except (TypeError, ValueError):
+                continue
 
             if feature == "pp":
-                profile_variants = top_plays
+                # The #1 top play gets 1.0. The weight falls fast for lower top plays.
+                weight = 0.80**index
             else:
-                profile_variants = variants
+                weight = get_ability_score_weight(
+                    variant["source"],
+                    variant["pp"],
+                    variant["created_at"],
+                    recency_half_life_days,
+                    ability_top_weight,
+                    ability_recent_weight,
+                    ability_pp_weight,
+                )
 
-            for index, variant in enumerate(profile_variants):
-                if index % 1024 == 0:
-                    check_cancelled(cancel_event)
-
-                value = variant.get(feature)
-
-                if value is None:
-                    continue
-
-                try:
-                    value = float(value)
-                except (TypeError, ValueError):
-                    continue
-
-                if feature == "pp":
-                    rank = index + 1
-
-                    # #1 = 1.0, with a strong decay toward lower-ranked top plays.
-                    weight = 0.80 ** (rank - 1)
-
-                elif feature == "star_rating":
-                    ability_weight = get_ability_score_weight(
-                        variant["source"],
-                        variant["pp"],
-                        variant["created_at"],
-                        recency_half_life_days,
-                        ability_top_weight,
-                        ability_recent_weight,
-                        ability_pp_weight,
-                    )
-
+                if feature == "star_rating":
                     pp = variant.get("pp")
 
                     if pp is None or top_pp <= 0:
                         continue
 
-                    # Higher-PP performances give more influence to the player's demonstrated star-rating profile.
-                    pp_weight = np.sqrt(float(pp) / top_pp)
+                    # A play with more pp has more effect on the star rating profile.
+                    weight = weight * np.sqrt(float(pp) / top_pp)
 
-                    weight = ability_weight * pp_weight
+            values.append(value)
+            weights.append(weight)
 
-                else:
-                    weight = get_ability_score_weight(
-                        variant["source"],
-                        variant["pp"],
-                        variant["created_at"],
-                        recency_half_life_days,
-                        ability_top_weight,
-                        ability_recent_weight,
-                        ability_pp_weight,
-                    )
+        if not values:
+            continue
 
-                values.append(value)
-                weights.append(weight)
+        mean, std = weighted_mean_and_std(values, weights)
+        if feature == "pp":
+            logger.info("Global profile PP: mean=%.2f, std=%.2f", mean, std)
 
-            if not values:
-                continue
+        profile[f"{feature}_mean"] = mean
+        profile[f"{feature}_std"] = std
 
-            mean, std = weighted_mean_and_std(values, weights)
-            if feature == "pp":
-                logger.info("Global profile PP: mean=%.2f, std=%.2f", mean, std)
-
-            profile[f"{feature}_mean"] = mean
-            profile[f"{feature}_std"] = std
-
-        return profile
-
-    global_profile = build_profile(played_variants)
     check_cancelled(cancel_event)
-    return global_profile
+    return profile
 
 
 def get_candidate_variants(
@@ -299,17 +260,18 @@ def get_candidate_variants(
     cancel_event=None,
 ):
     """
-    Select candidate variants and apply the request's filters.
+    Select the candidate variants and apply the filters of the request.
 
-    Returns a VariantRows in table (rowid) order. The filters behave like the
-    SQL they replace: NULLs never match, and excluded mods use LIKE '%mod%'.
+    Return a VariantRows in table (rowid) order. The filters work like the SQL
+    that they replaced: a NULL never matches, and an excluded mod uses
+    LIKE '%mod%'.
 
-    requested_mods: mods to recommend, uppercase. A variant matches if its
-    mods are all requested (NM only if "NM" is), or with exact_mods, if its
-    mods are exactly the requested ones.
+    requested_mods: the mods to recommend, in uppercase. A variant matches if
+    all its mods are requested (NM only if "NM" is requested). With
+    exact_mods, its mods must be exactly the requested mods.
 
-    ranges: {name: (minimum, maximum)} for names in RANGE_COLUMNS, either
-    bound None for no limit.
+    ranges: {name: (minimum, maximum)} for names in RANGE_COLUMNS. A bound of
+    None means no limit.
     """
     if not beatmap_ids:
         return []
@@ -378,15 +340,12 @@ def get_candidate_variants(
 
 
 def _feature_values(variants, feature):
-    """One feature of every variant as float32, NaN where it's missing."""
+    """Return one feature of all the variants as float32, with NaN where the value is missing."""
     if isinstance(variants, VariantRows):
         return variants.float_column(feature).astype(np.float32)
 
     return np.asarray(
-        [
-            float(variant[feature]) if variant.get(feature) is not None else np.nan
-            for variant in variants
-        ],
+        [float(variant[feature]) if variant.get(feature) is not None else np.nan for variant in variants],
         dtype=np.float32,
     )
 
@@ -399,12 +358,12 @@ def calculate_difficulty_scores(
     cancel_event=None,
 ):
     """
-    Calculate how closely each variant matches the player's difficulty.
+    Return how closely each variant matches the difficulty of the player.
 
-    This score is used for ranking candidates after the hard star-rating
-    constraint has been applied.
+    The ranking uses this score after the hard star rating limit removed the
+    other candidates.
 
-    Returns scores approximately in [0, 1]:
+    The scores are approximately in [0, 1]:
         1.0 = very close
         0.5 = moderate difference
         0.0 = very far
@@ -461,17 +420,10 @@ def calculate_difficulty_scores(
     total_weight = weight_matrix.sum(axis=1)
     valid_variants = total_weight > 0
 
-    scores = np.full(
-        len(variants),
-        0.5,
-        dtype=np.float32,
-    )
+    scores = np.full(len(variants), 0.5, dtype=np.float32)
 
     if np.any(valid_variants):
-        distance = np.sqrt(
-            weighted_squared_distance[valid_variants].sum(axis=1)
-            / total_weight[valid_variants]
-        )
+        distance = np.sqrt(weighted_squared_distance[valid_variants].sum(axis=1) / total_weight[valid_variants])
         scores[valid_variants] = np.exp(-0.5 * distance**2)
 
     check_cancelled(cancel_event)
@@ -480,12 +432,13 @@ def calculate_difficulty_scores(
 
 def _descending_order(sort_arrays):
     """
-    Row order for sorted(..., key=sort_keys, reverse=True), where
+    Return the row order of sorted(..., key=sort_keys, reverse=True), where
     sort_arrays[0] is the primary key.
 
-    Same order as np.lexsort([-array for array in reversed(sort_arrays)]),
-    but sorts the primary key alone and only lexsorts the rows that tie on
-    it: a lexsort makes one full pass per key, and ties are rare.
+    The order is the same as np.lexsort([-array for array in reversed(sort_arrays)]).
+    But this function sorts by the primary key alone, then does a lexsort only
+    on the rows that tie on it. A lexsort makes one full pass for each key,
+    and ties are rare.
     """
     keys = [-array for array in sort_arrays]
     order = np.argsort(keys[0], kind="stable")
@@ -494,15 +447,15 @@ def _descending_order(sort_arrays):
         return order
 
     primary = keys[0][order]
-    # NaN sorts last, and NaNs tie with each other, like in a lexsort.
+    # NaN sorts last, and two NaNs tie, as in a lexsort.
     tied = (primary[1:] == primary[:-1]) | (np.isnan(primary[1:]) & np.isnan(primary[:-1]))
 
     if not tied.any():
         return order
 
-    # Positions in `order` that belong to a run of equal primary keys,
-    # labelled by run, then sorted by run and the remaining keys. The
-    # lexsort is stable, so rows still tied keep their original order.
+    # Find the positions in `order` that are in a run of equal primary keys,
+    # and label each run. Then sort by run and by the other keys. The lexsort
+    # is stable, so the rows that still tie keep their original order.
     in_run = np.zeros(len(order), dtype=bool)
     in_run[1:] |= tied
     in_run[:-1] |= tied
@@ -534,16 +487,16 @@ def rank_variants(
     cancel_event=None,
 ):
     """
-    Rank variants for all candidate base maps.
+    Rank the variants of all the candidate beatmaps.
 
     similarity_index maps candidate beatmap_id -> best content similarity.
 
-    Candidate processing:
-        1. Load candidate variants with SQL-level filters.
-        2. Calculate difficulty scores.
-        3. Calculate recommendation scores.
-        4. Sort and truncate (every variant is kept, so a beatmap can
-           appear once per mod variant).
+    The steps:
+        1. Load the candidate variants and apply the filters.
+        2. Calculate the difficulty scores.
+        3. Calculate the recommendation scores.
+        4. Sort, and keep the first top_k. All variants stay, so a beatmap
+           can show one time for each mod variant.
     """
     check_cancelled(cancel_event)
     total_start = time.perf_counter()
@@ -553,9 +506,6 @@ def rank_variants(
 
     config = recommendation_config
     weights = config["weights"]
-    classifier_weight = weights["classifier"]
-
-    # Local copies of weights to eliminate dict access overhead inside loop
     w_content = weights["content"]
     w_mod = weights["mod_preference"]
     w_diff = weights["difficulty"]
@@ -576,20 +526,19 @@ def rank_variants(
         min_difficulty_stars = star_mean - difficulty_star_std_multiplier * star_std
         max_difficulty_stars = star_mean + difficulty_star_std_multiplier * star_std
 
-        # Explicit star filters override the automatic difficulty bounds.
-        # A one-sided filter leaves the other side open.
+        # Star filters from the user replace the automatic difficulty limits.
+        # A filter with one side only leaves the other side open.
         if min_stars is not None or max_stars is not None:
             min_difficulty_stars = float(min_stars) if min_stars is not None else 0.0
             max_difficulty_stars = float(max_stars) if max_stars is not None else float("inf")
 
-        # A min_pp without star filters means the player is trying to push,
-        # so the automatic star ceiling would hide exactly the maps they're
-        # asking for. Lift it and keep the lower bound.
+        # A min_pp without star filters means that the player wants harder
+        # maps. The automatic star maximum would hide exactly those maps. Thus
+        # remove the maximum, and keep the minimum.
         if min_pp is not None and min_stars is None and max_stars is None:
             max_difficulty_stars = float("inf")
     else:
         min_difficulty_stars = float(min_stars) if min_stars is not None else None
-
         max_difficulty_stars = float(max_stars) if max_stars is not None else None
 
     # ── Validate filters ───────────────────────────────────────
@@ -597,23 +546,17 @@ def rank_variants(
         if minimum is not None and maximum is not None and minimum > maximum:
             raise ValueError(f"min_{name} ({minimum}) cannot be greater than max_{name} ({maximum})")
 
-    # build_seed_similarity_index() already keeps the best similarity per beatmap.
-    candidate_similarity = similarity_index
-
-    if not candidate_similarity:
-        return []
-
     # ── Load candidate variants ────────────────────────────────
     start = time.perf_counter()
 
     variants = get_candidate_variants(
         conn,
-        candidate_similarity.keys(),
+        similarity_index.keys(),
         requested_mods=requested_mods,
         exact_mods=exact_mods,
         excluded_mods=excluded_mods,
         beatmap_status=beatmap_status,
-        # The difficulty window (or explicit star filters, which override it).
+        # The difficulty window, or the star filters of the user, which replace it.
         ranges={**ranges, "stars": (min_difficulty_stars, max_difficulty_stars)},
         cancel_event=cancel_event,
     )
@@ -623,7 +566,7 @@ def rank_variants(
     if not variants:
         return []
 
-    # get_candidate_variants() already applies the hard difficulty range, so no further star filtering is necessary.
+    # get_candidate_variants() applied the hard difficulty range, so no more star filter is necessary.
     eligible_count = len(variants)
 
     if min_difficulty_stars is not None:
@@ -644,13 +587,13 @@ def rank_variants(
     start = time.perf_counter()
     table = variants.table
     beatmap_codes = variants.codes("beatmap_id")
-    # Per beatmap_id code; beatmaps without a prediction score 0.0.
+    # Indexed by beatmap_id code. A beatmap without a prediction gets 0.0.
     beatmap_classifier_scores = np.zeros(len(table.categories["beatmap_id"]))
     prediction_count = 0
 
-    if classifier_weight > 0 and category_preferences:
-        # The classifier score only depends on the beatmap, so calculate it
-        # once per beatmap instead of once per mod variant.
+    if w_class > 0 and category_preferences:
+        # The classifier score depends only on the beatmap. Thus calculate it
+        # one time for each beatmap, not for each mod variant.
         beatmap_classifier_scores = np.where(
             table.has_nm_prediction,
             calculate_classifier_scores(table.nm_predictions, category_preferences),
@@ -663,7 +606,7 @@ def rank_variants(
     logger.info("Classifier predictions: %.4fs (%d predictions)", time.perf_counter() - start, prediction_count)
 
     # ── Difficulty scores ──────────────────────────────────────
-    # The current ranker uses the global difficulty profile. Therefore, there is no reason to split variants by mod.
+    # The ranker uses the global difficulty profile, so it does not split the variants by mod.
     start = time.perf_counter()
     difficulty_scores = calculate_difficulty_scores(
         variants,
@@ -677,15 +620,15 @@ def rank_variants(
     logger.info("Difficulty scores: %.4fs (%d variants)", time.perf_counter() - start, eligible_count)
 
     # ── Score variants ─────────────────────────────────────────
-    # Scores are numpy arrays rather than per-variant Python floats, since
-    # the worst case (no star bounds, every mod) scores ~3 million variants.
-    # Per-beatmap and per-mods values are looked up once per distinct value,
-    # then spread to the variants through their codes.
+    # The scores are numpy arrays, not Python floats for each variant, because
+    # the worst case (no star limits, all mods) scores about 3 million variants.
+    # The code finds each beatmap value and each mods value one time for each
+    # distinct value. Then the codes copy the values to the variants.
     start = time.perf_counter()
     categories = table.categories
 
     content_scores = np.array(
-        [candidate_similarity.get(beatmap_id, np.nan) for beatmap_id in categories["beatmap_id"]],
+        [similarity_index.get(beatmap_id, np.nan) for beatmap_id in categories["beatmap_id"]],
         dtype=np.float64,
     )[beatmap_codes]
     mod_scores = np.array(
@@ -693,13 +636,8 @@ def rank_variants(
         dtype=np.float64,
     )[variants.codes("mods")]
     difficulty_scores = difficulty_scores.astype(np.float64)
-
-    check_cancelled(cancel_event)
-
-    if category_preferences:
-        classifier_scores = beatmap_classifier_scores[beatmap_codes]
-    else:
-        classifier_scores = np.zeros(eligible_count)
+    # All zeros if there are no category preferences or the classifier weight is 0.
+    classifier_scores = beatmap_classifier_scores[beatmap_codes]
 
     check_cancelled(cancel_event)
 
@@ -716,27 +654,13 @@ def rank_variants(
     logger.info("Score variants: %.4fs (%d variants)", time.perf_counter() - start, eligible_count)
 
     # ── Sort and truncate ──────────────────────────────────────
-    check_cancelled(cancel_event)
     start = time.perf_counter()
 
     score_arrays = dict(
-        zip(
-            SCORE_FIELDS,
-            (
-                content_scores,
-                mod_scores,
-                difficulty_scores,
-                classifier_scores,
-                final_scores,
-            ),
-        )
+        zip(SCORE_FIELDS, (content_scores, mod_scores, difficulty_scores, classifier_scores, final_scores))
     )
-
     sort_arrays = [
-        score_arrays[key]
-        if key in score_arrays
-        else variants.float_column(key)
-        for key in config["sort_keys"]
+        score_arrays[key] if key in score_arrays else variants.float_column(key) for key in config["sort_keys"]
     ]
 
     order = _descending_order(sort_arrays)
@@ -746,8 +670,8 @@ def rank_variants(
 
     check_cancelled(cancel_event)
 
-    # Rows only become dicts (variant columns, then SCORE_FIELDS, then
-    # title/artist/creator/version) when a page of them is read.
+    # The rows become dicts (variant columns, then SCORE_FIELDS, then
+    # title/artist/creator/version) only when the code reads a page of them.
     winners = VariantRows(
         variants.table,
         variants.rows[order],

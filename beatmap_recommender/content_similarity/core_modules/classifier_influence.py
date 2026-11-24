@@ -16,13 +16,11 @@ def get_player_category_preferences(
     ability_pp_weight,
 ):
     """
-    Calculate the player's preference for each NM tournament category.
+    Return the preference of the player for each NM tournament category.
 
-    Player scores are weighted using the same ability weighting as the difficulty profile:
-        - recent scores have more influence
-        - top scores provide historical influence
-        - PP provides a small additional weighting
-        - old scores decay over time
+    The scores of the player use the same weights as the difficulty profile
+    (ability.get_ability_score_weight): recent scores count more, top scores
+    add the past, pp adds a little, and old scores count less.
 
     Returns:
         {
@@ -52,7 +50,7 @@ def get_player_category_preferences(
         JOIN variant_predictions vp
             ON vp.variant_id = bv.variant_id
         WHERE s.player_id = ?
-          -- Failed plays (rank F) aren't evidence of what the player can do.
+          -- A failed play (rank F) does not show what the player can do.
           AND COALESCE(s.rank, '') != 'F'
           AND vp.nm1 IS NOT NULL
           AND vp.nm2 IS NOT NULL
@@ -65,16 +63,7 @@ def get_player_category_preferences(
 
     totals = {label: 0.0 for label in NM_LABELS}
 
-    for (
-        source,
-        pp,
-        created_at,
-        nm1,
-        nm2,
-        nm3,
-        nm4,
-        nm5,
-    ) in rows:
+    for source, pp, created_at, *probabilities in rows:
         weight = get_ability_score_weight(
             source,
             pp,
@@ -85,15 +74,7 @@ def get_player_category_preferences(
             ability_pp_weight,
         )
 
-        probabilities = {
-            "NM1": nm1,
-            "NM2": nm2,
-            "NM3": nm3,
-            "NM4": nm4,
-            "NM5": nm5,
-        }
-
-        for label, probability in probabilities.items():
+        for label, probability in zip(NM_LABELS, probabilities):
             totals[label] += weight * float(probability)
 
     total = sum(totals.values())
@@ -106,8 +87,9 @@ def get_player_category_preferences(
 
 def calculate_classifier_scores(probabilities, preferences):
     """
-    How well each beatmap's NM1-NM5 prediction matches the player's NM
-    category preferences: 1.0 a strong match, 0.0 a weak one.
+    Return how well the NM1-NM5 prediction of each beatmap matches the NM
+    category preferences of the player. 1.0 is a strong match, and 0.0 is a
+    weak match.
 
     probabilities: [beatmaps, 5] NM1-NM5 probabilities, in NM_LABELS order.
     Returns a float64 array of scores in [0, 1].
@@ -119,7 +101,8 @@ def calculate_classifier_scores(probabilities, preferences):
     if max_preference <= 0:
         return np.zeros(len(probabilities))
 
-    # Summed one label at a time, like sum() over the labels would.
+    # Add one label at a time, in the same order as sum() over the labels.
+    # A different order can change the last bits of the result.
     score = probabilities[:, 0] * weights[0]
 
     for column, weight in enumerate(weights[1:], start=1):

@@ -1,14 +1,14 @@
 """
 The text of /help.
 
-Kept free of discord imports like options.py, so tests can check that every
-example parses and that the text fits in a Discord embed.
+As in options.py, this file does not import discord. Thus the tests can make
+sure that each example parses and that the text fits in a Discord embed.
 """
 
 from bot.options import HIDE_CHOICES, INDIVIDUAL_MODS, RANGE_FILTERS, STATUS_CHOICES
 
-# /rec examples as the options someone would type, with what each does.
-# Choice options use the names Discord shows.
+# /rec examples, as the options that a user types, with what each example does.
+# The choice options use the names that Discord shows.
 EXAMPLES = (
     ({}, "Your recommendations with the website's default settings"),
     ({"user": "peppy"}, "Recommendations for another player"),
@@ -21,11 +21,12 @@ EXAMPLES = (
 
 
 def format_example(options):
+    """Return the /rec command line for the options of an example."""
     return " ".join(["/rec", *(f"{name}: {value}" for name, value in options.items())])
 
 
 def help_embed_parts():
-    """(title, description, [(field name, field value), ...]) for the /help embed."""
+    """Return (title, description, [(field name, field value), ...]) for the /help embed."""
     description = (
         "`/rec` recommends maps similar to your top and recent plays, at your skill level. "
         "Every option is optional: with none, you get the same results as recommendosu.com "
@@ -92,5 +93,5 @@ def help_embed_parts():
 
 
 def _name(choices, value):
-    """The name Discord shows for a choice value."""
+    """Return the name that Discord shows for a choice value."""
     return next(name for name, choice_value in choices.items() if choice_value == value)

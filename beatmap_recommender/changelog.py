@@ -1,8 +1,9 @@
 """
-The site's changelog, shown at recommendosu.com/changelog and by the Discord
-bot's /changelog.
+The changelog of the site. recommendosu.com/changelog and the /changelog
+command of the Discord bot show it.
 
-Entries live in changelog.json next to this file, newest first:
+The entries are in changelog.json, in the same directory as this file, with
+the newest entry first:
 
     [
       {
@@ -12,8 +13,8 @@ Entries live in changelog.json next to this file, newest first:
       }
     ]
 
-The file is read on every request, so in production (where beatmap_recommender/
-is mounted into the backend container) an edit shows up without a restart.
+The code reads the file on each request. In production, beatmap_recommender/
+is mounted into the backend container. Thus an edit shows without a restart.
 """
 
 import datetime
@@ -35,6 +36,6 @@ _entries = TypeAdapter(list[ChangelogEntry])
 
 
 def read_changelog(path=None) -> list[ChangelogEntry]:
-    """Every entry, newest first (sorted by date, so the file's order doesn't matter)."""
+    """Return all the entries, newest first. The sort uses the date, so the order in the file has no effect."""
     entries = _entries.validate_python(json.loads(Path(path or CHANGELOG_PATH).read_text(encoding="utf-8")))
     return sorted(entries, key=lambda entry: entry.date, reverse=True)

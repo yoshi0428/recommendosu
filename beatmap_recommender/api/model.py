@@ -3,7 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
-# Ranked beatmap years available in the recommender database.
+# The years of the ranked beatmaps in the recommender database.
 MIN_BEATMAP_YEAR = 2007
 MAX_BEATMAP_YEAR = 2026
 
@@ -45,8 +45,8 @@ RECENCY_HALF_LIFE_DAYS = 30.0
 
 DIFFICULTY_STAR_STD_MULTIPLIER = 1.00
 
-# How the scores combine into final_score, and the tie-breaking sort order.
-# To aim at more pp, players set min_pp instead.
+# How the scores add up to final_score, and the sort order that breaks ties.
+# A player who wants more pp sets min_pp instead.
 RECOMMENDATION_CONFIG = {
     "weights": {
         "content": 0.50,
@@ -64,59 +64,36 @@ RECOMMENDATION_CONFIG = {
 
 
 class RecommendationSettings(BaseModel):
-    # ── Internal values for the algorithm, effectively uncapped ───────────────────────────
-    limit: int = Field(
-        default=10000000, ge=1, le=10000000,
-    )
+    # ── Internal values for the algorithm, high enough to have no effect ──────
+    limit: int = Field(default=10000000, ge=1, le=10000000)
 
     neighbors_k: int = Field(default=151240, ge=1, le=151240)
 
     # ── Basic recommendation options ───────────────────────────
     player_id: int | None = None
 
-    min_year: int | None = Field(
-        default=None, ge=MIN_BEATMAP_YEAR, le=MAX_BEATMAP_YEAR
-    )
-    max_year: int | None = Field(
-        default=None, ge=MIN_BEATMAP_YEAR, le=MAX_BEATMAP_YEAR
-    )
+    min_year: int | None = Field(default=None, ge=MIN_BEATMAP_YEAR, le=MAX_BEATMAP_YEAR)
+    max_year: int | None = Field(default=None, ge=MIN_BEATMAP_YEAR, le=MAX_BEATMAP_YEAR)
 
-    mods: list[str] | None = Field(
-        default=None,
-    )
-
-    excluded_mods: list[str] | None = Field(
-        default=None,
-    )
+    mods: list[str] | None = None
+    excluded_mods: list[str] | None = None
 
     @field_validator("mods", "excluded_mods")
     @classmethod
     def _normalize_mods(cls, mods):
-        """ " hd" -> "HD", so the recommender only sees uppercase mods."""
+        """Change " hd" to "HD", so that the recommender gets only uppercase mods."""
         return None if mods is None else [mod.strip().upper() for mod in mods]
 
-    exclude_already_played: bool = Field(
-        default=True,
-    )
+    exclude_already_played: bool = True
+    exclude_recent_plays: bool = False
 
-    exclude_recent_plays: bool = Field(
-        default=False,
-    )
+    # "all" puts the ranked maps and the loved maps into one list.
+    beatmap_status: Literal["ranked", "loved", "all"] = "all"
 
-    # "all" mixes ranked and loved maps into one list.
-    beatmap_status: Literal["ranked", "loved", "all"] = Field(
-        default="all",
-    )
-
-    exact_mods: bool = Field(
-        default=False,
-    )
+    exact_mods: bool = False
 
     # ── Difficulty constraint ──────────────────────────────────
-    difficulty_star_std_multiplier: float = Field(
-        default=DIFFICULTY_STAR_STD_MULTIPLIER,
-        ge=0.0,
-    )
+    difficulty_star_std_multiplier: float = Field(default=DIFFICULTY_STAR_STD_MULTIPLIER, ge=0.0)
 
     # ── Candidate filters ──────────────────────────────────────
     min_stars: float | None = None
@@ -144,18 +121,12 @@ class RecommendationSettings(BaseModel):
     max_cs: float | None = None
 
     # ── Difficulty profile ─────────────────────────────────────
-    difficulty_std_floors: dict[str, float] = Field(
-        default_factory=lambda: DIFFICULTY_STD_FLOORS.copy()
-    )
+    difficulty_std_floors: dict[str, float] = Field(default_factory=lambda: DIFFICULTY_STD_FLOORS.copy())
 
-    difficulty_feature_weights: dict[str, float] = Field(
-        default_factory=lambda: DIFFICULTY_FEATURE_WEIGHTS.copy()
-    )
+    difficulty_feature_weights: dict[str, float] = Field(default_factory=lambda: DIFFICULTY_FEATURE_WEIGHTS.copy())
 
     # ── Content similarity ─────────────────────────────────────
-    similarity_feature_weights: dict[str, float] = Field(
-        default_factory=lambda: SIMILARITY_FEATURE_WEIGHTS.copy()
-    )
+    similarity_feature_weights: dict[str, float] = Field(default_factory=lambda: SIMILARITY_FEATURE_WEIGHTS.copy())
 
     # ── Mod preferences ───────────────────────────────────────
     top_weight: float = TOP_WEIGHT
@@ -169,6 +140,4 @@ class RecommendationSettings(BaseModel):
     recency_half_life_days: float = RECENCY_HALF_LIFE_DAYS
 
     # ── Recommendation scoring ────────────────────────────────
-    recommendation_config: dict = Field(
-        default_factory=lambda: deepcopy(RECOMMENDATION_CONFIG)
-    )
+    recommendation_config: dict = Field(default_factory=lambda: deepcopy(RECOMMENDATION_CONFIG))

@@ -9,15 +9,21 @@ logger = logging.getLogger(__name__)
 
 API_BASE = "https://osu.ppy.sh/api/v2"
 
-# osu! asks for at most 60 requests per minute per application, with "some
-# degree of bursting" allowed. Every client in the process shares one budget,
-# since all of them use this application's credentials or tokens issued to it.
+# osu! permits at most 60 requests per minute for each app, with "some degree
+# of bursting". All the clients in the process share one budget, because they
+# all use the credentials of this app or tokens that osu! gave to it.
 REQUESTS_PER_MINUTE = 60
-# Requests that can go out back to back, e.g. a score refresh's 4 pages.
+# The number of requests that can go out one after another without a wait.
+# For example, a score refresh sends 4 pages.
 REQUEST_BURST = 4
 
 MAX_RETRIES = 5
 BACKOFF_BASE = 2
+
+
+def _backoff_delay(attempt: int) -> float:
+    """Exponential backoff with random jitter: about 1, 2, 4, 8... seconds."""
+    return BACKOFF_BASE**attempt + random.uniform(0, 1)
 
 
 class OsuAPINotFoundError(requests.HTTPError):
@@ -26,20 +32,22 @@ class OsuAPINotFoundError(requests.HTTPError):
 
 class RateLimiter:
     """
-    Token bucket shared across threads: up to `burst` requests at once, then
-    one every `interval` seconds.
+    A token bucket (a counter of request slots that fills at a fixed rate)
+    that all threads share. Up to `burst` requests can go out at once. After
+    that, one request can go out every `interval` seconds.
 
-    Waiting callers reserve their slot under the lock and sleep outside it,
-    so they're served in order without holding the lock while they wait.
+    A caller that must wait reserves its slot under the lock. Then it sleeps
+    outside the lock. Thus the callers go in order, and no caller holds the
+    lock while it waits.
 
-    Background work (acquire_background()) only takes a slot that live
-    requests aren't using.
+    Background work (acquire_background()) takes only a slot that the live
+    requests do not use.
     """
 
     def __init__(self, burst, interval, background_idle=2.0):
         self.burst = burst
         self.interval = interval
-        # Background requests wait until no live request went out for this long.
+        # A background request waits until no live request went out for this many seconds.
         self.background_idle = background_idle
         self._tokens = float(burst)
         self._updated = time.monotonic()
@@ -58,7 +66,7 @@ class RateLimiter:
             now = time.monotonic()
             self._refill(now)
             self._last_foreground = now
-            # Below zero means the slot is reserved in the future.
+            # A value below zero means that the slot is reserved for a later time.
             self._tokens -= 1
             wait_time = -self._tokens * self.interval if self._tokens < 0 else 0.0
 
@@ -67,9 +75,10 @@ class RateLimiter:
 
     def acquire_background(self):
         """
-        A slot for low-priority work: only once the bucket is full again and
-        no live request went out for background_idle seconds, so a live score
-        refresh arriving now still gets (nearly) its whole burst.
+        Wait for a slot for low-priority work. The slot comes only when the
+        bucket is full again and no live request went out for background_idle
+        seconds. Thus a live score refresh that arrives now still gets almost
+        all of its burst.
         """
         while True:
             with self._lock:
@@ -81,8 +90,8 @@ class RateLimiter:
             time.sleep(max(self.interval, 0.25))
 
 
-# Sized so no 60 second window holds more than REQUESTS_PER_MINUTE requests:
-# the burst plus one request per interval for the rest of the minute.
+# These sizes keep each 60-second window at REQUESTS_PER_MINUTE requests or
+# fewer: the burst, plus one request per interval for the rest of the minute.
 rate_limiter = RateLimiter(
     burst=REQUEST_BURST,
     interval=60.0 / (REQUESTS_PER_MINUTE - REQUEST_BURST),
@@ -90,7 +99,7 @@ rate_limiter = RateLimiter(
 
 
 class OsuAPIClient:
-    # Background work (played_maps.py) sets this, so its requests yield to live ones.
+    # Background work (played_maps.py) sets this, so that its requests wait for the live requests.
     low_priority = False
 
     def __init__(self, access_token: str):
@@ -99,28 +108,19 @@ class OsuAPIClient:
 
     def _on_unauthorized(self):
         """
-        Called on a 401. Subclasses that can refresh their own token do so
-        here, and the request is retried.
+        The client calls this method on a 401 response, then tries the request
+        again. A subclass that can refresh its own token does it here.
         """
         raise RuntimeError("osu! access token is invalid or expired.")
 
-    def get(
-        self,
-        endpoint: str,
-        params: dict | None = None,
-    ):
+    def get(self, endpoint: str, params: dict | None = None):
         """
-        Make an authenticated GET request.
+        Send an authenticated GET request and return the JSON body.
 
-        Includes:
-
-        - rate limiting shared by every client in the process
-        - exponential backoff
-        - Retry-After support
-        - retry handling for temporary server failures
-
-        OAuth token acquisition and refresh are handled outside
-        this client by the token manager.
+        The request uses the rate limit that all clients share. If the request
+        fails because of the network, a rate limit, or a server error, the
+        client waits and tries again, up to MAX_RETRIES times. On a rate
+        limit, it obeys the Retry-After header.
         """
         url = f"{API_BASE}{endpoint}"
 
@@ -148,48 +148,40 @@ class OsuAPIClient:
                 if attempt == MAX_RETRIES - 1:
                     raise
 
-                delay = BACKOFF_BASE**attempt + random.uniform(0, 1)
+                delay = _backoff_delay(attempt)
                 logger.warning("Request error: %s. Retrying in %.2fs...", exc, delay)
                 time.sleep(delay)
                 continue
 
-            # Unauthorized
             if response.status_code == 401:
                 self._on_unauthorized()
                 continue
 
-            # Rate limited
             if response.status_code == 429:
                 retry_after = response.headers.get("Retry-After")
-                if retry_after is not None:
-                    delay = float(retry_after)
-                else:
-                    delay = BACKOFF_BASE**attempt + random.uniform(0, 1)
-
+                delay = float(retry_after) if retry_after is not None else _backoff_delay(attempt)
                 logger.warning("Rate limited. Waiting %.2fs...", delay)
                 time.sleep(delay)
                 continue
 
-            # Temporary server failures
+            # A temporary server failure
             if 500 <= response.status_code < 600:
                 if attempt == MAX_RETRIES - 1:
                     response.raise_for_status()
 
-                delay = BACKOFF_BASE**attempt + random.uniform(0, 1)
-                logger.warning(
-                    "Server error %d. Retrying in %.2fs...", response.status_code, delay
-                )
+                delay = _backoff_delay(attempt)
+                logger.warning("Server error %d. Retrying in %.2fs...", response.status_code, delay)
                 time.sleep(delay)
                 continue
 
-            # Not found, e.g. a restricted (banned) or nonexistent user
+            # Not found. For example, the user is restricted (banned) or does not exist.
             if response.status_code == 404:
                 raise OsuAPINotFoundError(
                     f"osu! API returned 404 Not Found: {url}",
                     response=response,
                 )
 
-            # Successful / permanent response
+            # A success, or an error that another try cannot fix
             response.raise_for_status()
             return response.json()
 

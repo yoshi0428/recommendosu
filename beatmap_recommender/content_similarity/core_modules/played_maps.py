@@ -1,23 +1,24 @@
 """
-Every beatmap a player has ever played, so "exclude already played" covers
-more than the top/recent plays in the scores table.
+All the beatmaps that a player ever played. With this list, "exclude already
+played" covers more than the top and recent plays in the scores table.
 
-A player's full list comes from /users/{id}/beatmapsets/most_played (every
-beatmap they have a play count on, 100 per request). Fetching it takes one
-request per 100 beatmaps, minutes for a long-time player, so it runs in a
-background thread instead of in the request:
+The full list of a player comes from /users/{id}/beatmapsets/most_played. It
+has each beatmap with a play count, 100 for each request. For a long-time
+player, the fetch takes minutes. Thus a background thread does it, not the
+request:
 
     recommend_player() -> request_sync(player_id)   queue the player, return at once
     worker thread      -> sync_player()             fetch, replace their played_beatmaps rows
 
-The worker only takes a request slot when no live request is waiting (see
-RateLimiter.acquire_background()), so it never delays a score refresh by more
-than one request. A player is fetched again after RESYNC_INTERVAL; plays
-since the last fetch reach the scores table through the normal score refresh,
-and get_played_beatmap_ids() combines the two.
+The worker takes a request slot only when no live request waits (see
+RateLimiter.acquire_background()). Thus it delays a score refresh by one
+request at most. The worker fetches a player again after RESYNC_INTERVAL.
+The plays after the last fetch go into the scores table through the usual
+score refresh. get_played_beatmap_ids() combines the two tables.
 
-The worker only runs once start_sync_worker() is called (main.py's lifespan),
-so scripts, benchmarks and tests that call the recommender never touch the API.
+The worker runs only after a call to start_sync_worker() (in the lifespan of
+main.py). Thus scripts, benchmarks and tests that call the recommender do
+not use the API.
 """
 
 import logging
@@ -30,10 +31,10 @@ from beatmap_recommender.api.osu_api_client import OsuAPINotFoundError
 
 logger = logging.getLogger(__name__)
 
-# The most entries osu! returns from one most_played request.
+# The maximum number of entries that osu! returns for one most_played request.
 PAGE_SIZE = 100
 
-# A player's list is fetched again when it's older than this.
+# The worker fetches the list of a player again when the list is older than this.
 RESYNC_INTERVAL = timedelta(days=7)
 
 CREATE_TABLES = """
@@ -61,9 +62,9 @@ def create_played_tables(conn):
 # ============================================================
 def get_played_beatmap_ids(conn, player_id):
     """
-    Every beatmap ID the player has played: their stored scores, plus their
-    full most_played list if it has been fetched. A database without the
-    played_beatmaps table (an older copy, opened read-only) has only the scores.
+    Return all the beatmap IDs that the player played: the stored scores, plus
+    the full most_played list if the worker fetched it. A database without the
+    played_beatmaps table (an older copy, opened read-only) gives only the scores.
     """
     played = {beatmap_id for (beatmap_id,) in conn.execute(
         "SELECT DISTINCT beatmap_id FROM scores WHERE player_id = ?", (player_id,)
@@ -78,7 +79,7 @@ def get_played_beatmap_ids(conn, player_id):
 
 
 def synced_at(conn, player_id):
-    """When the player's most_played list was last stored, or None."""
+    """Return the time of the last store of the most_played list of the player, or None."""
     try:
         row = conn.execute("SELECT synced_at FROM played_beatmaps_sync WHERE player_id = ?", (player_id,)).fetchone()
     except sqlite3.OperationalError:  # no such table
@@ -90,7 +91,7 @@ def synced_at(conn, player_id):
 # Fetching and storing
 # ============================================================
 def fetch_played_beatmaps(api, player_id):
-    """{beatmap_id: play count} of the player's osu!standard beatmaps, from most_played."""
+    """Return {beatmap_id: play count} for the osu!standard beatmaps of the player, from most_played."""
     played, offset = {}, 0
     while True:
         page = api.get(
@@ -102,12 +103,12 @@ def fetch_played_beatmaps(api, player_id):
             if beatmap.get("mode", "osu") == "osu":
                 played[str(entry["beatmap_id"])] = int(entry.get("count") or 0)
         offset += len(page)
-        if len(page) < PAGE_SIZE:  # a short page means the list has run out
+        if len(page) < PAGE_SIZE:  # A short page means that the list ended.
             return played
 
 
 def store_played_beatmaps(conn, player_id, played, now=None):
-    """Replace the player's played_beatmaps rows with `played` and record the sync time."""
+    """Replace the played_beatmaps rows of the player with `played`, and record the sync time."""
     now = now or datetime.now(timezone.utc)
     create_played_tables(conn)
     with conn:
@@ -129,8 +130,8 @@ def store_played_beatmaps(conn, player_id, played, now=None):
 
 def sync_player(conn, api, player_id, now=None):
     """
-    Fetch and store the player's list unless it's younger than RESYNC_INTERVAL.
-    Returns the number of beatmaps stored, or None if the stored list was still fresh.
+    Fetch and store the list of the player, if it is RESYNC_INTERVAL old or older.
+    Return the number of stored beatmaps, or None if the stored list was still new.
     """
     now = now or datetime.now(timezone.utc)
     last = synced_at(conn, player_id)
@@ -159,7 +160,7 @@ class SyncWorker:
         self._thread.start()
 
     def request(self, player_id):
-        """Queue the player unless they're already queued."""
+        """Queue the player, if the player is not in the queue already."""
         with self._lock:
             if player_id in self._queued:
                 return
@@ -178,7 +179,7 @@ class SyncWorker:
                 finally:
                     conn.close()
             except OsuAPINotFoundError:
-                logger.info("Player %s: not found on osu!, played beatmaps not fetched.", player_id)
+                logger.info("Player %s: not found on osu!. Did not fetch the played beatmaps.", player_id)
             except Exception:
                 logger.exception("Player %s: fetching played beatmaps failed.", player_id)
             finally:
@@ -190,7 +191,7 @@ _worker = None
 
 
 def start_sync_worker(connect, make_api):
-    """Start the background worker (once). Until then request_sync() does nothing."""
+    """Start the background worker, one time only. Before this call, request_sync() does nothing."""
     global _worker
     if _worker is None:
         _worker = SyncWorker(connect, make_api)
@@ -198,6 +199,6 @@ def start_sync_worker(connect, make_api):
 
 
 def request_sync(player_id):
-    """Queue a background fetch of the player's played beatmaps, if the worker is running."""
+    """If the worker runs, queue a background fetch of the played beatmaps of the player."""
     if _worker is not None and player_id is not None:
         _worker.request(player_id)

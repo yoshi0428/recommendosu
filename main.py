@@ -9,14 +9,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 import httpx
-from fastapi import (
-    Cookie,
-    FastAPI,
-    Header,
-    HTTPException,
-    Query,
-    Response,
-)
+from fastapi import Cookie, FastAPI, Header, HTTPException, Query, Response
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
@@ -50,17 +43,15 @@ from beatmap_recommender.cancellation import (
 )
 from beatmap_recommender.content_similarity.core_modules.classifier_influence import NM_LABELS
 from beatmap_recommender.content_similarity.core_modules.played_maps import start_sync_worker
-from beatmap_recommender.content_similarity.core_modules.score_collector import (
-    PlayerNotFoundError,
-)
+from beatmap_recommender.content_similarity.core_modules.score_collector import PlayerNotFoundError
 from beatmap_recommender.content_similarity.core_modules.variant_table import load_variant_table
 from beatmap_recommender.database import connect_db
 from beatmap_recommender.recommender import recommend_player
 from beatmap_recommender.result_cache import get_result_page, store_result
 
-# Logs always go to stdout (`docker compose logs`). Set LOG_FILE to also
-# write them to a file, which rotates at LOG_FILE_MAX_BYTES and keeps
-# LOG_FILE_BACKUPS old files (backend.log.1, backend.log.2, ...).
+# The logs always go to stdout (`docker compose logs`). If you set LOG_FILE,
+# the logs also go to that file. The file rotates at LOG_FILE_MAX_BYTES, and
+# LOG_FILE_BACKUPS old files stay (backend.log.1, backend.log.2, ...).
 LOG_FILE = os.getenv("LOG_FILE")
 LOG_FILE_MAX_BYTES = 10 * 1024 * 1024
 LOG_FILE_BACKUPS = 5
@@ -69,14 +60,15 @@ log_handlers = [logging.StreamHandler()]
 
 if LOG_FILE:
     Path(LOG_FILE).parent.mkdir(parents=True, exist_ok=True)
-    log_handlers.append(
-        RotatingFileHandler(
-            LOG_FILE,
-            maxBytes=LOG_FILE_MAX_BYTES,
-            backupCount=LOG_FILE_BACKUPS,
-            encoding="utf-8",
-        )
+    file_handler = RotatingFileHandler(
+        LOG_FILE, maxBytes=LOG_FILE_MAX_BYTES, backupCount=LOG_FILE_BACKUPS, encoding="utf-8"
     )
+    log_handlers.append(file_handler)
+
+    # The uvicorn loggers (startup messages, one line for each request) do not
+    # send their records to the root logger. Thus they need the file handler too.
+    for name in ("uvicorn", "uvicorn.access"):
+        logging.getLogger(name).addHandler(file_handler)
 
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO").upper(),
@@ -84,35 +76,30 @@ logging.basicConfig(
     handlers=log_handlers,
 )
 
-# uvicorn's loggers (startup messages, one line per request) don't pass their
-# records on to the root logger, so they need the file handler added directly.
-if LOG_FILE:
-    for name in ("uvicorn", "uvicorn.access"):
-        logging.getLogger(name).addHandler(log_handlers[-1])
-
 logger = logging.getLogger(__name__)
 
 API_PREFIX = "/api/v1"
 
-# Rows returned per request by POST /recommend and the page endpoint; full
-# results can be millions of rows, which is too large for one response.
+# The number of rows that POST /recommend and the page endpoint return for
+# each request. A full result can have millions of rows, which is too large
+# for one response.
 RECOMMENDATION_PAGE_SIZE = 1000
 MAX_RECOMMENDATION_PAGE_SIZE = 5000
 
 SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "false").lower() == "true"
 
-# Shared secret for the Discord bot (bot/), sent in the X-Bot-Key header. The
-# bot endpoints are disabled when it's unset.
+# The shared secret of the Discord bot (bot/), in the X-Bot-Key header. If it
+# is not set, the bot endpoints are disabled.
 BOT_API_KEY = os.getenv("BOT_API_KEY")
 
-# The bot shows a few recommendations per Discord page, so it fetches the
-# result in small chunks rather than RECOMMENDATION_PAGE_SIZE rows at a time.
+# The bot shows a few recommendations on each Discord page. Thus it fetches
+# the result in small chunks, not RECOMMENDATION_PAGE_SIZE rows at a time.
 BOT_RECOMMENDATION_PAGE_SIZE = 50
 MAX_BOT_RECOMMENDATION_PAGE_SIZE = 100
 
 
 def make_background_api_client():
-    """The app's own client-credentials client, at low priority (played_maps.py's worker)."""
+    """Return a client-credentials client of this app, at low priority, for the worker of played_maps.py."""
     from beatmap_recommender.recommender_db_setup.osu_api_client import OsuAPIClient as AppOsuAPIClient
 
     client = AppOsuAPIClient()
@@ -122,6 +109,7 @@ def make_background_api_client():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """Prepare the auth database, the variant table and the sync worker before the first request."""
     logger.info("OAuth client ID: %r, redirect URI: %r", OSU_CLIENT_ID, OSU_REDIRECT_URI)
     initialize_auth_db()
     load_variant_table()
@@ -144,209 +132,80 @@ app = FastAPI(
 
 
 class Recommendation(BaseModel):
-    """A single recommended beatmap variant."""
+    """One recommended beatmap variant."""
 
+    # ── Identity and metadata ──────────────────────────────────
     beatmap_id: str = Field(
         description=(
-            "Base osu! beatmap identifier. This may be a numeric beatmap "
-            "ID or an MD5 identifier for maps without a numeric ID."
+            "Base osu! beatmap identifier. It is a numeric beatmap ID, or an MD5 "
+            "identifier for a map without a numeric ID."
         ),
         examples=["5476216"],
     )
-
     beatmapset_id: str = Field(
         description=(
-            "Base osu! beatmapset identifier. "
-            "May be unavailable for SOME beatmaps identified only by MD5."
-            "SOME is really important, "
-            "there could be MD5 beatmaps that we did retrieve the numerical beatmap_id, which let us also retrieve the numerical beatmapset_id."
+            "Base osu! beatmapset identifier. It can be missing for some "
+            "beatmaps that have only an MD5 identifier. Other MD5 beatmaps have "
+            "a numeric beatmap_id, and thus a numeric beatmapset_id too."
         ),
         examples=["5476216"],
     )
+    variant_id: int = Field(description="Database identifier of this beatmap variant.", examples=[12345])
+    title: str = Field(description="The title of the song.", examples=["Raise My Sword"])
+    artist: str = Field(description="The artist of the song.", examples=["GALNERYUS"])
+    creator: str = Field(description="The creator of the beatmapset.", examples=["ktgster"])
+    version: str = Field(description="The difficulty name of the beatmap in its beatmapset.", examples=["Insane"])
+    status: str = Field(description="Beatmap status in the recommender database.", examples=["ranked", "loved"])
+    mods: str = Field(description="Canonical mod combination of this variant.", examples=["NM", "HD", "HR", "HDDT"])
 
-    variant_id: int = Field(
-        description="Database identifier for the specific beatmap variant.",
-        examples=[12345],
-    )
+    # ── Difficulty values ──────────────────────────────────────
+    hp_drain: float = Field(description="HP Drain value.", examples=[5.0])
+    circle_size: float = Field(description="Circle Size value.", examples=[4.0])
+    od: float = Field(description="Overall Difficulty value.", examples=[8.5])
+    ar: float = Field(description="Approach Rate value.", examples=[9.0])
+    star_rating: float = Field(description="Calculated star rating of this variant.", examples=[5.42])
+    max_combo: int | None = Field(default=None, description="Maximum possible combo.", examples=[1234])
+    bpm: float | None = Field(default=None, description="BPM of this variant.", examples=[180.0])
+    min_bpm: float | None = Field(default=None, description="Minimum BPM, if the map has one.", examples=[180.0])
+    max_bpm: float | None = Field(default=None, description="Maximum BPM, if the map has one.", examples=[180.0])
+    length_seconds: float = Field(description="Beatmap length in seconds.", examples=[125.5])
+    object_count: int = Field(description="Number of hit objects.", examples=[642])
 
-    title: str = Field(
-        description="The song's title.",
-        examples=["Raise My Sword"],
-    )
-
-    artist: str = Field(
-        description="The song's artist.",
-        examples=["GALNERYUS"],
-    )
-
-    creator: str = Field(
-        description="The beatmapset's creator.",
-        examples=["ktgster"],
-    )
-
-    version: str = Field(
-        description="The selected beatmap in a beatmapset.",
-        examples=["Insane"],
-    )
-
-    status: str = Field(
-        description="Beatmap status in the recommender database.",
-        examples=["ranked", "loved"],
-    )
-
-    mods: str = Field(
-        description="Canonical mod combination for this recommendation.",
-        examples=["NM", "HD", "HR", "HDDT"],
-    )
-
-    hp_drain: float = Field(
-        description="HP Drain difficulty value.",
-        examples=[5.0],
-    )
-
-    circle_size: float = Field(
-        description="Circle Size difficulty value.",
-        examples=[4.0],
-    )
-
-    od: float = Field(
-        description="Overall Difficulty value.",
-        examples=[8.5],
-    )
-
-    ar: float = Field(
-        description="Approach Rate value.",
-        examples=[9.0],
-    )
-
-    star_rating: float = Field(
-        description="Calculated star rating for this variant.",
-        examples=[5.42],
-    )
-
-    max_combo: int | None = Field(
-        default=None,
-        description="Maximum achievable combo.",
-        examples=[1234],
-    )
-
-    bpm: float | None = Field(
-        default=None,
-        description="BPM of the beatmap variant.",
-        examples=[180.0],
-    )
-
-    min_bpm: float | None = Field(
-        default=None,
-        description="Minimum BPM, where applicable.",
-        examples=[180.0],
-    )
-
-    max_bpm: float | None = Field(
-        default=None,
-        description="Maximum BPM, where applicable.",
-        examples=[180.0],
-    )
-
-    length_seconds: float = Field(
-        description="Beatmap length in seconds.",
-        examples=[125.5],
-    )
-
-    object_count: int = Field(
-        description="Number of hit objects.",
-        examples=[642],
-    )
-
-    pp: float | None = Field(
-        default=None,
-        description="Calculated performance points.",
-        examples=[285.4],
-    )
-
-    pp_aim: float | None = Field(
-        default=None,
-        description="Aim component of calculated PP.",
-        examples=[105.2],
-    )
-
-    pp_speed: float | None = Field(
-        default=None,
-        description="Speed component of calculated PP.",
-        examples=[98.7],
-    )
-
-    pp_acc: float | None = Field(
-        default=None,
-        description="Accuracy component of calculated PP.",
-        examples=[81.5],
-    )
-
+    # ── Performance points ─────────────────────────────────────
+    pp: float | None = Field(default=None, description="Calculated performance points (pp).", examples=[285.4])
+    pp_aim: float | None = Field(default=None, description="Aim part of the calculated pp.", examples=[105.2])
+    pp_speed: float | None = Field(default=None, description="Speed part of the calculated pp.", examples=[98.7])
+    pp_acc: float | None = Field(default=None, description="Accuracy part of the calculated pp.", examples=[81.5])
     pp_flashlight: float | None = Field(
-        default=None,
-        description="Flashlight component of calculated PP.",
-        examples=[0.0],
+        default=None, description="Flashlight part of the calculated pp.", examples=[0.0]
     )
 
+    # ── Recommendation scores ──────────────────────────────────
     content_similarity: float = Field(
-        description=(
-            "Similarity between the recommendation and the player's "
-            "content-based seed maps."
-        ),
-        examples=[0.87],
+        description="Similarity between this map and the seed maps of the player.", examples=[0.87]
     )
-
     mod_preference: float = Field(
-        description="Score representing the player's observed mod preference.",
-        examples=[0.75],
+        description="How much the player prefers the mods of this variant, from the scores.", examples=[0.75]
     )
-
     difficulty_score: float = Field(
-        description=(
-            "Score representing how closely the recommendation's difficulty "
-            "matches the player's estimated difficulty profile."
-        ),
+        description="How closely the difficulty of this variant matches the difficulty profile of the player.",
         examples=[0.91],
     )
-
     classifier_score: float = Field(
-        description=(
-            "Score derived from the player's tournament-category preferences."
-        ),
+        description="How well this map matches the tournament category preferences of the player.",
         examples=[0.82],
     )
-
-    final_score: float = Field(
-        description="Final recommendation score used for ranking.",
-        examples=[0.84],
-    )
+    final_score: float = Field(description="The final score that the ranking uses.", examples=[0.84])
 
 
 class RecommendationResponse(BaseModel):
-    """Response containing personalized beatmap recommendations."""
+    """The first page of a new recommendation result."""
 
-    recommendation_id: str = Field(
-        description="Unique identifier for this recommendation request.",
-    )
-
-    player_id: int = Field(
-        description="osu! player ID used to generate the recommendations.",
-        examples=[12345678],
-    )
-
-    total_count: int = Field(
-        description="Total number of recommendations in the full ranked result.",
-        examples=[4088],
-    )
-
-    offset: int = Field(
-        description="Index of the first recommendation in this response.",
-        examples=[0],
-    )
-
-    recommendations: list[Recommendation] = Field(
-        description="Ranked list of recommended beatmap variants.",
-    )
+    recommendation_id: str = Field(description="Unique identifier of this recommendation request.")
+    player_id: int = Field(description="The osu! player ID of the recommendations.", examples=[12345678])
+    total_count: int = Field(description="Number of recommendations in the full ranked result.", examples=[4088])
+    offset: int = Field(description="Index of the first recommendation in this response.", examples=[0])
+    recommendations: list[Recommendation] = Field(description="Ranked list of recommended beatmap variants.")
 
 
 @app.get(
@@ -367,40 +226,28 @@ def changelog():
     tags=["System"],
 )
 def health():
-    return {
-        "status": "ok",
-    }
+    return {"status": "ok"}
 
 
-########################################################################################################################
-########################################################################################################################
-########################################################################################################################
-#
-# RECOMMEND
-#
-########################################################################################################################
-########################################################################################################################
-########################################################################################################################
+# ── Recommend ─────────────────────────────────────────────────────────────
 
 
 def require_player(session_id: str | None) -> int:
+    """Return the player ID of the session, or raise 401 if there is no valid session."""
     try:
         return get_current_player(session_id)
     except ValueError as exc:
-        raise HTTPException(
-            status_code=401,
-            detail=str(exc),
-        )
+        raise HTTPException(status_code=401, detail=str(exc))
 
 
 async def run_recommender(settings: RecommendationSettings, **kwargs):
-    """recommend_player(), with the errors a request can cause turned into HTTP errors."""
+    """Call recommend_player(). Change the errors that a request can cause into HTTP errors."""
     try:
         return await recommend_player(settings, **kwargs)
     except PlayerNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except OsuAuthorizationRevoked as exc:
-        # The session was deleted, so the next page load shows the login screen.
+        # The session is deleted, so the next page load shows the login screen.
         raise HTTPException(status_code=401, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -414,8 +261,8 @@ async def cache_and_first_page(
     page_size: int,
 ) -> dict:
     """
-    Cache a full result for owner (see result_cache.py), who pages through
-    it afterwards, and return its first page_size recommendations.
+    Cache a full result for owner (see result_cache.py), and return its first
+    page_size recommendations. The owner reads the other pages later.
     """
     await asyncio.to_thread(store_result, recommendation_id, owner, recommendations)
 
@@ -429,7 +276,7 @@ async def cache_and_first_page(
 
 
 def result_page(recommendation_id: str, owner: int | str, offset: int, limit: int, expired_detail: str) -> dict:
-    """One page of a cached result, or 404 if it expired or belongs to someone else."""
+    """Return one page of a cached result. Raise 404 if the result expired or another owner has it."""
     page = get_result_page(recommendation_id, owner, offset, limit)
 
     if page is None:
@@ -454,7 +301,7 @@ def result_page(recommendation_id: str, owner: int | str, offset: int, limit: in
         "RecommendationSettings object. This endpoint exposes advanced "
         "recommendation filters, weighting, difficulty-profile settings, "
         "mod preferences, and score weighting. "
-        "Only the first page of results is returned; fetch the rest from "
+        "Only the first page of results is returned. Fetch the rest from "
         f"{API_PREFIX}/recommend/{{recommendation_id}}/page."
     ),
     tags=["Recommendations"],
@@ -462,10 +309,7 @@ def result_page(recommendation_id: str, owner: int | str, offset: int, limit: in
 async def recommend_post(
     settings: RecommendationSettings,
     session_id: str | None = Cookie(default=None),
-    recommendation_id: str | None = Header(
-        default=None,
-        alias="X-Recommendation-Id",
-    ),
+    recommendation_id: str | None = Header(default=None, alias="X-Recommendation-Id"),
 ):
     session_player_id = require_player(session_id)
 
@@ -473,12 +317,9 @@ async def recommend_post(
         settings.player_id = session_player_id
 
     if not recommendation_id:
-        raise HTTPException(
-            status_code=400,
-            detail="Missing X-Recommendation-Id header.",
-        )
+        raise HTTPException(status_code=400, detail="Missing X-Recommendation-Id header.")
 
-    # Register the client-provided ID before starting the worker.
+    # Register the ID from the client before the worker starts.
     recommendation_id, cancel_event = create_cancellation_event(recommendation_id)
 
     try:
@@ -491,10 +332,7 @@ async def recommend_post(
     except RecommendationCancelled:
         return Response(
             status_code=204,
-            headers={
-                "X-Recommendation-Cancelled": "true",
-                "X-Recommendation-Id": recommendation_id,
-            },
+            headers={"X-Recommendation-Cancelled": "true", "X-Recommendation-Id": recommendation_id},
         )
     finally:
         remove_cancellation_event(recommendation_id)
@@ -528,11 +366,7 @@ async def recommend_page(
     recommendation_id: str,
     session_id: str | None = Cookie(default=None),
     offset: int = Query(default=0, ge=0),
-    limit: int = Query(
-        default=RECOMMENDATION_PAGE_SIZE,
-        ge=1,
-        le=MAX_RECOMMENDATION_PAGE_SIZE,
-    ),
+    limit: int = Query(default=RECOMMENDATION_PAGE_SIZE, ge=1, le=MAX_RECOMMENDATION_PAGE_SIZE),
 ):
     return result_page(
         recommendation_id,
@@ -548,39 +382,22 @@ async def recommend_page(
     summary="Cancel an active recommendation request",
     tags=["Recommendations"],
 )
-async def recommend_cancel(
-    recommendation_id: str,
-    session_id: str | None = Cookie(default=None),
-):
+async def recommend_cancel(recommendation_id: str, session_id: str | None = Cookie(default=None)):
     require_player(session_id)
-    cancelled = cancel_recommendation(recommendation_id)
-    return {
-        "recommendation_id": recommendation_id,
-        "cancelled": cancelled,
-    }
+    return {"recommendation_id": recommendation_id, "cancelled": cancel_recommendation(recommendation_id)}
 
 
-########################################################################################################################
-########################################################################################################################
-########################################################################################################################
-#
-# DISCORD BOT
-#
-########################################################################################################################
-########################################################################################################################
-########################################################################################################################
+# ── Discord Bot ───────────────────────────────────────────────────────────
 
 
 def require_bot(bot_key: str | None) -> None:
+    """Raise 401 if bot_key is not the bot API key, or if no key is set."""
     if not BOT_API_KEY or not bot_key or not secrets.compare_digest(bot_key, BOT_API_KEY):
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid bot API key.",
-        )
+        raise HTTPException(status_code=401, detail="Invalid bot API key.")
 
 
 def bot_result_owner(discord_user_id: int) -> str:
-    """The result cache owner for a Discord user, which can't equal an osu! player ID."""
+    """Return the result cache owner for a Discord user. It cannot be equal to an osu! player ID."""
     return f"discord:{discord_user_id}"
 
 
@@ -595,10 +412,7 @@ class BotPlayerResponse(BaseModel):
     summary="Look up an osu! player by username",
     tags=["Discord bot"],
 )
-async def bot_player(
-    username: str,
-    bot_key: str | None = Header(default=None, alias="X-Bot-Key"),
-):
+async def bot_player(username: str, bot_key: str | None = Header(default=None, alias="X-Bot-Key")):
     require_bot(bot_key)
     access_token = await get_application_access_token()
 
@@ -609,15 +423,9 @@ async def bot_player(
             params={"key": "username"},
         )
     except OsuAPINotFoundError:
-        raise HTTPException(
-            status_code=404,
-            detail=f"osu! player {username!r} was not found.",
-        )
+        raise HTTPException(status_code=404, detail=f"osu! player {username!r} was not found.")
 
-    return {
-        "player_id": user["id"],
-        "username": user["username"],
-    }
+    return {"player_id": user["id"], "username": user["username"]}
 
 
 @app.post(
@@ -627,7 +435,7 @@ async def bot_player(
     description=(
         "Same settings as POST /recommend, but player_id is required and "
         "scores are fetched with the application token. Only the first "
-        f"{BOT_RECOMMENDATION_PAGE_SIZE} recommendations are returned; fetch "
+        f"{BOT_RECOMMENDATION_PAGE_SIZE} recommendations are returned. Fetch "
         f"the rest from {API_PREFIX}/bot/recommend/{{recommendation_id}}/page."
     ),
     tags=["Discord bot"],
@@ -640,18 +448,15 @@ async def bot_recommend(
     require_bot(bot_key)
 
     if settings.player_id is None:
-        raise HTTPException(
-            status_code=400,
-            detail="player_id is required.",
-        )
+        raise HTTPException(status_code=400, detail="player_id is required.")
 
-    # No session: a session_player_id that never matches makes the
-    # recommender fetch scores with the application token.
+    # There is no session. A session_player_id that never matches makes the
+    # recommender fetch the scores with the token of the app.
     recommendations = await run_recommender(settings, session_id=None, session_player_id=None)
 
-    # Cached for the Discord user who asked, like the website caches a
-    # result for its logged-in player, so each Discord user keeps their own
-    # latest result and can't replace a website user's.
+    # Cache the result for the Discord user who asked, as the website does for
+    # its logged-in player. Thus each Discord user keeps a separate latest
+    # result, and cannot replace the result of a website user.
     return await cache_and_first_page(
         uuid.uuid4().hex,
         bot_result_owner(discord_user_id),
@@ -668,7 +473,7 @@ async def bot_recommend(
     description=(
         "Return a slice of a result previously generated by POST "
         f"{API_PREFIX}/bot/recommend for the same Discord user. Results expire "
-        "after 30 minutes without access, and only each user's latest is kept."
+        "after 30 minutes without access, and only the latest result of each user is kept."
     ),
     tags=["Discord bot"],
 )
@@ -677,11 +482,7 @@ async def bot_recommend_page(
     bot_key: str | None = Header(default=None, alias="X-Bot-Key"),
     discord_user_id: int = Header(alias="X-Discord-User-Id"),
     offset: int = Query(default=0, ge=0),
-    limit: int = Query(
-        default=BOT_RECOMMENDATION_PAGE_SIZE,
-        ge=1,
-        le=MAX_BOT_RECOMMENDATION_PAGE_SIZE,
-    ),
+    limit: int = Query(default=BOT_RECOMMENDATION_PAGE_SIZE, ge=1, le=MAX_BOT_RECOMMENDATION_PAGE_SIZE),
 ):
     require_bot(bot_key)
 
@@ -715,13 +516,10 @@ class BotClassifyResponse(BaseModel):
     summary="Get a beatmap's NM1-NM5 classifier predictions",
     tags=["Discord bot"],
 )
-async def bot_classify(
-    beatmap_id: str,
-    bot_key: str | None = Header(default=None, alias="X-Bot-Key"),
-):
+async def bot_classify(beatmap_id: str, bot_key: str | None = Header(default=None, alias="X-Bot-Key")):
     require_bot(bot_key)
 
-    # Predictions are only precomputed for NM variants.
+    # The predictions exist only for the NM variants.
     conn = connect_db(read_only=True)
 
     try:
@@ -746,34 +544,19 @@ async def bot_classify(
 
     if row is None:
         raise HTTPException(
-            status_code=404,
-            detail="Beatmap not found. Only ranked and loved osu!standard maps are in the database.",
+            status_code=404, detail="Beatmap not found. Only ranked and loved osu!standard maps are in the database."
         )
 
     info, predictions = row[:8], row[8:]
 
     if any(probability is None for probability in predictions):
-        raise HTTPException(
-            status_code=404,
-            detail="The classifier has no prediction for this beatmap.",
-        )
+        raise HTTPException(status_code=404, detail="The classifier has no prediction for this beatmap.")
 
     keys = ("beatmap_id", "beatmapset_id", "title", "artist", "creator", "version", "status", "star_rating")
-    return {
-        **dict(zip(keys, info)),
-        "predictions": dict(zip(NM_LABELS, predictions)),
-    }
+    return {**dict(zip(keys, info)), "predictions": dict(zip(NM_LABELS, predictions))}
 
 
-########################################################################################################################
-########################################################################################################################
-########################################################################################################################
-#
-# AUTHENTICATION
-#
-########################################################################################################################
-########################################################################################################################
-########################################################################################################################
+# ── Authentication ────────────────────────────────────────────────────────
 
 
 @app.get(
@@ -784,11 +567,7 @@ async def bot_classify(
 async def osu_login():
     state = generate_state()
     store_state(state)
-    authorization_url = build_authorization_url(state)
-    return RedirectResponse(
-        url=authorization_url,
-        status_code=302,
-    )
+    return RedirectResponse(url=build_authorization_url(state), status_code=302)
 
 
 @app.get(
@@ -797,38 +576,25 @@ async def osu_login():
     tags=["Authentication"],
 )
 async def osu_callback(
-    response: Response,
     code: str | None = None,
     state: str | None = None,
     error: str | None = None,
 ):
     if error:
         logger.warning("OAuth callback error: %r", error)
-        raise HTTPException(
-            status_code=400,
-            detail=f"osu! authorization failed: {error}",
-        )
+        raise HTTPException(status_code=400, detail=f"osu! authorization failed: {error}")
 
     if not code:
         logger.warning("OAuth callback: missing code")
-        raise HTTPException(
-            status_code=400,
-            detail="Missing authorization code.",
-        )
+        raise HTTPException(status_code=400, detail="Missing authorization code.")
 
     if not state:
         logger.warning("OAuth callback: missing state")
-        raise HTTPException(
-            status_code=400,
-            detail="Missing OAuth state.",
-        )
+        raise HTTPException(status_code=400, detail="Missing OAuth state.")
 
     if not consume_state(state):
         logger.warning("OAuth callback: invalid or expired state")
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid or expired OAuth state.",
-        )
+        raise HTTPException(status_code=400, detail="Invalid or expired OAuth state.")
 
     logger.debug("OAuth callback: state accepted, exchanging authorization code")
 
@@ -846,22 +612,16 @@ async def osu_callback(
         )
 
     except httpx.HTTPError as exc:
-        raise HTTPException(
-            status_code=502,
-            detail="Failed to communicate with osu!.",
-        ) from exc
+        raise HTTPException(status_code=502, detail="Failed to communicate with osu!.") from exc
 
-    redirect_response = RedirectResponse(
-        url="/",
-        status_code=302,
-    )
-
+    redirect_response = RedirectResponse(url="/", status_code=302)
     redirect_response.set_cookie(
         key="session_id",
         value=session_id,
         httponly=True,
         samesite="lax",
-        secure=SESSION_COOKIE_SECURE,  # SET TO FALSE IF CAUSING ISSUE IN DEV
+        # If the cookie fails in development (plain HTTP), set SESSION_COOKIE_SECURE to false.
+        secure=SESSION_COOKIE_SECURE,
         max_age=SESSION_EXPIRATION_SECONDS,
     )
 
@@ -873,20 +633,8 @@ async def osu_callback(
     summary="Get the authenticated osu! player",
     tags=["Authentication"],
 )
-async def auth_me(
-    session_id: str | None = Cookie(default=None),
-):
-    try:
-        player_id = get_current_player(session_id)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=401,
-            detail=str(exc),
-        )
-
-    return {
-        "player_id": player_id,
-    }
+async def auth_me(session_id: str | None = Cookie(default=None)):
+    return {"player_id": require_player(session_id)}
 
 
 @app.post(
@@ -894,15 +642,9 @@ async def auth_me(
     summary="Log out of the application",
     tags=["Authentication"],
 )
-async def auth_logout(
-    response: Response,
-    session_id: str | None = Cookie(default=None),
-):
+async def auth_logout(response: Response, session_id: str | None = Cookie(default=None)):
     if session_id:
         delete_session(session_id)
 
     response.delete_cookie(key="session_id")
-
-    return {
-        "message": "Logged out successfully.",
-    }
+    return {"message": "Logged out successfully."}

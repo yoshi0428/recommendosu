@@ -4,8 +4,8 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
-# The recommender database. Scripts that use another file (the benchmarks,
-# the smoke test) reassign it before connecting.
+# The path of the recommender database. A script that uses a different file
+# (the benchmarks, the smoke test) sets this value before it connects.
 DB_PATH = Path(
     os.getenv(
         "DB_PATH",
@@ -18,12 +18,12 @@ CONNECTION_TIMEOUT = 60
 
 def connect_db(read_only: bool = False) -> sqlite3.Connection:
     """
-    Connect to DB_PATH.
+    Connect to the database at DB_PATH.
 
-    Requests query it directly: the per-request SQL is a few indexed
-    lookups, which the OS page cache makes as fast as an in-memory copy,
-    and the bulk variant data is read once into the variant table
-    (variant_table.py). WAL lets those reads run while scores are written.
+    Each request queries the file directly. The SQL of a request is a few
+    index lookups. The OS page cache makes them as fast as a copy in memory.
+    The large variant data loads once into the variant table (variant_table.py).
+    WAL mode lets these reads run while the code writes scores.
     """
     path = Path(DB_PATH).resolve()
 
@@ -38,7 +38,7 @@ def connect_db(read_only: bool = False) -> sqlite3.Connection:
 
 
 def is_db_path(conn: sqlite3.Connection) -> bool:
-    """Whether conn is connected to the file at DB_PATH."""
+    """Return True if conn is connected to the file at DB_PATH."""
     for _, name, filename in conn.execute("PRAGMA database_list"):
         if name == "main":
             return bool(filename) and Path(filename).resolve() == Path(DB_PATH).resolve()

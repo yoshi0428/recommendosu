@@ -5,22 +5,23 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# A recommendation takes ~0.5s on the server plus the osu! score fetch, which
-# can wait on the shared osu! API rate limit when the site is busy.
+# A recommendation takes about 0.5s on the server, plus the osu! score fetch.
+# When the site is busy, the fetch can wait for the shared osu! API rate limit.
 REQUEST_TIMEOUT = 60.0
 
 
 class BackendError(Exception):
-    """A request the bot can't complete. The message is shown to the user."""
+    """A request that the bot cannot complete. The user sees the message."""
 
 
 class BackendClient:
     """The recommendosu.com /api/v1/bot endpoints (see main.py), and the public changelog."""
 
     def __init__(self, base_url, api_key, transport=None):
-        self.changelog_url = f"{base_url.rstrip('/')}/api/v1/changelog"
+        base_url = base_url.rstrip("/")
+        self.changelog_url = f"{base_url}/api/v1/changelog"
         self.client = httpx.AsyncClient(
-            base_url=f"{base_url.rstrip('/')}/api/v1/bot",
+            base_url=f"{base_url}/api/v1/bot",
             headers={"X-Bot-Key": api_key},
             timeout=REQUEST_TIMEOUT,
             transport=transport,
@@ -30,14 +31,14 @@ class BackendClient:
         await self.client.aclose()
 
     async def get_player(self, username):
-        """{"player_id": int, "username": str}"""
+        """Return {"player_id": int, "username": str} for an osu! username."""
         return await self._request("GET", f"/players/{quote(username, safe='')}")
 
     async def recommend(self, settings, discord_user_id):
         """
-        A RecommendationResponse with the first page of recommendations. The
-        backend keeps the full result for this Discord user; read the rest
-        with recommendation_page.
+        Return a RecommendationResponse with the first page of recommendations.
+        The backend keeps the full result for this Discord user. Read the other
+        pages with recommendation_page.
         """
         return await self._request(
             "POST",
@@ -47,7 +48,7 @@ class BackendClient:
         )
 
     async def recommendation_page(self, recommendation_id, discord_user_id, offset, limit):
-        """A RecommendationPageResponse with rows offset to offset + limit."""
+        """Return a RecommendationPageResponse with the rows from offset to offset + limit."""
         return await self._request(
             "GET",
             f"/recommend/{recommendation_id}/page",
@@ -56,12 +57,12 @@ class BackendClient:
         )
 
     async def classify(self, beatmap_id):
-        """A BotClassifyResponse with the NM1-NM5 probabilities."""
+        """Return a BotClassifyResponse with the NM1-NM5 probabilities."""
         return await self._request("GET", f"/classify/{beatmap_id}")
 
     async def changelog(self):
-        """The site's changelog entries, newest first: [{"date", "title", "changes"}, ...]"""
-        # An absolute URL, since the changelog isn't under /api/v1/bot.
+        """Return the changelog entries of the site, newest first: [{"date", "title", "changes"}, ...]"""
+        # Use an absolute URL, because the changelog is not under /api/v1/bot.
         return await self._request("GET", self.changelog_url)
 
     async def _request(self, method, path, **kwargs):
@@ -74,8 +75,8 @@ class BackendClient:
         if response.is_success:
             return response.json()
 
-        # 400 and 404 carry a message meant for the user, e.g. an unknown
-        # player. Anything else is the bot's or the server's problem.
+        # A 400 or 404 has a message for the user, for example an unknown
+        # player. Any other status is a problem of the bot or the server.
         if response.status_code in (400, 404):
             raise BackendError(_detail(response))
 
@@ -84,11 +85,12 @@ class BackendClient:
 
 
 def _detail(response):
+    """Return the error message from the "detail" field of a response, or the raw text."""
     try:
         detail = response.json()["detail"]
     except (ValueError, KeyError, TypeError):
         return response.text
 
-    # Only 400s and 404s get here; the backend always sends a string detail
-    # for those (422 validation errors are logged as server errors instead).
+    # Only a 400 or a 404 gets here. For these, the backend always sends a
+    # string detail. (The bot logs a 422 validation error as a server error.)
     return str(detail)

@@ -6,15 +6,9 @@ from beatmap_recommender.api.model import RecommendationSettings
 from beatmap_recommender.api.osu_api_client import OsuAPIClient
 from beatmap_recommender.auth.osu_oauth import get_access_token, get_application_access_token
 from beatmap_recommender.cancellation import check_cancelled
-from beatmap_recommender.content_similarity.core_modules.classifier_influence import (
-    get_player_category_preferences,
-)
-from beatmap_recommender.content_similarity.core_modules.content_similarity import (
-    build_seed_similarity_index,
-)
-from beatmap_recommender.content_similarity.core_modules.mod_preferences import (
-    get_preferred_mods,
-)
+from beatmap_recommender.content_similarity.core_modules.classifier_influence import get_player_category_preferences
+from beatmap_recommender.content_similarity.core_modules.content_similarity import build_seed_similarity_index
+from beatmap_recommender.content_similarity.core_modules.mod_preferences import get_preferred_mods
 from beatmap_recommender.content_similarity.core_modules.played_maps import request_sync
 from beatmap_recommender.content_similarity.core_modules.score_collector import (
     scores_refreshed_recently,
@@ -29,9 +23,9 @@ from beatmap_recommender.database import connect_db
 
 logger = logging.getLogger(__name__)
 
-# ── Configuration ─────────────────────────────────────────────────────────────
-
+# The number of seeds in each batch of the similarity search.
 BATCH_SIZE = 16_384
+# The maximum number of recommendations that run at the same time.
 RECOMMENDATION_CONCURRENCY = 4
 
 _recommendation_semaphore = asyncio.Semaphore(RECOMMENDATION_CONCURRENCY)
@@ -43,11 +37,18 @@ def recommend_player_sync(
     update_scores=True,
     cancel_event: threading.Event | None = None,
 ):
+    """
+    Make the recommendations for settings.player_id and return the ranked
+    variants (a VariantRows). This function blocks, so call it in a thread.
+
+    If update_scores is True, first fetch the new scores of the player with
+    access_token. Raise RecommendationCancelled if cancel_event is set.
+    """
     recommendation_config = settings.recommendation_config
     logger.debug("Recommendation config: %s", recommendation_config)
 
     check_cancelled(cancel_event)
-    # Read-only unless fetched scores need writing.
+    # Open the database read-only, unless the code must write fetched scores.
     conn = connect_db(read_only=not update_scores)
 
     try:
@@ -58,11 +59,7 @@ def recommend_player_sync(
             if access_token is None:
                 raise ValueError("An osu! API access token is required to update player scores.")
 
-            update_player_scores(
-                conn,
-                OsuAPIClient(access_token=access_token),
-                settings.player_id,
-            )
+            update_player_scores(conn, OsuAPIClient(access_token=access_token), settings.player_id)
 
         check_cancelled(cancel_event)
 
@@ -123,8 +120,7 @@ def recommend_player_sync(
             ", ".join(
                 f"{feature}={difficulty_profile[f'{feature}_mean']:.3f}±{difficulty_profile[f'{feature}_std']:.3f}"
                 for feature in ("star_rating", "ar", "od", "bpm", "pp")
-                if difficulty_profile.get(f"{feature}_mean") is not None
-                and difficulty_profile.get(f"{feature}_std") is not None
+                if f"{feature}_mean" in difficulty_profile
             ),
         )
 
@@ -142,8 +138,7 @@ def recommend_player_sync(
             "Player %s category preferences: %s",
             settings.player_id,
             ", ".join(
-                f"{label}={float(probability) * 100:.2f}%"
-                for label, probability in category_preferences.items()
+                f"{label}={float(probability) * 100:.2f}%" for label, probability in category_preferences.items()
             ),
         )
 
@@ -175,15 +170,9 @@ def recommend_player_sync(
         check_cancelled(cancel_event)
 
         # ── Output ─────────────────────────────────────────────
-        logger.info(
-            "Player %s: %d recommendations",
-            settings.player_id,
-            len(ranked_variants),
-        )
+        logger.info("Player %s: %d recommendations", settings.player_id, len(ranked_variants))
 
-        top_variants = ranked_variants[:10]
-
-        for i, variant in enumerate(top_variants, 1):
+        for i, variant in enumerate(ranked_variants[:10], 1):
             logger.debug(
                 f"{i:2d}. "
                 f"beatmap={variant['beatmap_id']}, "
@@ -213,8 +202,17 @@ async def recommend_player(
     update_scores=True,
     cancel_event: threading.Event | None = None,
 ):
-    # Fetch the player's full played-beatmap list in the background (if it's
-    # missing or stale), so later requests exclude every map they've played.
+    """
+    Make the recommendations for settings.player_id in a thread, and return
+    the ranked variants.
+
+    For the logged-in player, fetch the scores with the token of the session.
+    For another player, use the token of the app. If the scores were refreshed
+    recently, do not fetch them.
+    """
+    # If the full list of played beatmaps of the player is missing or old,
+    # fetch it in the background. Then later requests exclude all the maps
+    # that the player played.
     request_sync(settings.player_id)
 
     async with _recommendation_semaphore:
@@ -234,10 +232,4 @@ async def recommend_player(
 
         check_cancelled(cancel_event)
 
-        return await asyncio.to_thread(
-            recommend_player_sync,
-            settings,
-            access_token,
-            update_scores,
-            cancel_event,
-        )
+        return await asyncio.to_thread(recommend_player_sync, settings, access_token, update_scores, cancel_event)

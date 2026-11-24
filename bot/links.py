@@ -5,17 +5,17 @@ from pathlib import Path
 
 class LinkStore:
     """
-    Discord user -> osu! player, set with /link.
+    The map from a Discord user to an osu! player, which /link sets.
 
-    Its own small SQLite file, separate from the backend's databases.
+    It is a small SQLite file of its own, separate from the databases of the backend.
     """
 
     def __init__(self, path):
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        # One connection, used only from the event loop's thread; the queries
-        # are tiny, so they run inline instead of in a thread (and need no lock).
+        # Only the thread of the event loop uses this one connection. The queries
+        # are very small, so they run inline, not in a thread, and need no lock.
         self.conn = sqlite3.connect(path, check_same_thread=False)
         self.conn.execute(
             """
@@ -30,13 +30,13 @@ class LinkStore:
         self.conn.commit()
 
     def get(self, discord_user_id):
-        """(player_id, username), or None if the user hasn't linked."""
+        """Return (player_id, username), or None if the user did not link an account."""
         return self.conn.execute(
-            "SELECT player_id, username FROM links WHERE discord_user_id = ?",
-            (discord_user_id,),
+            "SELECT player_id, username FROM links WHERE discord_user_id = ?", (discord_user_id,)
         ).fetchone()
 
     def set(self, discord_user_id, player_id, username):
+        """Link the user to the osu! player. Replace an earlier link, if there is one."""
         self.conn.execute(
             """
             INSERT INTO links (discord_user_id, player_id, username, linked_at)
@@ -51,11 +51,8 @@ class LinkStore:
         self.conn.commit()
 
     def delete(self, discord_user_id):
-        """Remove the user's link. True if there was one."""
-        cursor = self.conn.execute(
-            "DELETE FROM links WHERE discord_user_id = ?",
-            (discord_user_id,),
-        )
+        """Delete the link of the user. Return True if there was a link."""
+        cursor = self.conn.execute("DELETE FROM links WHERE discord_user_id = ?", (discord_user_id,))
         self.conn.commit()
         return cursor.rowcount > 0
 

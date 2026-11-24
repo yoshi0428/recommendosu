@@ -3,8 +3,9 @@ import time
 
 from beatmap_recommender.auth.db import auth_db
 
-# Long-lived so users stay logged in; the osu! access token behind the session
-# refreshes itself (osu_oauth.get_access_token), so only this limits a login.
+# A session lasts 30 days so that users stay logged in. The osu! access token
+# of the session refreshes itself (osu_oauth.get_access_token). A login ends
+# when this time runs out or when the user revokes the app on osu!.
 SESSION_EXPIRATION_SECONDS = 30 * 86400
 
 

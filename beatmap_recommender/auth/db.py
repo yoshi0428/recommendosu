@@ -1,6 +1,7 @@
 """
-The auth database (auth.db): login sessions, their osu! OAuth tokens, and
-pending OAuth states. Used by session.py, token_store.py and oauth_state.py.
+The auth database (auth.db). It holds the login sessions, the osu! OAuth
+tokens of each session, and the OAuth states that wait for a login to finish.
+session.py, token_store.py and oauth_state.py use it.
 """
 
 import os
@@ -19,7 +20,7 @@ AUTH_DB_PATH = Path(
 
 CONNECTION_TIMEOUT = 30
 
-# sessions comes before oauth_tokens, which references it.
+# The sessions table comes first because oauth_tokens refers to it.
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS sessions (
     session_id TEXT PRIMARY KEY,
@@ -51,16 +52,17 @@ CREATE TABLE IF NOT EXISTS oauth_states (
 @contextmanager
 def auth_db():
     """
-    A connection to the auth database, as one transaction: committed if the
-    block succeeds, rolled back if it raises, and closed either way.
+    Open a connection to the auth database as one transaction.
 
-    (sqlite3's own `with conn:` commits or rolls back, but never closes.)
+    If the block succeeds, the transaction commits. If the block raises, the
+    transaction rolls back. The connection closes in both cases. The plain
+    sqlite3 `with conn:` commits or rolls back, but it does not close.
     """
     conn = sqlite3.connect(AUTH_DB_PATH, timeout=CONNECTION_TIMEOUT)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
-    # SQLite ignores foreign keys unless this is on, and logging out relies
-    # on ON DELETE CASCADE to delete the session's tokens.
+    # SQLite ignores foreign keys unless this setting is on. Logout needs
+    # ON DELETE CASCADE to delete the tokens of the session.
     conn.execute("PRAGMA foreign_keys=ON")
 
     try:
@@ -71,6 +73,6 @@ def auth_db():
 
 
 def initialize_auth_db():
-    """Create the auth tables if they don't exist."""
+    """Create the auth tables if they do not exist."""
     with auth_db() as conn:
         conn.executescript(SCHEMA)
