@@ -3,6 +3,26 @@ import math
 
 from beatmap_recommender.recommender_db_setup.parser import decode_osu_bytes
 
+# The .osu [Difficulty] keys -> the keys of the parsed data.
+DIFFICULTY_KEYS = {
+    "HPDrainRate": "hp_drain",
+    "CircleSize": "circle_size",
+    "OverallDifficulty": "od",
+    "ApproachRate": "ar",
+    "SliderMultiplier": "slider_multiplier",
+    "SliderTickRate": "slider_tick",
+}
+
+# The [Metadata] keys that print_info prints, with their labels.
+PRINTED_METADATA = {"Title": "Title: ", "Artist": "by ", "Creator": "Mapper: ", "Version": "Difficulty: "}
+
+HIT_CIRCLE_FLAG = 0b00000001
+SLIDER_FLAG = 0b00000010
+
+# The playfield size of osu!. The coordinates are divided by these values.
+MAX_X = 512.0
+MAX_Y = 384.0
+
 
 def parse_osu_file(
     file_path,
@@ -10,36 +30,33 @@ def parse_osu_file(
     print_info=False,
 ):
     """
-    Parse an osu! Standard .osu file.
+    Parse an osu!standard .osu file. Return None for another game mode.
 
-    The returned object represents the BASE beatmap.
+    The result describes the BASE beatmap:
+        - The hit-object vectors hold RAW values.
+        - This function does no mod timing change (DT, HT...) and no CNN
+          normalization. Later steps apply the changes for each variant.
 
-    Important:
-        - Hit-object vectors contain RAW values.
-        - No mod-specific timing transformation is performed here.
-        - No CNN normalization is performed here.
-        - Variant-specific transformations should be applied later.
+    Each vector describes the move from the previous hit object to this one:
 
-    Base vector format:
-
-        (
-            x_diff,
-            y_diff,
-            time_diff,
-            length
-        )
+        (x_diff, y_diff, time_diff, length, distance, speed, speed_change, time_diff_change)
 
     where:
 
-        x_diff     = normalized x displacement
-        y_diff     = normalized y displacement
-        time_diff  = original/base time difference in milliseconds
-        length     = slider length
+        x_diff, y_diff    = the move, divided by the playfield size (512 x 384)
+        time_diff         = the time from the previous object, in milliseconds
+        length            = the slider length (0 for a circle), max_slider_length at most
+        distance          = the length of (x_diff, y_diff)
+        speed             = distance / time_diff (0 if time_diff is 0)
+        speed_change      = speed minus the speed of the previous vector
+        time_diff_change  = time_diff minus the time_diff of the previous vector
+
+    Spinners are not in the hit objects.
     """
 
     data = {
         "beatmap_id": None,
-        "mode": 0,  # Default to standard
+        "mode": 0,  # The default is osu!standard.
         # Base difficulty
         "hp_drain": None,
         "circle_size": None,
@@ -61,13 +78,10 @@ def parse_osu_file(
         "vectors": [],
     }
 
-    timing_points = []
+    bpms = []
 
-    # ========================================================
-    # Read file
-    # ========================================================
-    # UTF-8, UTF-16 (old files with a BOM) or latin-1. StringIO with
-    # newline=None splits lines like reading the file in text mode did.
+    # The file is UTF-8, UTF-16 (old files with a BOM) or latin-1. StringIO
+    # with newline=None splits the lines as a read in text mode did.
     with open(file_path, "rb") as f:
         lines = list(io.StringIO(decode_osu_bytes(f.read()), newline=None))
 
@@ -78,37 +92,25 @@ def parse_osu_file(
         if not line:
             continue
 
-        # ------------------------------------------------
-        # Section header
-        # ------------------------------------------------
-
         if line.startswith("[") and line.endswith("]"):
             section = line[1:-1]
             continue
 
-        # =================================================
-        # General (to check game mode)
-        # =================================================
+        # General: only the game mode matters.
         if section == "General":
             if ":" not in line:
                 continue
             key, value = line.split(":", maxsplit=1)
-            key = key.strip()
-            value = value.strip()
 
-            if key == "Mode":
+            if key.strip() == "Mode":
                 try:
-                    data["mode"] = int(value)
+                    data["mode"] = int(value.strip())
                 except ValueError:
                     data["mode"] = 0
 
-                # If it's not standard (0), skip immediately
+                # Stop at once if the map is not osu!standard (0).
                 if data["mode"] != 0:
                     return None
-
-        # =================================================
-        # Metadata
-        # =================================================
 
         if section == "Metadata":
             if ":" not in line:
@@ -117,27 +119,14 @@ def parse_osu_file(
             key, value = line.split(":", maxsplit=1)
             value = value.strip()
 
-            if key == "Title" and print_info:
-                print("Title: " + value, end=" ")
-
-            elif key == "Artist" and print_info:
-                print("by " + value)
-
-            elif key == "Creator" and print_info:
-                print("Mapper: " + value)
-
-            elif key == "Version" and print_info:
-                print("Difficulty: " + value)
+            if print_info and key in PRINTED_METADATA:
+                print(PRINTED_METADATA[key] + value, end=" " if key == "Title" else "\n")
 
             elif key == "BeatmapID":
                 try:
                     data["beatmap_id"] = int(value)
                 except ValueError:
                     data["beatmap_id"] = None
-
-        # =================================================
-        # Difficulty
-        # =================================================
 
         elif section == "Difficulty":
             if ":" not in line:
@@ -150,27 +139,8 @@ def parse_osu_file(
             except ValueError:
                 continue
 
-            if key == "HPDrainRate":
-                data["hp_drain"] = value
-
-            elif key == "CircleSize":
-                data["circle_size"] = value
-
-            elif key == "OverallDifficulty":
-                data["od"] = value
-
-            elif key == "ApproachRate":
-                data["ar"] = value
-
-            elif key == "SliderMultiplier":
-                data["slider_multiplier"] = value
-
-            elif key == "SliderTickRate":
-                data["slider_tick"] = value
-
-        # =================================================
-        # Timing Points
-        # =================================================
+            if key in DIFFICULTY_KEYS:
+                data[DIFFICULTY_KEYS[key]] = value
 
         elif section == "TimingPoints":
             obj_data = line.split(",")
@@ -179,23 +149,14 @@ def parse_osu_file(
                 continue
 
             try:
-                time = float(obj_data[0])
+                float(obj_data[0])
                 beat_length = float(obj_data[1])
             except ValueError:
                 continue
 
-            # ------------------------------------------------
-            # Positive beat length = uninherited timing point.
-            # ------------------------------------------------
-
+            # A positive beat length means an uninherited timing point.
             if beat_length > 0:
-                bpm = 60000.0 / beat_length
-
-                timing_points.append((time, bpm))
-
-        # =================================================
-        # Hit Objects
-        # =================================================
+                bpms.append(60000.0 / beat_length)
 
         elif section == "HitObjects":
             obj_data = line.split(",")
@@ -211,153 +172,67 @@ def parse_osu_file(
             except ValueError:
                 continue
 
-            hit_circle_flag = 0b00000001
-            slider_flag = 0b00000010
+            if hit_object_type & HIT_CIRCLE_FLAG:
+                length = 0.0
 
-            # ------------------------------------------------
-            # Circle
-            # ------------------------------------------------
-
-            if hit_object_type & hit_circle_flag:
-                hit_object = {
-                    "x": x,
-                    "y": y,
-                    "time": time,
-                    "length": 0.0,
-                }
-
-                data["hit_objects"].append(hit_object)
-
-            # ------------------------------------------------
-            # Slider
-            # ------------------------------------------------
-
-            elif hit_object_type & slider_flag:
+            elif hit_object_type & SLIDER_FLAG:
                 if len(obj_data) <= 7:
                     continue
 
                 try:
-                    slider_length = float(obj_data[7])
+                    length = float(obj_data[7])
                 except ValueError:
-                    slider_length = 0.0
+                    length = 0.0
 
-                slider_length = min(
-                    max_slider_length,
-                    max(0.0, slider_length),
-                )
+                length = min(max_slider_length, max(0.0, length))
 
-                hit_object = {
-                    "x": x,
-                    "y": y,
-                    "time": time,
-                    "length": slider_length,
-                }
+            else:
+                continue  # A spinner
 
-                data["hit_objects"].append(hit_object)
+            data["hit_objects"].append({"x": x, "y": y, "time": time, "length": length})
 
-    # ========================================================
-    # BPM
-    # ========================================================
-
-    if timing_points:
-        bpms = [bpm for _, bpm in timing_points]
-
+    if bpms:
         data["bpm"] = bpms[0]
         data["min_bpm"] = min(bpms)
         data["max_bpm"] = max(bpms)
 
-    # ========================================================
-    # Object Count
-    # ========================================================
+    hit_objects = data["hit_objects"]
+    data["object_count"] = len(hit_objects)
 
-    data["object_count"] = len(data["hit_objects"])
-
-    # ========================================================
-    # Base Map Length
-    # ========================================================
-
-    if len(data["hit_objects"]) >= 2:
-        first_object_time = data["hit_objects"][0]["time"]
-
-        last_object_time = data["hit_objects"][-1]["time"]
-
-        data["length_seconds"] = (last_object_time - first_object_time) / 1000.0
-
+    if len(hit_objects) >= 2:
+        data["length_seconds"] = (hit_objects[-1]["time"] - hit_objects[0]["time"]) / 1000.0
     else:
         data["length_seconds"] = 0.0
 
-    # ========================================================
-    # Create RAW Base Vectors
-    # ========================================================
-    #
-    # Coordinates are normalized because the playfield has
-    # a fixed size (512 x 384).
-    #
-    # Time and slider length remain RAW.
-    #
-    # No DT/HT/etc. transformation happens here.
-    # ========================================================
+    # The RAW base vectors. The coordinates are divided by the playfield size,
+    # because the playfield size is fixed. The time and the slider length stay
+    # RAW, and no DT/HT change happens here.
+    previous_speed = None
+    previous_time_diff = None
 
-    max_x = 512.0
-    max_y = 384.0
+    for prev_obj, obj in zip(hit_objects, hit_objects[1:]):
+        x_diff = obj["x"] / MAX_X - prev_obj["x"] / MAX_X
+        y_diff = obj["y"] / MAX_Y - prev_obj["y"] / MAX_Y
 
-    hit_objects = data["hit_objects"]
+        time_diff = obj["time"] - prev_obj["time"]
+        distance = math.sqrt(x_diff**2 + y_diff**2)
+        speed = distance / time_diff if time_diff > 0 else 0.0
 
-    if len(hit_objects) >= 2:
-        for obj in hit_objects:
-            obj["x_norm"] = obj["x"] / max_x
-            obj["y_norm"] = obj["y"] / max_y
+        if previous_speed is None:
+            speed_change = 0.0
+            time_diff_change = 0.0
+        else:
+            speed_change = speed - previous_speed
+            time_diff_change = time_diff - previous_time_diff
 
-        vectors = []
-        previous_speed = None
-        previous_time_diff = None
+        previous_speed = speed
+        previous_time_diff = time_diff
 
-        for i in range(1, len(hit_objects)):
-            obj = hit_objects[i]
-            prev_obj = hit_objects[i - 1]
+        data["vectors"].append(
+            (x_diff, y_diff, time_diff, obj["length"], distance, speed, speed_change, time_diff_change)
+        )
 
-            x_diff = obj["x_norm"] - prev_obj["x_norm"]
-            y_diff = obj["y_norm"] - prev_obj["y_norm"]
-
-            time_diff = obj["time"] - prev_obj["time"]
-            length = obj["length"]
-
-            distance = math.sqrt(x_diff**2 + y_diff**2)
-
-            if time_diff > 0:
-                speed = distance / time_diff
-            else:
-                speed = 0.0
-
-            if previous_speed is None:
-                speed_change = 0.0
-                time_diff_change = 0.0
-            else:
-                speed_change = speed - previous_speed
-                time_diff_change = time_diff - previous_time_diff
-
-            previous_speed = speed
-            previous_time_diff = time_diff
-
-            vectors.append(
-                (
-                    x_diff,
-                    y_diff,
-                    time_diff,
-                    length,
-                    distance,
-                    speed,
-                    speed_change,
-                    time_diff_change,
-                )
-            )
-
-        data["vectors"] = vectors
-
-    else:
-        data["vectors"] = []
-
-    # NOTE: Old maps have no ApproachRate line; osu! uses OD as AR for them.
+    # Old maps have no ApproachRate line. For these maps, osu! uses OD as AR.
     if data["ar"] is None:
         data["ar"] = data["od"]
 

@@ -1,27 +1,24 @@
 def create_tables(conn):
     """
-    Create the normalized database schema.
+    Create the tables of the classifier database.
 
     beatmaps:
-        One row per actual osu! difficulty.
+        One row for each osu! difficulty.
 
     beatmap_vectors:
-        Raw object-to-object vectors belonging to the base beatmap.
-        These are NOT normalized for a particular mod variant.
+        The raw vectors from one hit object to the next, for the base beatmap.
+        They are NOT normalized for a mod variant.
 
     beatmap_variants:
-        One row per beatmap + mod combination.
-        Contains the effective difficulty/statistics for that variant.
+        One row for each beatmap + mod combination, with the effective
+        difficulty statistics of that variant.
 
     tournament_predictions:
-        Classifier probabilities for each variant.
+        The tournament slot labels of each variant: 1 in the column of each
+        slot that the map was pooled in. (The name is older than this use.)
     """
 
     cursor = conn.cursor()
-
-    # --------------------------------------------------------
-    # Base beatmaps
-    # --------------------------------------------------------
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS beatmaps (
@@ -44,17 +41,8 @@ def create_tables(conn):
         )
     """)
 
-    # --------------------------------------------------------
-    # Base beatmap vectors
-    #
-    # IMPORTANT:
-    # These are RAW values.
-    #
-    # time_diff = original/base timing difference
-    # length    = original slider length
-    #
-    # Do NOT normalize these here.
-    # --------------------------------------------------------
+    # The vectors hold RAW values: time_diff is the base time difference, and
+    # length is the original slider length. Do NOT normalize them here.
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS beatmap_vectors (
@@ -81,19 +69,8 @@ def create_tables(conn):
         );
     """)
 
-    # --------------------------------------------------------
-    # Mod variants
-    #
-    # Contains the EFFECTIVE statistics for the variant.
-    #
-    # Example:
-    #
-    # 12345 + NM
-    # 12345 + DT
-    # 12345 + HR
-    #
-    # are separate rows.
-    # --------------------------------------------------------
+    # Each variant row holds the EFFECTIVE statistics of the variant. For
+    # example, 12345 + NM, 12345 + DT and 12345 + HR are separate rows.
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS beatmap_variants (
@@ -134,9 +111,8 @@ def create_tables(conn):
         )
     """)
 
-    # --------------------------------------------------------
-    # Tournament classifier predictions
-    # --------------------------------------------------------
+    # The tournament slot labels. The columns are the keys of
+    # training_data.TOURNAMENT_MODS (without the columns of older databases).
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS tournament_predictions (

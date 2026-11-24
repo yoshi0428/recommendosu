@@ -4,6 +4,13 @@ import sys
 import time
 from pathlib import Path
 
+"""
+Download the .osu file of each beatmap ID in a list, from osu.direct. The
+script waits between requests, and backs off on rate limits and server errors.
+
+    python downloader_backoff.py [input.txt | folder]
+"""
+
 import requests
 
 OUTPUTS = Path(__file__).resolve().parent / "outputs"
@@ -24,13 +31,13 @@ HEADERS = {
 
 
 def backoff_delay(retry_number):
-    """Exponential backoff with 0-25% jitter, capped at MAX_BACKOFF."""
+    """Exponential backoff with 0-25% random jitter, MAX_BACKOFF at most."""
     delay = min(INITIAL_BACKOFF * (2**retry_number), MAX_BACKOFF)
     return min(delay * random.uniform(1.0, 1.25), MAX_BACKOFF)
 
 
 def get_retry_delay(response, retry_number):
-    """How long to wait after a 429: the Retry-After header if it's a number, else backoff_delay()."""
+    """Return the wait after a 429: the Retry-After header if it is a number. If not, use backoff_delay()."""
     try:
         return min(float(response.headers["Retry-After"]), MAX_BACKOFF)
     except (KeyError, ValueError):
@@ -39,18 +46,19 @@ def get_retry_delay(response, retry_number):
 
 def download_file(session, beatmap_id, file_path):
     """
-    Download one beatmap with rate-limit handling.
+    Download one beatmap. On a rate limit, a server error or a network error,
+    wait and try again, up to MAX_RETRIES times.
 
     Returns:
-        True  -> successfully downloaded
-        False -> failed after retries
+        True  -> the download succeeded
+        False -> the download failed after all the retries
     """
 
     url = f"{BASE_URL}/{beatmap_id}"
 
     for retry_number in range(MAX_RETRIES + 1):
         try:
-            response = session.get(url, headers=HEADERS, timeout=TIMEOUT)
+            response = session.get(url, timeout=TIMEOUT)  # The session sends HEADERS.
         except requests.RequestException as e:
             if retry_number >= MAX_RETRIES:
                 print(f"{beatmap_id}: request failed after {MAX_RETRIES} retries: {e}")
@@ -83,9 +91,7 @@ def download_file(session, beatmap_id, file_path):
         # Server errors
         if response.status_code in (500, 502, 503, 504):
             if retry_number >= MAX_RETRIES:
-                print(
-                    f"{beatmap_id}: server error {response.status_code} after retries."
-                )
+                print(f"{beatmap_id}: server error {response.status_code} after retries.")
                 return False
 
             delay = backoff_delay(retry_number)
@@ -102,7 +108,7 @@ def download_file(session, beatmap_id, file_path):
 
 
 def download_beatmaps(input_file, output_folder):
-
+    """Download each beatmap ID in input_file (one ID per line) that is not in output_folder yet."""
     os.makedirs(output_folder, exist_ok=True)
 
     with open(input_file, "r", encoding="utf-8") as infile:
@@ -115,28 +121,23 @@ def download_beatmaps(input_file, output_folder):
             file_path = os.path.join(output_folder, f"{beatmap_id}.osu")
 
             if os.path.exists(file_path):
-                print(
-                    f"[{index}/{total}] {beatmap_id}.osu already exists, skipping download"
-                )
+                print(f"[{index}/{total}] {beatmap_id}.osu already exists, skipping download")
                 continue
 
             print(f"[{index}/{total}] Downloading {beatmap_id}.osu...")
-            success = download_file(session, beatmap_id, file_path)
-
-            if success:
+            if download_file(session, beatmap_id, file_path):
                 print(f"Downloaded {beatmap_id}.osu")
 
-            # Delay before the next request
+            # Wait before the next request.
             if index < total:
-                delay = REQUEST_DELAY * random.uniform(0.8, 1.2)
-                time.sleep(delay)
+                time.sleep(REQUEST_DELAY * random.uniform(0.8, 1.2))
 
 
 def output_folder(txt_file):
     """
-    outputs/<list folder>/<LABEL>/, for example tournament/NM1.txt ->
-    outputs/tournament/NM1/ and expanded_collection/NM1.txt ->
-    outputs/expanded_collection/NM1/, so lists from different folders never
+    Return outputs/<list folder>/<LABEL>/. For example, tournament/NM1.txt ->
+    outputs/tournament/NM1/, and expanded_collection/NM1.txt ->
+    outputs/expanded_collection/NM1/. Thus lists from different folders never
     share an output folder.
     """
     path = Path(txt_file).resolve()
@@ -144,8 +145,8 @@ def output_folder(txt_file):
 
 
 if __name__ == "__main__":
-    # No argument: every .txt in the current folder. A .txt file: that list.
-    # A folder (for example expanded_collection): every .txt in it.
+    # No argument: all the .txt files in the current folder. A .txt file: that
+    # list. A folder (for example expanded_collection): all the .txt files in it.
     if len(sys.argv) > 2:
         print("Usage: python downloader_backoff.py [input.txt | folder]")
         sys.exit(1)

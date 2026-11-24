@@ -4,19 +4,21 @@ precompute_nm1-5.py use.
 
     python -m beatmap_classifier.train_fusion
 
-By default it reads beatmap_classifier/expanded_collection.db and the .osu
-files in beatmap_classifier/data/<SLOT>/, which populate.py builds it from:
+By default, it reads beatmap_classifier/expanded_collection.db and the .osu
+files in beatmap_classifier/data/<SLOT>/. populate.py builds the database
+from these files:
 
     python beatmap_classifier/classifier_db_setup/populate.py --keep-multicategory
 
-(--keep-multicategory keeps the maps pooled in several slots; without it they
-are deleted.) --db and --osu-dir select another database and its .osu files
-(searched recursively, named <beatmap_id>.osu). Maps without an NM1-NM5 slot
-are left out; a map in several of them gets each as a label.
+(--keep-multicategory keeps the maps that are pooled in several slots. Without
+it, these maps are deleted.) --db and --osu-dir select a different database
+and its .osu files (searched recursively, named <beatmap_id>.osu). A map
+without an NM1-NM5 slot is left out. A map in several of these slots gets
+each slot as a label.
 
-It trains one model per beatmapset-grouped fold (5 folds), reports the
-out-of-fold top-1 accuracy (top prediction is one of the map's slots), and
-saves all 5 to --out; inference averages them.
+The script trains one model for each fold (5 folds, grouped by beatmapset).
+It reports the out-of-fold top-1 accuracy (the top prediction is one of the
+slots of the map), and saves all 5 models to --out. Inference averages them.
 """
 
 import argparse
@@ -40,7 +42,7 @@ FOLDS = 5
 
 
 def variant_stats(db_path, beatmap_ids):
-    """{beatmap_id: {mod: {stat: value}}} for fusion.STAT_MODS."""
+    """Return {beatmap_id: {mod: {stat: value}}} for fusion.STAT_MODS."""
     conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row
     wanted = set(map(str, beatmap_ids))
@@ -53,12 +55,16 @@ def variant_stats(db_path, beatmap_ids):
 
 
 def beatmapset_id(path):
-    """The file's BeatmapSetID, so difficulties of one mapset stay in one fold."""
+    """Return the BeatmapSetID of the file, so that the difficulties of one mapset stay in one fold."""
     match = re.search(r"^BeatmapSetID\s*:\s*(-?\d+)", fusion._read_text(path), re.M)
     return match.group(1) if match and int(match.group(1)) > 0 else f"map-{Path(path).stem}"
 
 
 def load_dataset(db_path, osu_dir, classes=CLASSES):
+    """
+    Return (rich sequences, tabular rows, multi-hot labels Y, beatmapset groups,
+    beatmap IDs) for the maps with a slot in classes and a readable .osu file.
+    """
     X, label_sets, beatmap_ids = get_data(str(db_path))
     files = {p.stem: p for p in Path(osu_dir).expanduser().rglob("*.osu")}
     stats = variant_stats(db_path, beatmap_ids)

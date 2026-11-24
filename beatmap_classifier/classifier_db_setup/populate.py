@@ -17,10 +17,6 @@ from beatmap_classifier.classifier_db_setup.parser import parse_osu_file
 from beatmap_recommender.recommender_db_setup.beatmap_mods import calculate_difficulty
 from beatmap_recommender.recommender_db_setup.star_calculator import VersionAwareOsuCalculator
 
-# ============================================================
-# Configuration
-# ============================================================
-
 CLASSIFIER_DIR = Path(__file__).resolve().parents[1]
 DATABASE_PATH = CLASSIFIER_DIR / "expanded_collection.db"
 ROOT_DIR = CLASSIFIER_DIR / "data"
@@ -31,9 +27,7 @@ NUM_WORKERS = 8
 BATCH_SIZE = 2500
 
 
-# ============================================================
-# Mod variants
-# ============================================================
+# The variants to store for each map: variant name -> mods.
 MOD_VARIANTS = {
     "NM": [],
     "HD": ["HD"],
@@ -46,8 +40,8 @@ _worker_calculator = None
 
 def init_worker():
     """
-    Initialize one OsuCalculator per worker process.
-    This avoids repeatedly constructing the calculator for every beatmap.
+    Make one OsuCalculator for each worker process, so that the worker does
+    not make a new calculator for each beatmap.
     """
     global _worker_calculator
     _worker_calculator = VersionAwareOsuCalculator()
@@ -55,20 +49,15 @@ def init_worker():
 
 def process_difficulty(file_path):
     """
-    Calculate all requested mod variants for one .osu file.
-    This function runs inside worker processes.
-    The database is NOT touched here.
+    Calculate the difficulty of all the MOD_VARIANTS of one .osu file. This
+    function runs in the worker processes. It does NOT use the database.
     """
-    global _worker_calculator
     variant_results = {}
     for variant_name, mods in MOD_VARIANTS.items():
         result = calculate_difficulty(file_path, mods, _worker_calculator)
 
         if result is None:
-            return {
-                "success": False,
-                "file_path": file_path,
-            }
+            return {"success": False, "file_path": file_path}
 
         variant_results[variant_name] = (mods, result)
 
@@ -80,22 +69,24 @@ def process_difficulty(file_path):
 
 
 def main(database_path=DATABASE_PATH, root_dir=ROOT_DIR, keep_multicategory=False):
-
+    """
+    Parse all the .osu files under root_dir and store each map, its vectors,
+    its MOD_VARIANTS and its tournament slot (the name of its folder).
+    """
     conn = sqlite3.connect(database_path)
     conn.execute("PRAGMA journal_mode = WAL")
-    conn.execute(
-        "PRAGMA synchronous = NORMAL"
-    )  # Change to NORMAL for more safety if needed
+    conn.execute("PRAGMA synchronous = NORMAL")
     conn.execute("PRAGMA temp_store = MEMORY")
     conn.execute("PRAGMA cache_size = -200000")
 
     create_tables(conn)
 
-    osu_files = []
-    for dirpath, _, filenames in os.walk(root_dir):
-        for filename in filenames:
-            if filename.lower().endswith(".osu"):
-                osu_files.append(os.path.join(dirpath, filename))
+    osu_files = [
+        os.path.join(dirpath, filename)
+        for dirpath, _, filenames in os.walk(root_dir)
+        for filename in filenames
+        if filename.lower().endswith(".osu")
+    ]
     print(f"Found {len(osu_files)} .osu files.")
 
     successful = 0
@@ -104,15 +95,10 @@ def main(database_path=DATABASE_PATH, root_dir=ROOT_DIR, keep_multicategory=Fals
 
     print(f"Starting {NUM_WORKERS} difficulty workers...")
 
-    with ProcessPoolExecutor(
-        max_workers=NUM_WORKERS, initializer=init_worker
-    ) as executor:
+    with ProcessPoolExecutor(max_workers=NUM_WORKERS, initializer=init_worker) as executor:
         results = executor.map(process_difficulty, osu_files, chunksize=1)
-        processed = 0
 
-        for result in tqdm(results, total=len(osu_files), desc="Processing beatmaps"):
-            processed += 1
-
+        for processed, result in enumerate(tqdm(results, total=len(osu_files), desc="Processing beatmaps"), 1):
             if not result["success"]:
                 failed_variants += 1
                 skipped += 1
@@ -132,31 +118,19 @@ def main(database_path=DATABASE_PATH, root_dir=ROOT_DIR, keep_multicategory=Fals
                 skipped += 1
                 continue
 
-            # downloader_backoff.py saves each map as <beatmap_id>.osu. Trust
-            # that over the file's BeatmapID, which old maps lack and some
-            # maps set to 0 (two NM5 maps once collided on beatmap_id "0").
+            # downloader_backoff.py saves each map as <beatmap_id>.osu. Use that
+            # ID, not the BeatmapID in the file: old maps do not have one, and
+            # some maps set it to 0 (two NM5 maps once both had beatmap_id "0").
             beatmap_data["beatmap_id"] = Path(file_path).stem
             beatmap_id = beatmap_data["beatmap_id"]
 
-            # ------------------------------------------------
-            # Tournament label
-            #
-            # Assumes the tournament label is the immediate
-            # parent directory of the .osu file.
-            #
-            # Example:
-            #
-            # data/
-            #   tournament_name/
-            #       map.osu
-            #
-            # -> tournament_name
-            # ------------------------------------------------
+            # The tournament label is the name of the directory that holds the
+            # .osu file: data/NM1/map.osu -> NM1.
 
             tournament_label = os.path.basename(os.path.dirname(file_path))
 
-            # One SAVEPOINT per file, so a failing file only rolls back its
-            # own rows, not every file since the last commit.
+            # One SAVEPOINT for each file. Thus a failed file rolls back only its
+            # own rows, not all the files since the last commit.
             if not conn.in_transaction:
                 conn.execute("BEGIN")
 
@@ -165,21 +139,11 @@ def main(database_path=DATABASE_PATH, root_dir=ROOT_DIR, keep_multicategory=Fals
             try:
                 insert_base_beatmap(conn, beatmap_data)
 
-                # --------------------------------------------
-                # Raw vectors
-                #
-                # These should remain completely unmodified.
-                # DT/HT transformation and normalization happen
-                # later in the ML data pipeline.
-                #
-                # We probably don't actually need this for the recsys, but do it just in case
-                # --------------------------------------------
+                # The raw vectors, with no changes. The DT/HT change and the
+                # normalization happen later, in training_data.get_data().
                 insert_vectors(conn, beatmap_id, beatmap_data["vectors"])
 
-                # --------------------------------------------
-                # Mod variants
-                # --------------------------------------------
-                for variant_name, (mods, difficulty_result) in variant_results.items():
+                for mods, difficulty_result in variant_results.values():
                     variant_id, mods_string = insert_variant(
                         conn, beatmap_id, mods, beatmap_data, difficulty_result
                     )
@@ -198,16 +162,15 @@ def main(database_path=DATABASE_PATH, root_dir=ROOT_DIR, keep_multicategory=Fals
             if processed % BATCH_SIZE == 0:
                 conn.commit()
                 print(
-                    f"\nProgress: {processed}/{len(osu_files)} | successful={successful} | skipped={skipped} | failed_variants={failed_variants}"
+                    f"\nProgress: {processed}/{len(osu_files)} | successful={successful} | "
+                    f"skipped={skipped} | failed_variants={failed_variants}"
                 )
 
     conn.commit()
 
-    # Drop maps placed in more than one tournament slot (ambiguous labels)
+    # Delete the maps that are in more than one tournament slot (their label is not clear).
     view_sql = VIEW_MULTICATEGORY_SQL.read_text().strip().rstrip(";")
-    multicategory_count = conn.execute(
-        f"SELECT COUNT(*) FROM ({view_sql})"
-    ).fetchone()[0]
+    multicategory_count = conn.execute(f"SELECT COUNT(*) FROM ({view_sql})").fetchone()[0]
     if not keep_multicategory:
         conn.executescript(CLEAN_MULTICATEGORY_SQL.read_text())
     conn.close()
@@ -232,7 +195,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--keep-multicategory",
         action="store_true",
-        help="keep maps pooled in several slots (train_fusion.py gives them each slot as a label); by default they're removed",
+        help="keep the maps pooled in several slots (train_fusion.py gives them each slot as a label). By default, they are removed.",
     )
     args = parser.parse_args()
     main(args.db.expanduser(), args.data_dir.expanduser(), args.keep_multicategory)

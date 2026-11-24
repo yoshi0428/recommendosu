@@ -6,80 +6,45 @@ from beatmap_recommender.recommender_db_setup.beatmap_mods import (
     get_modded_stats,
 )
 
-# ============================================================
-# Base Beatmap
-# ============================================================
+# The beatmaps columns. parse_osu_file() returns a value with the same key for each.
+BEATMAP_COLUMNS = (
+    "beatmap_id",
+    "hp_drain",
+    "circle_size",
+    "od",
+    "ar",
+    "slider_multiplier",
+    "slider_tick",
+    "bpm",
+    "min_bpm",
+    "max_bpm",
+    "length_seconds",
+    "object_count",
+)
 
 
-def insert_base_beatmap(
-    conn,
-    beatmap_data,
-):
+def insert_base_beatmap(conn, beatmap_data):
     """
-    Insert the base beatmap.
+    Insert the base beatmap, with its BASE statistics (no mods).
 
-    beatmap_id is the PRIMARY KEY, so a map cannot accidentally
-    become multiple independent beatmaps because of augmentation.
-
-    The values stored here are BASE beatmap statistics.
+    beatmap_id is the PRIMARY KEY. Thus augmentation cannot make one map into
+    several separate beatmaps.
     """
-
-    cursor = conn.cursor()
-
-    cursor.execute(
-        """
-        INSERT OR IGNORE INTO beatmaps (
-            beatmap_id,
-            hp_drain,
-            circle_size,
-            od,
-            ar,
-            slider_multiplier,
-            slider_tick,
-            bpm,
-            min_bpm,
-            max_bpm,
-            length_seconds,
-            object_count
-        )
-        VALUES (
-            ?, ?, ?, ?, ?, ?,
-            ?, ?, ?, ?, ?, ?
-        )
+    conn.execute(
+        f"""
+        INSERT OR IGNORE INTO beatmaps ({", ".join(BEATMAP_COLUMNS)})
+        VALUES ({", ".join("?" for _ in BEATMAP_COLUMNS)})
         """,
-        (
-            beatmap_data["beatmap_id"],
-            beatmap_data["hp_drain"],
-            beatmap_data["circle_size"],
-            beatmap_data["od"],
-            beatmap_data["ar"],
-            beatmap_data["slider_multiplier"],
-            beatmap_data["slider_tick"],
-            beatmap_data["bpm"],
-            beatmap_data["min_bpm"],
-            beatmap_data["max_bpm"],
-            beatmap_data["length_seconds"],
-            beatmap_data["object_count"],
-        ),
+        tuple(beatmap_data[column] for column in BEATMAP_COLUMNS),
     )
 
 
-# ============================================================
-# Base Vectors
-# ============================================================
-
-
 def insert_vectors(conn, beatmap_id, vectors):
-    """
-    Insert raw beatmap vectors while preserving their order.
-    """
-
+    """Insert the raw vectors of a beatmap, and keep their order (vector_index)."""
     if not vectors:
         return
 
-    cursor = conn.cursor()
-
-    cursor.executemany(
+    conn.executemany(
         """
         INSERT OR REPLACE INTO beatmap_vectors (
             beatmap_id,
@@ -95,38 +60,13 @@ def insert_vectors(conn, beatmap_id, vectors):
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        [
-            (
-                beatmap_id,
-                index,
-                vector[0],
-                vector[1],
-                vector[2],
-                vector[3],
-                vector[4],
-                vector[5],
-                vector[6],
-                vector[7],
-            )
-            for index, vector in enumerate(vectors)
-        ],
+        [(beatmap_id, index, *vector[:8]) for index, vector in enumerate(vectors)],
     )
 
 
-# ============================================================
-# Beatmap Variants
-# ============================================================
-
-
-def insert_variant(
-    conn,
-    beatmap_id,
-    mods,
-    base_data,
-    difficulty_result,
-):
+def insert_variant(conn, beatmap_id, mods, base_data, difficulty_result):
     """
-    Insert one beatmap + mod combination.
+    Insert one beatmap + mod combination, or update it if it exists.
 
     Example:
 
@@ -139,51 +79,17 @@ def insert_variant(
         beatmap_id = 12345
         mods = "DT"
 
-    The statistics stored in beatmap_variants are the EFFECTIVE
-    statistics for this particular mod combination.
+    The statistics in beatmap_variants are the EFFECTIVE statistics for this
+    mod combination. Return (variant_id, canonical mods string).
     """
-
     cursor = conn.cursor()
-
     mods_string = canonicalize_mods(mods)
 
-    # --------------------------------------------------------
-    # Calculate modded difficulty statistics
-    # --------------------------------------------------------
-
-    stats = get_modded_stats(
-        base_data,
-        difficulty_result,
-        mods,
+    stats = get_modded_stats(base_data, difficulty_result, mods)
+    effective_bpm, effective_min_bpm, effective_max_bpm = apply_bpm_mod(
+        base_data["bpm"], base_data["min_bpm"], base_data["max_bpm"], mods
     )
-
-    # --------------------------------------------------------
-    # Calculate effective BPM
-    # --------------------------------------------------------
-
-    (
-        effective_bpm,
-        effective_min_bpm,
-        effective_max_bpm,
-    ) = apply_bpm_mod(
-        base_data["bpm"],
-        base_data["min_bpm"],
-        base_data["max_bpm"],
-        mods,
-    )
-
-    # --------------------------------------------------------
-    # Calculate effective length
-    # --------------------------------------------------------
-
-    effective_length = apply_length_mod(
-        base_data["length_seconds"],
-        mods,
-    )
-
-    # --------------------------------------------------------
-    # Insert / update variant
-    # --------------------------------------------------------
+    effective_length = apply_length_mod(base_data["length_seconds"], mods)
 
     cursor.execute(
         """
@@ -258,28 +164,16 @@ def insert_variant(
     row = cursor.fetchone()
 
     if row is None:
-        raise RuntimeError(
-            f"Failed to retrieve variant ID for {beatmap_id} + {mods_string}"
-        )
+        raise RuntimeError(f"Failed to retrieve variant ID for {beatmap_id} + {mods_string}")
 
     return row[0], mods_string
 
 
-# ============================================================
-# Tournament Prediction
-# ============================================================
-
-
-def insert_tournament_prediction(
-    conn,
-    variant_id,
-    mods_string,
-    folder_name,
-):
+def insert_tournament_prediction(conn, variant_id, mods_string, folder_name):
     """
-    Mark the variant as belonging to the tournament slot named by the map's
-    folder (matched case-insensitively against TOURNAMENT_MODS), if the slot
-    is played with this variant's mods.
+    Mark the variant as part of the tournament slot that the folder of the map
+    names (matched against TOURNAMENT_MODS, without regard to case). Do this
+    only if the slot is played with the mods of this variant.
 
     Examples:
 
@@ -287,8 +181,8 @@ def insert_tournament_prediction(
         HD2 -> HD variant -> hd2 = 1
         DT2_AND_DT3 -> DT variant -> dt2_and_dt3 = 1
 
-    Returns True if the label was set, False if it doesn't belong to this
-    variant (or the folder isn't a tournament slot).
+    Return True if the label was set. Return False if the label is not for
+    this variant (or if the folder is not a tournament slot).
     """
     prediction_column = folder_name.strip().lower()
 
@@ -298,25 +192,11 @@ def insert_tournament_prediction(
 
     cursor = conn.cursor()
 
-    # --------------------------------------------------------
-    # Ensure prediction row exists
-    # --------------------------------------------------------
+    # Make sure that the prediction row exists.
+    cursor.execute("INSERT OR IGNORE INTO tournament_predictions (variant_id) VALUES (?)", (variant_id,))
 
-    cursor.execute(
-        """
-        INSERT OR IGNORE INTO tournament_predictions (
-            variant_id
-        )
-        VALUES (?)
-        """,
-        (variant_id,),
-    )
-
-    # --------------------------------------------------------
-    # Set tournament label (prediction_column is a TOURNAMENT_MODS key,
-    # so it's a known column name, not user input)
-    # --------------------------------------------------------
-
+    # Set the tournament label. prediction_column is a TOURNAMENT_MODS key, so
+    # it is a known column name, not user input.
     cursor.execute(
         f"""
         UPDATE tournament_predictions

@@ -1,6 +1,7 @@
 """
-Scrape an osu!collector user's uploaded tournament-slot collections and sort their beatmap IDs
-into one .txt file per slot. downloader_backoff.py then downloads the .osu files from these lists.
+Scrape the tournament-slot collections that an osu!collector user uploaded, and sort their
+beatmap IDs into one .txt file for each slot. Then downloader_backoff.py downloads the .osu
+files of these lists.
 
     python -m beatmap_classifier.dot_osu_extract.osucollector_scraper
     python -m beatmap_classifier.dot_osu_extract.osucollector_scraper --user 18473778
@@ -13,8 +14,8 @@ Output:
         json/{collection_id}.json  raw /api/collections/{id} response, reused unless --refresh
         manifest.csv               one row per (collection, beatmap): slot, skill, ids, checksum
 
-Collection names like "HR2 · Precision" are split into slot "HR2" and skill "Precision".
-A beatmap in several collections is listed under each slot.
+A collection name such as "HR2 · Precision" splits into the slot "HR2" and the skill
+"Precision". A beatmap in several collections is in the list of each slot.
 """
 
 import argparse
@@ -35,7 +36,7 @@ FIELDS = ["slot", "skill", "collection_id", "collection_name", "beatmap_id", "be
 
 
 def http_get(url, retries=5):
-    """GET with backoff on 429/5xx/network errors. Returns bytes, or None on 404."""
+    """Send a GET, with backoff on 429, 5xx and network errors. Return the bytes, or None on 404."""
     delay = 2.0
     for attempt in range(retries):
         request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
@@ -58,7 +59,7 @@ def http_get(url, retries=5):
 
 
 def get_json(url, tries=8):
-    """osu!collector sometimes answers 200 with an HTML error page when hit quickly; retry those."""
+    """Return the JSON at url. After fast requests, osu!collector can send 200 with an HTML error page. Retry these."""
     delay = 3.0
     for _ in range(tries):
         body = http_get(url)
@@ -73,19 +74,19 @@ def get_json(url, tries=8):
 
 
 def user_collection_ids(user):
-    """The collection IDs linked from the user's uploads page (it has no JSON endpoint)."""
+    """Return the collection IDs that the uploads page of the user links to. (The page has no JSON endpoint.)"""
     html = http_get(f"{COLLECTOR}/users/{user}/uploads/collections").decode("utf-8", "replace")
     return sorted({int(m) for m in re.findall(r"/collections/(\d+)", html)})
 
 
 def split_name(name):
-    """'HR2 · Precision' -> ('HR2', 'Precision'); a name without '·' is all slot."""
+    """'HR2 · Precision' -> ('HR2', 'Precision'). A name without '·' is only a slot."""
     slot, _, skill = name.partition("·")
     return slot.strip().replace(" ", ""), skill.strip()
 
 
 def scrape(collection_ids, work_dir, refresh=False):
-    """Manifest rows of every beatmap in the collections (JSON cached in work_dir/json)."""
+    """Return the manifest rows of all the beatmaps in the collections. The JSON is cached in work_dir/json."""
     json_dir = work_dir / "json"
     json_dir.mkdir(parents=True, exist_ok=True)
     rows = []
@@ -117,7 +118,7 @@ def scrape(collection_ids, work_dir, refresh=False):
 
 
 def write_outputs(rows, ids_dir, work_dir):
-    """manifest.csv, and one {SLOT}.txt of sorted beatmap IDs per slot (replacing the old lists)."""
+    """Write manifest.csv, and one {SLOT}.txt of sorted beatmap IDs for each slot. Replace the old lists."""
     with open(work_dir / "manifest.csv", "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, FIELDS)
         writer.writeheader()

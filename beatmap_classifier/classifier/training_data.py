@@ -1,6 +1,6 @@
 """
-Loading a classifier database (classifier_db_setup/populate.py) for training:
-each map's parser vectors, scaled, and its tournament slots.
+Load a classifier database (classifier_db_setup/populate.py) for training:
+the scaled parser vectors of each map, and its tournament slots.
 """
 
 import sqlite3
@@ -9,8 +9,8 @@ from collections import defaultdict
 import numpy as np
 
 # Tournament label (a tournament_predictions column, named after a data/<SLOT>/
-# folder) -> the variant it's played with, in the order label sets list them.
-# Freemod and tiebreaker slots are labelled on the NM variant.
+# folder) -> the variant that the slot uses, in the order of the label sets.
+# The freemod and tiebreaker slots are labels on the NM variant.
 TOURNAMENT_MODS = {
     **{f"nm{i}": "NM" for i in range(1, 9)},
     **{f"dt{i}": "DT" for i in range(1, 6)},
@@ -18,24 +18,24 @@ TOURNAMENT_MODS = {
     **{f"hd{i}": "HD" for i in range(1, 5)},
     **{f"fm{i}": "NM" for i in range(1, 5)},
     "tb": "NM",
-    # Columns of databases built before the osu!collector slots (curated_collection.db).
+    # The columns of databases from before the osu!collector slots (curated_collection.db).
     "dt2_and_dt3": "DT",
     "tiebreaker": "NM",
 }
 
-# DT plays 1.5x faster: time_diff shrinks, speed grows.
+# DT plays 1.5x faster: time_diff gets smaller, and speed gets larger.
 DT_RATE = 1.5
 
 
 def get_tournament_label_sets(cursor):
     """
-    beatmap_id -> every tournament label the map has, over all its variants,
-    in TOURNAMENT_MODS order. A map has several only in a database built
-    with populate.py --keep-multicategory.
+    Return beatmap_id -> all the tournament labels of the map, over all its
+    variants, in TOURNAMENT_MODS order. A map has several labels only in a
+    database from populate.py --keep-multicategory.
 
         {123: ("nm1",), 456: ("nm3", "nm4"), 789: ("nm1", "hd2")}
     """
-    # Only the label columns this database has: older ones use other slot names.
+    # Use only the label columns of this database. Older databases use other slot names.
     existing = {row[1] for row in cursor.execute("PRAGMA table_info(tournament_predictions)")}
     columns = [column for column in TOURNAMENT_MODS if column in existing]
     cursor.execute(f"""
@@ -58,11 +58,12 @@ def get_tournament_label_sets(cursor):
 
 def get_vector_normalization(cursor):
     """
-    The scales get_data() divides the time_diff and length vector channels by.
+    Return the scales that get_data() divides the time_diff and length vector
+    channels by.
 
-    The model learns on these scaled values, so anything that feeds it later
-    (precompute_nm1-5.py, test_model.py) must apply the same scaling;
-    train_fusion.py saves them with the model.
+    The model learns from these scaled values. Thus all the code that gives it
+    input later (precompute_nm1-5.py, test_model.py) must apply the same
+    scales. train_fusion.py saves them with the model.
     """
     cursor.execute("SELECT MAX(v.time_diff), MAX(v.length) FROM beatmap_vectors v")
     max_time_diff, max_vector_length = cursor.fetchone()
@@ -75,8 +76,8 @@ def get_vector_normalization(cursor):
 
 def normalize_beatmap_vectors(vectors, normalization):
     """
-    Scale parsed NM vectors (parse_osu_file()["vectors"]) the same way
-    get_data() scales training vectors. Returns a new float32 array.
+    Scale parsed NM vectors (parse_osu_file()["vectors"]) as get_data() scales
+    the training vectors. Return a new float32 array.
     """
     vectors = np.array(vectors, dtype=np.float32)
     vectors[:, 2] /= normalization["max_time_diff"]
@@ -87,9 +88,9 @@ def normalize_beatmap_vectors(vectors, normalization):
 
 def get_data(db_path, chunk_size=50000):
     """
-    Load beatmaps: (vectors per map, label set per map, beatmap ids).
+    Load the beatmaps: (vectors of each map, label set of each map, beatmap IDs).
 
-    Each label set is a tuple of every slot the map has
+    Each label set is a tuple of all the slots of the map
     (get_tournament_label_sets()).
     """
     conn = sqlite3.connect(db_path)
@@ -101,19 +102,15 @@ def get_data(db_path, chunk_size=50000):
     print(f"Max Vector Length: {max_vector_length}")
     print(f"Max Time Diff: {max_time_diff}")
 
-    # ========================================================
-    # Tournament labels
-    # ========================================================
     labels = get_tournament_label_sets(cursor)
     print(f"Tournament-labeled beatmaps: {len(labels)}")
 
-    # DT maps play 1.5x faster. A map in several slots is sped up only if all its slots are DT.
+    # DT maps play 1.5x faster. A map in several slots plays faster only if all its slots are DT.
     rates = {
         beatmap_id: DT_RATE if {TOURNAMENT_MODS[label] for label in label_set} == {"DT"} else 1.0
         for beatmap_id, label_set in labels.items()
     }
 
-    # Fetch vectors
     cursor.execute("""
         SELECT
             beatmap_id,
@@ -130,32 +127,16 @@ def get_data(db_path, chunk_size=50000):
 
     X = defaultdict(list)
 
-    # Load database rows
-    while True:
-        rows = cursor.fetchmany(chunk_size)
-
-        if not rows:
-            break
-
-        for (
-            beatmap_id,
-            x_diff,
-            y_diff,
-            time_diff,
-            length,
-            distance,
-            speed,
-            speed_change,
-            time_diff_change,
-        ) in rows:
+    while rows := cursor.fetchmany(chunk_size):
+        for beatmap_id, x_diff, y_diff, time_diff, length, distance, speed, speed_change, time_diff_change in rows:
             if beatmap_id not in labels:
                 continue
 
-            # Apply mod timing transformation
+            # The DT timing change (1.0 for the other mods).
             rate = rates[beatmap_id]
 
-            # time_diff_change is scaled like time_diff, so the model sees
-            # both in the same units.
+            # time_diff_change uses the same scale as time_diff, so that the
+            # model sees both in the same units.
             X[beatmap_id].append(
                 (
                     x_diff,
@@ -171,13 +152,11 @@ def get_data(db_path, chunk_size=50000):
 
     conn.close()
 
-    # Convert to aligned lists. Sorted so the order (and so the folds)
-    # doesn't depend on SQLite's row scan order, which changes when
-    # the DB is rebuilt.
+    # Change to aligned lists. The IDs are sorted, so that the order (and thus
+    # the folds) does not depend on the row scan order of SQLite. That order
+    # changes when the database is built again.
     beatmap_ids = sorted(X)
-    original_X = [
-        np.array(X[beatmap_id], dtype=np.float32) for beatmap_id in beatmap_ids
-    ]
+    original_X = [np.array(X[beatmap_id], dtype=np.float32) for beatmap_id in beatmap_ids]
     original_y = [labels[beatmap_id] for beatmap_id in beatmap_ids]
 
     print(f"Original beatmaps: {len(original_X)}")

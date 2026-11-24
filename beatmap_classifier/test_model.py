@@ -1,7 +1,7 @@
 """
-Try the trained classifier on any beatmap: enter a beatmap ID, and it
-downloads the .osu file from osu.direct and prints the fusion classifier's
-NM1-NM5 probabilities.
+Try the trained classifier on any beatmap. Enter a beatmap ID. The script
+downloads the .osu file from osu.direct and prints the NM1-NM5 probabilities
+of the fusion classifier.
 """
 
 import os
@@ -17,28 +17,19 @@ from beatmap_classifier.classifier.inference import (
     load_classifier,
 )
 from beatmap_classifier.classifier_db_setup.parser import parse_osu_file
+from beatmap_classifier.dot_osu_extract.downloader_backoff import BASE_URL, HEADERS
 from beatmap_recommender.recommender_db_setup.beatmap_mods import (
     apply_bpm_mod,
     apply_length_mod,
     calculate_difficulty,
     get_modded_stats,
 )
-from beatmap_recommender.recommender_db_setup.star_calculator import (
-    VersionAwareOsuCalculator,
-)
-
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/58.0.3029.110 Safari/537.3"
-    )
-}
+from beatmap_recommender.recommender_db_setup.star_calculator import VersionAwareOsuCalculator
 
 
 def download_beatmap(beatmap_id):
-    url = f"https://osu.direct/api/osu/{beatmap_id}"
-    response = requests.get(url, headers=HEADERS, timeout=30)
+    """Return the .osu file of the beatmap from osu.direct, or None if the download fails."""
+    response = requests.get(f"{BASE_URL}/{beatmap_id}", headers=HEADERS, timeout=30)
 
     if response.status_code != 200:
         print(f"Failed to download beatmap {beatmap_id}: HTTP {response.status_code}")
@@ -49,9 +40,9 @@ def download_beatmap(beatmap_id):
 
 def get_stats_by_mod(file_path, star_calculator):
     """
-    The per-mod stats the classifier needs ({mod: stats} for STAT_MODS),
-    worked out from the .osu file the way populate.py stores them in
-    beatmap_variants (db_insertion.insert_variant()).
+    Return the stats of each mod that the classifier needs ({mod: stats} for
+    STAT_MODS). They come from the .osu file, calculated as populate.py stores
+    them in beatmap_variants (db_insertion.insert_variant()).
     """
     beatmap_data = parse_osu_file(file_path, print_info=True)
 
@@ -77,6 +68,7 @@ def get_stats_by_mod(file_path, star_calculator):
 
 
 def test_model_on_beatmap_id(beatmap_id, classifier, star_calculator):
+    """Download one beatmap, classify it, and print the result."""
     print("\n" + "=" * 70)
     print(f"Testing beatmap ID: {beatmap_id}")
     print("=" * 70)

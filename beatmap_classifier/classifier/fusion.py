@@ -1,6 +1,6 @@
 """
-The fusion classifier: one network that reads a beatmap's hit objects and
-its map stats together, and predicts its tournament slots (NM1-NM5).
+The fusion classifier: one network that reads the hit objects and the map
+stats of a beatmap together, and predicts its tournament slots (NM1-NM5).
 
     rich sequence  [objects, 21] per-object channels from the .osu file (rich_sequence())
                    -> residual 1D CNN -> masked mean / max / std
@@ -8,12 +8,12 @@ its map stats together, and predicts its tournament slots (NM1-NM5).
                    -> small MLP
     both           -> MLP head -> one logit per slot (multi-label: a map can be in several slots)
 
-Training keeps an exponential moving average (EMA) of the weights and
-validates/keeps that, which matched a 5-seed ensemble in the experiments.
-It replaces the earlier two-stage CNN -> XGBoost model: about +1 point
-top-1 out-of-fold (see train_fusion.py for the numbers).
+Training keeps an exponential moving average (EMA) of the weights, and it
+validates and keeps that average. In the experiments, this matched a 5-seed
+ensemble. It replaces the earlier two-stage CNN -> XGBoost model, with about
++1 point of top-1 out-of-fold accuracy (see train_fusion.py for the numbers).
 
-Used by train_fusion.py (training) and inference.py (prediction).
+train_fusion.py (training) and inference.py (prediction) use it.
 """
 
 import copy
@@ -30,13 +30,13 @@ from torch import nn
 
 from beatmap_classifier.classifier.movement_features import extract_movement_features_from_X
 
-# Maps are cut to this many hit objects.
+# A map is cut to this many hit objects.
 MAX_SEQUENCE_LENGTH = 4096
 
 # ============================================================
-# Rich per-object sequence
+# Rich sequence (one row for each object)
 # ============================================================
-# Channels per object i (movement measured from where object i-1 ends, which for a slider is its tail):
+# The channels of object i. The move starts where object i-1 ends (for a slider, its tail):
 RICH_CHANNELS = [
     "dx",  # / 512
     "dy",  # / 384
@@ -58,15 +58,16 @@ RICH_CHANNELS = [
     "log_objects_within_1s",
     "slider_velocity",
     "bpm",  # / 200
-    "log_px_per_ms",  # from the previous object's end to this head
+    "log_px_per_ms",  # from the end of the previous object to this head
 ]
-# Horizontal / vertical flips (augmentation): these channels change sign...
+# Horizontal / vertical flips (augmentation): these channels change sign,
 FLIP_X, FLIP_Y = [0, 11], [1, 12]
-# ...and these absolute positions become 1 - value.
+# and these absolute positions become 1 - value.
 MIRROR_X, MIRROR_Y = [15], [16]
 
 
 def _read_text(path):
+    """Return the text of a file: UTF-8, UTF-16 or latin-1."""
     raw = Path(path).read_bytes()
     for encoding in ("utf-8-sig", "utf-16", "latin-1"):
         try:
@@ -78,9 +79,9 @@ def _read_text(path):
 
 def rich_sequence(path):
     """
-    The [objects - 1, 21] rich sequence of an osu!standard .osu file
-    (RICH_CHANNELS), or None for another mode or a map with fewer than 4
-    objects or no timing point.
+    Return the [objects - 1, 21] rich sequence of an osu!standard .osu file
+    (RICH_CHANNELS). Return None for another mode, or for a map with fewer
+    than 4 objects or no timing point.
     """
     section, slider_multiplier, mode = None, 1.4, 0
     timing, objects = [], []  # timing: (time, beat_length or None, slider velocity or None)
@@ -133,7 +134,7 @@ def rich_sequence(path):
                     slides, length = max(1, int(float(parts[6]))), max(0.0, float(parts[7]))
                 except ValueError:
                     slides, length = 1, 0.0
-                # Path end: the last control point, scaled back to the slider's length along that direction.
+                # The path end: the last control point, scaled back to the slider length in that direction.
                 dx, dy = last_x - x, last_y - y
                 straight = math.hypot(dx, dy)
                 if straight > 0 and length > 0 and straight > length:
@@ -154,7 +155,7 @@ def rich_sequence(path):
     objects.sort(key=lambda o: o["t"])
     timing.sort(key=lambda point: point[0])
 
-    # Beat length and slider velocity at each object.
+    # The beat length and the slider velocity at each object.
     beat_length, velocity, k = next(bl for _, bl, _ in timing if bl), 1.0, 0
     for o in objects:
         while k < len(timing) and timing[k][0] <= o["t"] + 1:
@@ -192,14 +193,14 @@ def rich_sequence(path):
             o.get("px", 0) / 512, o.get("py", 0) / 384, o["nc"], cos, o["x"] / 512, o["y"] / 384,
             math.log1p(density[i]), o["sv"], 60000 / o["bl"] / 200, math.log1p(distance / max(gap, 10.0)),
         ])
-    # Broken maps (absurd BPM, slide counts) would overflow float32; their values are clipped.
+    # Broken maps (absurd BPM or slide counts) can overflow float32, so the values are clipped.
     return np.clip(np.nan_to_num(np.array(rows, np.float64), nan=0.0), -50, 50).astype(np.float32)
 
 
 # ============================================================
 # Map stats (tabular input)
 # ============================================================
-# beatmap_variants columns, taken from each of these mods' variant rows.
+# The beatmap_variants columns, from the variant row of each of these mods.
 VARIANT_STATS = [
     "ar", "od", "circle_size", "star_rating", "bpm", "max_combo",
     "length_seconds", "object_count", "pp", "pp_aim", "pp_speed", "pp_acc",
@@ -217,12 +218,12 @@ TABULAR_FEATURES = [f"{mod}_{stat}" for mod in STAT_MODS for stat in VARIANT_STA
 
 def tabular_row(stats_by_mod, normalized_vectors):
     """
-    The TABULAR_FEATURES row of one map.
+    Return the TABULAR_FEATURES row of one map.
 
     stats_by_mod: {"NM": {stat: value}, "HD": ..., "HR": ..., "DT": ...},
-        e.g. that map's beatmap_variants rows. A missing mod or value is 0
-        (as it was in training).
-    normalized_vectors: its 8-channel vectors, scaled like get_data() does.
+        for example the beatmap_variants rows of the map. A missing mod or
+        value is 0 (as in training).
+    normalized_vectors: its 8-channel vectors, scaled as get_data() scales them.
     """
     row = []
     for mod in STAT_MODS:
@@ -234,10 +235,10 @@ def tabular_row(stats_by_mod, normalized_vectors):
 
 
 # ============================================================
-# Standardization (fit on the training maps, saved with the model)
+# Standardization (fit on the training maps, and saved with the model)
 # ============================================================
 def fit_normalization(sequences, tabular):
-    """Per-channel / per-feature mean and std. Flipped channels keep a zero mean, so a flip is a negation."""
+    """Return the mean and std of each channel and feature. Flipped channels keep a zero mean, so a flip is a negation."""
     sample = np.concatenate(sequences[:: max(1, len(sequences) // 4000)])
     seq_mean, seq_std = sample.mean(0), sample.std(0) + 1e-6
     for c in FLIP_X + FLIP_Y:
@@ -253,7 +254,7 @@ def fit_normalization(sequences, tabular):
 
 
 class Batcher:
-    """Standardizes and pads maps into batches: x [B, L, 21], mask [B, L], tab [B, F]."""
+    """Standardize and pad maps into batches: x [B, L, 21], mask [B, L], tab [B, F]."""
 
     def __init__(self, sequences, tabular, normalization, device):
         self.sequences = [np.asarray(s, np.float32)[:MAX_SEQUENCE_LENGTH] for s in sequences]
@@ -267,7 +268,7 @@ class Batcher:
         return len(self.sequences)
 
     def batch(self, rows, flips=None):
-        """flips: None, or a (flip_x, flip_y) pair per row (training augmentation)."""
+        """flips: None, or one (flip_x, flip_y) pair for each row (training augmentation)."""
         length = max(1, max(len(self.sequences[i]) for i in rows))
         x = np.zeros((len(rows), length, len(RICH_CHANNELS)), np.float32)
         mask = np.zeros((len(rows), length), np.float32)
@@ -292,7 +293,7 @@ class Batcher:
 # Model
 # ============================================================
 def masked_pool(h, mask):
-    """h [B, L, D], mask [B, L] -> mean, max and std over real positions, concatenated [B, 3D]."""
+    """h [B, L, D], mask [B, L] -> mean, max and std over the real positions, joined into [B, 3D]."""
     m = mask.unsqueeze(-1)
     n = m.sum(1).clamp(min=1)
     mean = (h * m).sum(1) / n
@@ -302,6 +303,8 @@ def masked_pool(h, mask):
 
 
 class ResBlock(nn.Module):
+    """Two masked 1D convolutions with a skip connection."""
+
     def __init__(self, cin, cout, kernel=5, dropout=0.1):
         super().__init__()
         self.c1 = nn.Conv1d(cin, cout, kernel, padding=kernel // 2, bias=False)
@@ -317,7 +320,7 @@ class ResBlock(nn.Module):
 
 
 class FusionCNN(nn.Module):
-    """Residual CNN over the rich sequence (3 stages, 2x max-pool between them) + MLP over the map stats."""
+    """A residual CNN over the rich sequence (3 stages, with a 2x max-pool between them) + an MLP over the map stats."""
 
     def __init__(self, num_channels, num_tabular, num_classes, widths=(32, 64, 128), dropout=0.3):
         super().__init__()
@@ -345,6 +348,7 @@ class FusionCNN(nn.Module):
 
 
 def new_model(num_classes):
+    """Return a new FusionCNN for the current RICH_CHANNELS and TABULAR_FEATURES."""
     return FusionCNN(len(RICH_CHANNELS), len(TABULAR_FEATURES), num_classes)
 
 
@@ -352,6 +356,7 @@ def new_model(num_classes):
 # Training and prediction
 # ============================================================
 def _autocast(device):
+    """Use bfloat16 autocast on CUDA. On the CPU, autocast is off."""
     if device.type == "cuda":
         return torch.autocast("cuda", dtype=torch.bfloat16)
     return torch.autocast("cpu", enabled=False)
@@ -359,10 +364,11 @@ def _autocast(device):
 
 @torch.no_grad()
 def predict_logits(model, batcher, rows, batch_size=64):
+    """Return the logits [len(rows), K] of one model."""
     model.eval()
     rows = np.asarray(rows)
     out = np.zeros((len(rows), model.head[-1].out_features), np.float32)
-    order = np.argsort([len(batcher.sequences[i]) for i in rows])  # similar lengths per batch: less padding
+    order = np.argsort([len(batcher.sequences[i]) for i in rows])  # Similar lengths in each batch: less padding
     for s in range(0, len(rows), batch_size):
         idx = order[s : s + batch_size]
         x, mask, tab = batcher.batch(rows[idx])
@@ -372,26 +378,26 @@ def predict_logits(model, batcher, rows, batch_size=64):
 
 
 def predict(models, batcher, rows):
-    """Mean per-slot sigmoid probabilities [len(rows), K] of one or more (bagged) models."""
+    """Return the mean sigmoid probability of each slot [len(rows), K] over one or more (bagged) models."""
     return np.mean([1 / (1 + np.exp(-predict_logits(m, batcher, rows))) for m in models], axis=0)
 
 
 def train(batcher, Y, train_rows, val_rows, epochs=60, patience=12, lr=1e-3, weight_decay=1e-3,
           batch_size=32, ema_decay=0.999, log=""):
     """
-    Train one model on train_rows (Y multi-hot [maps, K]), early-stopped on
-    val_rows' loss. Returns the EMA model of the best epoch.
+    Train one model on train_rows (Y is multi-hot [maps, K]), with an early
+    stop on the loss of val_rows. Return the EMA model of the best epoch.
     """
     device = batcher.device
     model = new_model(Y.shape[1]).to(device)
     ema = torch.optim.swa_utils.AveragedModel(
         model, multi_avg_fn=torch.optim.swa_utils.get_ema_multi_avg_fn(ema_decay), use_buffers=True
-    )  # use_buffers: BatchNorm statistics are averaged too
+    )  # use_buffers: the BatchNorm statistics are averaged too
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
     steps_per_epoch = math.ceil(len(train_rows) / batch_size)
     total_steps = epochs * steps_per_epoch
 
-    def lr_factor(step):  # 1 epoch of warmup, then cosine down to 2%
+    def lr_factor(step):  # 1 epoch of warmup, then a cosine decrease to 2%
         if step < steps_per_epoch:
             return (step + 1) / steps_per_epoch
         p = (step - steps_per_epoch) / max(1, total_steps - steps_per_epoch)
@@ -443,7 +449,7 @@ def train(batcher, Y, train_rows, val_rows, epochs=60, patience=12, lr=1e-3, wei
 # Saving and loading
 # ============================================================
 def save(model_dir, models, classes, normalization, vector_normalization, info=None):
-    """models/fusion layout: fusion_config.json + fusion_model_<fold>.pt."""
+    """Save the models in the models/fusion layout: fusion_config.json + fusion_model_<fold>.pt."""
     model_dir = Path(model_dir)
     model_dir.mkdir(parents=True, exist_ok=True)
     for old in model_dir.glob("fusion_model_*.pt"):
@@ -455,7 +461,7 @@ def save(model_dir, models, classes, normalization, vector_normalization, info=N
         "rich_channels": RICH_CHANNELS,
         "tabular_features": TABULAR_FEATURES,
         "normalization": normalization,
-        # The scales get_data() divided time_diff / slider length by; the movement features need them.
+        # The scales that get_data() divided time_diff / slider length by. The movement features need them.
         "vector_normalization": vector_normalization,
         "info": info or {},
     }
@@ -463,7 +469,7 @@ def save(model_dir, models, classes, normalization, vector_normalization, info=N
 
 
 def load(model_dir, device):
-    """(models, config) saved by save()."""
+    """Return the (models, config) that save() saved."""
     model_dir = Path(model_dir)
     config = json.loads((model_dir / "fusion_config.json").read_text())
     if config["rich_channels"] != RICH_CHANNELS or config["tabular_features"] != TABULAR_FEATURES:
