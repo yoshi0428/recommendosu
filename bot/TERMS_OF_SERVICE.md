@@ -2,41 +2,41 @@
 
 Effective: October 19, 2026
 
-These terms cover your use of the recommendosu Discord bot (the "bot"), run by yoshi0428. By using the bot or adding it to a server, you agree to them. If you don't agree, don't use the bot.
+These terms cover your use of the recommendosu Discord bot (the "bot"), which yoshi0428 runs. When you use the bot or add it to a server, you agree to these terms. If you do not agree, do not use the bot.
 
 ## What the bot does
 
-The bot recommends osu! beatmaps based on a player's public scores (`/rec`), estimates what kind of skill a beatmap tests (`/classify`), and remembers which osu! account you use (`/link`, `/unlink`). See the [Privacy Policy](PRIVACY_POLICY.md) for what it stores.
+The bot recommends osu! beatmaps from the public scores of a player (`/rec`). It estimates which skill a beatmap tests (`/classify`). It remembers which osu! account you use (`/link`, `/unlink`). The [Privacy Policy](PRIVACY_POLICY.md) tells what the bot stores.
 
 ## Using the bot
 
-You agree not to:
+You agree that you will not:
 
-- spam commands, automate them, or try to get around the cooldowns;
-- try to break, overload or get unauthorised access to the bot or the server it runs on;
-- use the bot to break Discord's [Terms of Service](https://discord.com/terms) or [Community Guidelines](https://discord.com/guidelines), or the [osu! Terms of Service](https://osu.ppy.sh/legal/en/Terms).
+- spam commands, automate them, or try to get around the cooldowns.
+- try to break or overload the bot or its server, or try to get access to them without permission.
+- use the bot to break the Discord [Terms of Service](https://discord.com/terms) or [Community Guidelines](https://discord.com/guidelines), or the [osu! Terms of Service](https://osu.ppy.sh/legal/en/Terms).
 
-Access can be limited or removed for any user or server that breaks these terms or puts the bot at risk.
+If a user or a server breaks these terms or puts the bot at risk, their access can be limited or removed.
 
 ## osu! data
 
-Player and beatmap data comes from the osu! API. The bot isn't affiliated with or endorsed by ppy Pty Ltd or Discord Inc. osu! and its content belong to ppy Pty Ltd.
+The player data and the beatmap data come from the osu! API. The bot is not affiliated with ppy Pty Ltd or Discord Inc., and they do not endorse it. osu! and its content belong to ppy Pty Ltd.
 
 ## No guarantees
 
 The bot is a free hobby project, provided "as is" and "as available":
 
-- It can be offline, slow or changed at any time, and may be shut down without notice.
-- Recommendations and classifications come from statistical models and can be wrong. Star ratings and pp values are estimates.
-- To the extent the law allows, the operator isn't liable for any loss or damage from using the bot or from being unable to use it.
+- It can be offline, slow or changed at any time. It can be shut down without notice.
+- The recommendations and the classifications come from statistical models, and they can be wrong. The star ratings and the pp values are estimates.
+- The operator is not liable for any loss or damage from the use of the bot, or from not being able to use it. This applies as far as the law allows.
 
 ## The source code
 
-The bot's source code is published under the [MIT License](../LICENSE). That license covers the code. These terms cover using the hosted bot.
+The source code of the bot is published under the [MIT License](../LICENSE). That license covers the code. These terms cover the use of the hosted bot.
 
 ## Changes to these terms
 
-Changes are made in this file, with the date above updated. Earlier versions are in the repository's history. Continuing to use the bot after a change means you accept the new terms.
+Changes are made in this file, and the date above is updated. The earlier versions are in the history of the repository. If you continue to use the bot after a change, you accept the new terms.
 
 ## Contact
 

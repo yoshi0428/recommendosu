@@ -2,57 +2,57 @@
 
 Effective: October 19, 2026
 
-This policy covers the recommendosu Discord bot (the "bot"), run by yoshi0428. It explains what the bot stores when you use it, why, for how long, and how to have it removed. It does not cover the recommendosu.com website.
+This policy covers the recommendosu Discord bot (the "bot"), which yoshi0428 runs. It tells what the bot stores about your use, why, for how long, and how to have it removed. It does not cover the recommendosu.com website.
 
 ## What the bot stores
 
 | What | When | Where | How long |
 |---|---|---|---|
-| Your Discord user ID, the osu! player ID and username you linked, and when you linked it | You run `/link` | The bot's link database | Until you run `/unlink` (running `/link` again replaces it) |
-| Your Discord user ID and the ID of your latest `/rec` result | You run `/rec` | The bot's memory | Until you run `/unlink`, run `/rec` again, or the bot restarts |
-| Your `/rec` result (the list of recommended maps), labelled with your Discord user ID | You run `/rec` | The recommender server's memory | 30 minutes after you last use it, or until your next `/rec` |
-| The osu! player's public top and recent scores | `/rec` runs for that player | The recommender database | Kept, and refreshed on later requests (see "osu! scores" below) |
-| Server logs, which can include osu! usernames and player IDs looked up through `/link` and `/rec` | Any command | Log files on the server | Until overwritten as the logs rotate (oldest entries go first) |
+| Your Discord user ID, the osu! player ID and username that you linked, and the time of the link | You run `/link` | The link database of the bot | Until you run `/unlink` (a new `/link` replaces it) |
+| Your Discord user ID and the ID of your latest `/rec` result | You run `/rec` | The memory of the bot | Until you run `/unlink`, you run `/rec` again, or the bot restarts |
+| Your `/rec` result (the list of recommended maps), labeled with your Discord user ID | You run `/rec` | The memory of the recommender server | 30 minutes after your last use of it, or until your next `/rec` |
+| The public top and recent scores of the osu! player | `/rec` runs for that player | The recommender database | Kept, and refreshed on later requests (see "osu! scores" below) |
+| Server logs. They can include the osu! usernames and player IDs that `/link` and `/rec` look up | Any command | Log files on the server | Until the log rotation overwrites them (the oldest entries go first) |
 
 ### osu! scores
 
-To recommend maps, the bot fetches a player's top and recent scores from the osu! API. These are public on osu! already. They are stored so they don't need to be fetched again for every request, and the same data is used by the recommendosu.com website. They are tied to the osu! player ID, not to anyone's Discord account.
+To recommend maps, the bot fetches the top and recent scores of a player from the osu! API. These scores are already public on osu!. The bot stores them, so that it does not fetch them again for each request. The recommendosu.com website uses the same data. The scores are tied to the osu! player ID, not to a Discord account.
 
-## What the bot doesn't collect
+## What the bot does not collect
 
-- The content of your messages. The bot only sees the commands you send it.
+- The content of your messages. The bot sees only the commands that you send to it.
 - Server member lists, presence or activity.
-- Your email, IP address or any payment information.
+- Your email, your IP address or any payment information.
 
 ## How the data is used
 
-Only to run the commands you use: remembering your linked account for `/rec`, paging through your results, and letting `/classify index` find a map from your last `/rec`. Logs are used to fix problems.
+The data is used only to run the commands that you use: to remember your linked account for `/rec`, to page through your results, and to let `/classify index` find a map from your last `/rec`. The logs are used to fix problems.
 
-The data is not sold, not used for advertising, and not used for analytics or tracking.
+The data is not sold. It is not used for advertising, analytics or tracking.
 
 ## Who else receives data
 
-- **osu! (ppy Pty Ltd):** osu! usernames and player IDs are sent to the osu! API to look up players and their scores. See the [osu! privacy policy](https://osu.ppy.sh/legal/en/Privacy).
-- **Discord:** handles every command and reply. See [Discord's privacy policy](https://discord.com/privacy).
+- osu! (ppy Pty Ltd): the bot sends osu! usernames and player IDs to the osu! API to find players and their scores. See the [osu! privacy policy](https://osu.ppy.sh/legal/en/Privacy).
+- Discord: Discord handles each command and reply. See the [Discord privacy policy](https://discord.com/privacy).
 
-No one else receives data from the bot. In particular, nothing is sent to AI or analytics services: recommendations and classifications are computed on the bot's own server.
+No one else receives data from the bot. In particular, the bot sends nothing to AI or analytics services. The recommendations and the classifications are calculated on the server of the bot.
 
 ## Who can see your results
 
-`/rec` replies are posted in the channel, so anyone who can read the channel sees the recommendations and the osu! username they're for. This includes `/rec` messages such as a player not being found or no maps matching. Replies to `/classify`, `/link`, `/unlink` and `/help`, and messages about mistakes in a command's options, are only visible to you.
+The bot posts `/rec` replies in the channel. Thus anyone who can read the channel sees the recommendations and the osu! username that they are for. This includes `/rec` messages that tell, for example, that a player was not found or that no maps matched. Only you can see the replies to `/classify`, `/link`, `/unlink` and `/help`. Only you can also see the messages about mistakes in the options of a command.
 
 ## Removing your data
 
-- **Run `/unlink`.** It deletes your linked account from the bot and forgets your latest `/rec`. Your cached `/rec` result can no longer be reached and is deleted within 30 minutes.
-- **Ask for anything else to be removed**, such as log entries or the stored scores for your osu! account, using the contacts below. Stored scores will be fetched again if someone later runs `/rec` for that account.
+- Run `/unlink`. It deletes your linked account from the bot and forgets your latest `/rec`. After that, nothing can get to your cached `/rec` result, and it is deleted within 30 minutes.
+- To have anything else removed, use the contacts below. For example, log entries or the stored scores of your osu! account. If someone later runs `/rec` for that account, the bot fetches its scores again.
 
 ## Children
 
-The bot follows Discord's minimum age requirements and is not directed at children under 13.
+The bot follows the minimum age requirements of Discord, and it is not for children under 13.
 
 ## Changes to this policy
 
-Changes are made in this file, with the date above updated. Earlier versions are in the repository's history.
+Changes are made in this file, and the date above is updated. The earlier versions are in the history of the repository.
 
 ## Contact
 
