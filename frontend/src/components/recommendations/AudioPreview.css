@@ -1,8 +1,8 @@
-/* A compact bar in the bottom-left corner, like the osu! website's preview
-   player: previous / play / next, a thin progress line, the time, volume,
-   repeat, and close. */
+/* A compact bar in the bottom-left corner, like the preview player of the
+   osu! website: previous / play / next, a thin progress line, the time,
+   the volume, repeat, and close. */
 :root {
-  /* The score breakdown (RecommendationsPage.css) starts after this. */
+  /* The score breakdown (RecommendationsPage.css) starts after this width. */
   --audio-preview-width: 480px;
   --audio-preview-bg-color: rgb(33 37 41 / 92%);
   --audio-preview-border-color: #3a4048;
@@ -26,7 +26,7 @@
   backdrop-filter: blur(6px);
 }
 
-/* Plain icon buttons; the play button is just a larger, brighter icon. */
+/* Plain icon buttons. The play button is only a larger, brighter icon. */
 .audio-preview-icon-button {
   display: flex;
   align-items: center;
@@ -69,9 +69,9 @@
   color: var(--audio-preview-secondary-color);
 }
 
-/* Thin sliders: the played part (or the volume level) is filled with the
-   accent colour up to --fill, set from the component. The handle only shows
-   on hover or focus, like osu!'s. */
+/* Thin sliders. The accent color fills the played part (or the volume
+   level) up to --fill, which the component sets. As on osu!, the handle
+   shows only on hover or focus. */
 .audio-preview-range {
   min-width: 0;
   height: 16px;
@@ -85,7 +85,7 @@
   width: 64px;
 }
 
-/* iOS ignores the volume set by the page (see index.html); mute still works. */
+/* iOS ignores the volume that the page sets (see index.html). Mute still works. */
 .ios .audio-preview-volume {
   display: none;
 }
@@ -151,7 +151,7 @@
 }
 
 /* Phones: full width at the bottom, without the total length and the volume
-   slider (mute stays), so the progress line keeps some room. */
+   slider (mute stays). Thus the progress line keeps some space. */
 @media (max-width: 575.98px) {
   .audio-preview-bar {
     left: 0.5rem;

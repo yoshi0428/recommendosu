@@ -22,15 +22,15 @@ import "./AudioPreview.css";
 
 const AudioPreviewContext = createContext(null);
 
-// osu!'s own ~10 second clips, which already start at the map's preview point.
+// The clips of about 10 seconds from osu!. They start at the preview point of the map.
 const previewUrl = (beatmapsetId) => `https://b.ppy.sh/preview/${beatmapsetId}.mp3`;
 
 const VOLUME_STORAGE_KEY = "audioPreviewVolume";
 const DEFAULT_VOLUME = 0.01;
-// The volume slider only goes up to this; previews are loud.
+// The maximum of the volume slider. The previews are loud.
 const MAX_VOLUME = 0.1;
 
-// helper function to format seconds into m:ss (previews are short)
+// Format seconds as m:ss. (The previews are short.)
 const formatAudioTime = (seconds) => {
   if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
 
@@ -46,7 +46,7 @@ const loadVolume = () => {
     const stored = Number(localStorage.getItem(VOLUME_STORAGE_KEY));
     if (stored > 0 && stored <= MAX_VOLUME) return stored;
   } catch {
-    // Storage can be unavailable (private mode, blocked site data).
+    // Storage can be unavailable (private mode, or blocked site data).
   }
   return DEFAULT_VOLUME;
 };
@@ -55,18 +55,34 @@ const saveVolume = (volume) => {
   try {
     localStorage.setItem(VOLUME_STORAGE_KEY, String(volume));
   } catch {
-    // Not worth bothering the user about; the volume just isn't remembered.
+    // Do not tell the user. The only effect is that the volume is not saved.
   }
 };
 
-// The key a recommendation's preview is played under (RecommendationRow uses
-// it too): one per variant, so only the clicked row shows as playing.
+// The key of the preview of a recommendation (RecommendationRow uses it too).
+// There is one key for each variant, so only the clicked row shows as playing.
 export const previewKeyOf = (recommendation) =>
   recommendation.variant_id ?? recommendation.beatmap_id;
 
-// The nearest row before (step -1) or after (step 1) the playing one whose
-// preview is different audio: variants of one mapset share a preview, so
-// they're skipped. Rows not fetched yet (holes in the list) are skipped too.
+// Find the nearest row before (step -1) or after (step 1) the playing row that
+// has a different preview. The variants of one mapset share a preview, so the
+// search skips them. It also skips the rows that did not load yet (holes in
+// the list).
+// Play the audio if it is paused. If not, pause it.
+const playOrPause = (audio) => {
+  if (audio.paused) {
+    audio.play().catch(() => {});
+  } else {
+    audio.pause();
+  }
+};
+
+// Stop the download of the current file and empty the audio element.
+const unloadAudio = (audio) => {
+  audio.removeAttribute("src");
+  audio.load();
+};
+
 const neighbour = (playlist, activeKey, step) => {
   if (!playlist || activeKey === null) return null;
 
@@ -85,14 +101,14 @@ const neighbour = (playlist, activeKey, step) => {
   return null;
 };
 
-// Plays one audio preview at a time for the whole page. It sits above the
-// virtualized table, so playback keeps going when its row scrolls out of view
-// (and is unmounted).
+// Play one audio preview at a time for the whole page. The provider is above
+// the virtualized table. Thus the playback continues when its row scrolls out
+// of view (and unmounts).
 // playlist: the result rows in table order, for the previous/next buttons.
 export function AudioPreviewProvider({ children, playlist = null }) {
-  // Key of the row whose preview is loaded, or null when the player is closed.
+  // The key of the row with the loaded preview, or null if the player is closed.
   const [activeKey, setActiveKey] = useState(null);
-  // Key of the row whose preview is loading.
+  // The key of the row with the preview that loads now.
   const [loadingKey, setLoadingKey] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -104,8 +120,8 @@ export function AudioPreviewProvider({ children, playlist = null }) {
   const audioRef = useRef(null);
   const activeKeyRef = useRef(null);
   const volumeRef = useRef(volume);
-  // Bumped on every new preview or close, so a slow load that finishes after
-  // the user moved on doesn't open the player.
+  // This goes up on each new preview or close. Thus a slow load that ends
+  // after the user moved on does not open the player.
   const requestIdRef = useRef(0);
 
   const closePreview = useCallback(() => {
@@ -114,8 +130,7 @@ export function AudioPreviewProvider({ children, playlist = null }) {
     const audio = audioRef.current;
     if (audio) {
       audio.pause();
-      audio.removeAttribute("src");
-      audio.load();
+      unloadAudio(audio);
     }
 
     activeKeyRef.current = null;
@@ -126,18 +141,14 @@ export function AudioPreviewProvider({ children, playlist = null }) {
     setDuration(0);
   }, []);
 
-  // Play/pause the given row's preview, loading it first if another
-  // preview (or none) is loaded.
+  // Play or pause the preview of the given row. If another preview (or no
+  // preview) is loaded, load this one first.
   const togglePreview = useCallback(async (key, { beatmapsetId }) => {
     const audio = audioRef.current;
     if (!audio || !beatmapsetId) return;
 
     if (activeKeyRef.current === key) {
-      if (audio.paused) {
-        audio.play().catch(() => {});
-      } else {
-        audio.pause();
-      }
+      playOrPause(audio);
       return;
     }
 
@@ -150,8 +161,8 @@ export function AudioPreviewProvider({ children, playlist = null }) {
     audio.volume = volumeRef.current;
 
     try {
-      // Resolves once playback starts; rejects if the preview can't be
-      // loaded (e.g. osu! has none for this set).
+      // This resolves when the playback starts. It rejects if the preview
+      // cannot load (for example, osu! has no preview for this set).
       await audio.play();
 
       if (requestId !== requestIdRef.current) return;
@@ -159,12 +170,11 @@ export function AudioPreviewProvider({ children, playlist = null }) {
       activeKeyRef.current = key;
       setActiveKey(key);
     } catch (error) {
-      // A newer preview or a close replaced this one; nothing to report.
+      // A newer preview or a close replaced this one, so there is nothing to report.
       if (requestId !== requestIdRef.current) return;
 
       console.error("Failed to play audio preview:", error);
-      audio.removeAttribute("src");
-      audio.load();
+      unloadAudio(audio);
     } finally {
       if (requestId === requestIdRef.current) {
         setLoadingKey(null);
@@ -173,14 +183,7 @@ export function AudioPreviewProvider({ children, playlist = null }) {
   }, []);
 
   const togglePlayback = () => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    if (audio.paused) {
-      audio.play().catch(() => {});
-    } else {
-      audio.pause();
-    }
+    if (audioRef.current) playOrPause(audioRef.current);
   };
 
   const changeVolume = (newVolume) => {
@@ -192,7 +195,7 @@ export function AudioPreviewProvider({ children, playlist = null }) {
       audioRef.current.volume = newVolume;
     }
 
-    // Dragging the slider up unmutes, like most players.
+    // As in most players, a move of the slider above 0 unmutes the audio.
     if (muted && newVolume > 0) {
       setMuted(false);
     }

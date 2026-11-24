@@ -5,11 +5,12 @@ import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import PageErrorBoundary from "./components/PageErrorBoundary";
 import { useAuth } from "./hooks/useAuth";
 
-// Each page is its own chunk, so a visitor only downloads the page they land
-// on (signed-out visitors never load the recommendations UI).
+// Each page is a separate chunk, so a visitor downloads only the page that
+// they open. (A signed-out visitor never loads the recommendations UI.)
 const AuthScreen = lazy(() => import("./components/AuthScreen"));
-// Started now rather than when first rendered, so it downloads alongside the
-// auth check instead of after it. Signed-out visitors fetch it unused.
+// This download starts now, not at the first render, so it runs at the same
+// time as the auth check, not after it. A signed-out visitor also downloads
+// it, but does not use it.
 const recommendationsPageImport = import("./pages/RecommendationsPage");
 const RecommendationsPage = lazy(() => recommendationsPageImport);
 const About = lazy(() => import("./pages/About"));
@@ -35,7 +36,7 @@ function App() {
 
   return (
     <Suspense fallback={loadingScreen("Loading...")}>
-      {/* A page that fails to load shows a way back instead of a blank screen. */}
+      {/* If a page fails to load, show a way back, not a blank screen. */}
       <PageErrorBoundary key={pathname}>
         <Routes>
           <Route path="/about" element={<About />} />

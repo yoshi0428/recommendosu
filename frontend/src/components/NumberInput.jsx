@@ -1,8 +1,8 @@
 import { useId } from "react";
 import { Form } from "react-bootstrap";
 
-// A labelled number field for the Advanced settings. An emptied field sends
-// emptyValue: null ("no filter") for filters, 0 for weights.
+// A number field with a label, for the Advanced settings. An empty field sends
+// emptyValue: null ("no filter") for the filters, and 0 for the weights.
 function NumberInput({
   label,
   value,
@@ -13,8 +13,8 @@ function NumberInput({
   style,
   labelClassName,
 }) {
-  // controlId links the label to the input (clicking the label focuses it,
-  // and screen readers announce the input by its label).
+  // controlId links the label to the input. A click on the label moves the
+  // focus to the input, and screen readers read the label for the input.
   const id = useId();
 
   return (

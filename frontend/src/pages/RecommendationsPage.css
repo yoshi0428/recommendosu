@@ -1,7 +1,7 @@
-/* The score breakdown shown when a row is clicked: bottom right, reaching
-   left up to the audio player in the bottom-left corner (1rem gaps), so the
-   two never overlap. Only on wide screens: narrower ones have no room for it
-   beside the player. */
+/* The score breakdown that shows when the user clicks a row. It is at the
+   bottom right, and goes left up to the audio player in the bottom-left
+   corner (with 1rem gaps), so the two never overlap. It shows only on wide
+   screens, because narrower screens have no space for it next to the player. */
 .score-breakdown {
   display: none;
 }

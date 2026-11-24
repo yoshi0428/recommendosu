@@ -1,7 +1,8 @@
-import {Card, Col, Form, Row} from "react-bootstrap";
-import {useState} from "react";
+import { Card, Col, Form, Row } from "react-bootstrap";
+import { useState } from "react";
 
-// Years with ranked maps (MIN/MAX_BEATMAP_YEAR in beatmap_recommender/api/model.py).
+// The years that have ranked maps (MIN/MAX_BEATMAP_YEAR in
+// beatmap_recommender/api/model.py).
 const MIN_YEAR = 2007;
 const MAX_YEAR = 2026;
 
@@ -11,7 +12,31 @@ const BEATMAP_STATUSES = [
   ["loved", "Loved"],
 ];
 
-function BasicOptions({settings, updateSetting}) {
+// A text field for a 4-digit year. It accepts only digits, and the parent
+// applies the value when the field loses focus.
+function YearInput({ id, label, placeholder, value, setValue, onBlur }) {
+  return (
+    <>
+      <Form.Label htmlFor={id} visuallyHidden>
+        {label}
+      </Form.Label>
+      <Form.Control
+        id={id}
+        type="text"
+        inputMode="numeric"
+        maxLength={4}
+        placeholder={placeholder}
+        value={value}
+        onChange={(event) =>
+          setValue(event.target.value.replace(/\D/g, "").slice(0, 4))
+        }
+        onBlur={onBlur}
+      />
+    </>
+  );
+}
+
+function BasicOptions({ settings, updateSetting }) {
   const [minYearInput, setMinYearInput] = useState(
     settings.min_year?.toString() ?? ""
   );
@@ -19,8 +44,9 @@ function BasicOptions({settings, updateSetting}) {
     settings.max_year?.toString() ?? ""
   );
 
-  // Applies a typed year once the field loses focus, or puts the last valid
-  // value back if it's not a 4-digit year in range or crosses the other bound.
+  // When the field loses focus, apply the typed year. If it is not a 4-digit
+  // year in the range, or if it crosses the other bound, put the last valid
+  // value back.
   const commitYear = (key, input, setInput, isValid) => {
     if (input === "") {
       updateSetting(key, null);
@@ -149,39 +175,20 @@ function BasicOptions({settings, updateSetting}) {
               <Form.Label as="div">Year range</Form.Label>
 
               <div className="d-flex gap-2">
-                <Form.Label htmlFor="min-year" visuallyHidden>
-                  From year
-                </Form.Label>
-                <Form.Control
+                <YearInput
                   id="min-year"
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={4}
+                  label="From year"
                   placeholder="From"
                   value={minYearInput}
-                  onChange={(event) => {
-                    setMinYearInput(
-                      event.target.value.replace(/\D/g, "").slice(0, 4)
-                    );
-                  }}
+                  setValue={setMinYearInput}
                   onBlur={commitMinYear}
                 />
-
-                <Form.Label htmlFor="max-year" visuallyHidden>
-                  To year
-                </Form.Label>
-                <Form.Control
+                <YearInput
                   id="max-year"
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={4}
+                  label="To year"
                   placeholder="To"
                   value={maxYearInput}
-                  onChange={(event) => {
-                    setMaxYearInput(
-                      event.target.value.replace(/\D/g, "").slice(0, 4)
-                    );
-                  }}
+                  setValue={setMaxYearInput}
                   onBlur={commitMaxYear}
                 />
               </div>

@@ -4,8 +4,8 @@ import { Link } from "react-router-dom";
 
 import { getChangelog } from "../api/client";
 
-// "2026-11-01" -> "November 1, 2026". Parsed as UTC and shown as UTC, so the
-// day doesn't shift with the visitor's time zone.
+// "2026-11-01" -> "November 1, 2026". The date is parsed and shown as UTC, so
+// the day does not change with the time zone of the visitor.
 const formatDate = (date) =>
   new Date(`${date}T00:00:00Z`).toLocaleDateString("en-US", {
     year: "numeric",
@@ -14,13 +14,13 @@ const formatDate = (date) =>
     timeZone: "UTC",
   });
 
-// Entries are plain text. URLs in them become links; a trailing ".", ","
-// or ")" stays outside the link.
+// The entries are plain text. The URLs in them become links. A ".", "," or ")"
+// at the end of a URL stays outside the link.
 const URL_PATTERN = /(https?:\/\/[^\s)]*[^\s).,!?;:])/;
 
 const withLinks = (text) =>
   text.split(URL_PATTERN).map((part, index) =>
-    // split() with a capture group puts the URLs at the odd indexes.
+    // With a capture group, split() puts the URLs at the odd indexes.
     index % 2 === 1 ? (
       <a key={index} href={part} target="_blank" rel="noopener noreferrer">
         {part}
@@ -30,7 +30,7 @@ const withLinks = (text) =>
     )
   );
 
-// Public like About: beatmap_recommender/changelog.json, via GET /api/v1/changelog.
+// A public page, like About. It shows beatmap_recommender/changelog.json from GET /api/v1/changelog.
 function Changelog() {
   const [entries, setEntries] = useState(null);
   const [error, setError] = useState(null);
@@ -40,8 +40,6 @@ function Changelog() {
       .then(setEntries)
       .catch((err) => setError(err.message));
   }, []);
-
-  const sectionClass = "bg-secondary bg-opacity-10 border-secondary";
 
   return (
     <div className="bg-dark text-light min-vh-100">
@@ -66,7 +64,7 @@ function Changelog() {
         {entries?.map((entry) => (
           <section
             key={`${entry.date}-${entry.title}`}
-            className={`p-4 mb-4 rounded border ${sectionClass}`}
+            className="p-4 mb-4 rounded border bg-secondary bg-opacity-10 border-secondary"
           >
             <h3 className="h5 mb-1">{entry.title}</h3>
             <div className="text-body-secondary small mb-3">

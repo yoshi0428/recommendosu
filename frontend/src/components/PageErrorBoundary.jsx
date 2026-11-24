@@ -1,12 +1,12 @@
 import { Component, useEffect } from "react";
 import { Button, Container } from "react-bootstrap";
 
-// Set before the one automatic reload, so a page that keeps failing to load
-// shows the message instead of reloading forever.
+// The code sets this flag before the one automatic reload. Thus a page that
+// fails to load again shows the message, and does not reload forever.
 const RELOAD_FLAG = "page-chunk-reload";
 
-// A lazily loaded page whose file is gone, typically after a redeploy while
-// the site was open: the old page asks for an old file name.
+// True if a lazy page failed because its file is gone. This usually occurs
+// after a redeploy while the site was open: the old page asks for an old file.
 function isChunkLoadError(error) {
   const message = String(error?.message ?? "");
   return (
@@ -14,7 +14,7 @@ function isChunkLoadError(error) {
     /dynamically imported module|Importing a module script failed|error loading dynamically imported module/i.test(
       message
     ) ||
-    // React.lazy() on a module without a default export (e.g. an empty file).
+    // React.lazy() on a module without a default export (for example, an empty file).
     /Element type is invalid|lazy: Expected the result of a dynamic import/i.test(
       message
     )
@@ -25,7 +25,7 @@ function reloadFlagSet() {
   try {
     return sessionStorage.getItem(RELOAD_FLAG) === "1";
   } catch {
-    return true; // no storage: never auto-reload, so it can't loop
+    return true; // Without storage, never reload automatically, so that it cannot loop.
   }
 }
 
@@ -34,23 +34,23 @@ function setReloadFlag(value) {
     if (value) sessionStorage.setItem(RELOAD_FLAG, "1");
     else sessionStorage.removeItem(RELOAD_FLAG);
   } catch {
-    // ignore
+    // Without storage, there is nothing to do.
   }
 }
 
-// Rendered next to the page: its effect only runs once the page has loaded
-// and rendered, so only then may a later failure reload again.
+// This renders next to the page. Its effect runs only after the page loaded
+// and rendered. Only after that can a later failure reload again.
 function PageLoaded() {
   useEffect(() => setReloadFlag(false), []);
   return null;
 }
 
 /**
- * Keeps a page that fails to load or render from leaving a blank screen.
- * A missing page file is fixed by one reload (the new deploy's files);
- * anything else shows a message with a way back to the recommendations.
- * App puts it inside the Suspense, with the path as its key, so it resets
- * on navigation.
+ * Stops a page that fails to load or render from leaving a blank screen.
+ * One reload fixes a missing page file (it gets the files of the new deploy).
+ * Any other error shows a message with a way back to the recommendations.
+ * App puts this boundary inside the Suspense, with the path as its key, so
+ * it resets on navigation.
  */
 class PageErrorBoundary extends Component {
   state = { error: null };

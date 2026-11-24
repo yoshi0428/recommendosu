@@ -1,5 +1,5 @@
-/* Title colours follow osu!'s ranked (green) and loved (pink) statuses,
-   tuned to stay readable (WCAG AA) on the dark table background. */
+/* The title colors follow the osu! colors for ranked (green) and loved
+   (pink), adjusted to stay readable (WCAG AA) on the dark table background. */
 :root {
   --status-ranked-color: #9be15d;
   --status-loved-color: #ff79b4;
@@ -13,8 +13,8 @@
   color: var(--status-loved-color);
 }
 
-/* Wide enough for every stat column; the scroll container handles
-   horizontal scrolling when zoomed in. */
+/* Wide enough for all the stat columns. When the page is zoomed in, the
+   scroll container scrolls horizontally. */
 .recommendation-table {
   width: 100%;
   min-width: 850px;
@@ -29,9 +29,9 @@
   display: none;
 }
 
-/* Phones and narrow windows (below ~900px, where the 850px-wide table
-   would scroll sideways): drop the stat columns and show the stats under
-   the title instead, so nothing sits off-screen to the right. */
+/* Phones and narrow windows (below about 900px, where the 850px table
+   would scroll to the side): hide the stat columns and show the stats under
+   the title. Thus nothing is off the screen on the right. */
 @media (max-width: 899.98px) {
   .recommendation-table {
     min-width: 0;
@@ -57,7 +57,7 @@
   }
 }
 
-/* Touch screens can't hover, so always show the play button on covers. */
+/* Touch screens cannot hover, so always show the play button on the covers. */
 @media (hover: none) {
   .recommendation-cover-overlay {
     opacity: 1 !important;

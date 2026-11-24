@@ -9,11 +9,27 @@ const DIFFICULTY_FEATURES = [
   ["bpm", "BPM"],
 ];
 
+// One number input for each difficulty feature in settings[setting].
+function FeatureInputs({ settings, setting, updateNestedSetting, className }) {
+  return (
+    <Row className={className}>
+      {DIFFICULTY_FEATURES.map(([key, label]) => (
+        <Col xl={3} key={key}>
+          <NumberInput
+            label={label}
+            value={settings[setting][key]}
+            onChange={(value) => updateNestedSetting(setting, key, value)}
+          />
+        </Col>
+      ))}
+    </Row>
+  );
+}
+
 function DifficultyProfile({ settings, updateNestedSetting }) {
   return (
     <Card className="mb-4">
       <Card.Header>
-        {" "}
         <strong>Difficulty Profile</strong>
       </Card.Header>
       <Card.Body>
@@ -23,36 +39,20 @@ function DifficultyProfile({ settings, updateNestedSetting }) {
         </p>
 
         <h6 className="mt-3">Difficulty Standard Deviation Floors</h6>
-
-        <Row className="g-3 mb-4">
-          {DIFFICULTY_FEATURES.map(([key, label]) => (
-            <Col xl={3} key={key}>
-              <NumberInput
-                label={label}
-                value={settings.difficulty_std_floors[key]}
-                onChange={(value) =>
-                  updateNestedSetting("difficulty_std_floors", key, value)
-                }
-              />
-            </Col>
-          ))}
-        </Row>
+        <FeatureInputs
+          settings={settings}
+          setting="difficulty_std_floors"
+          updateNestedSetting={updateNestedSetting}
+          className="g-3 mb-4"
+        />
 
         <h6>Difficulty Feature Weights</h6>
-
-        <Row className="g-3">
-          {DIFFICULTY_FEATURES.map(([key, label]) => (
-            <Col xl={3} key={key}>
-              <NumberInput
-                label={label}
-                value={settings.difficulty_feature_weights[key]}
-                onChange={(value) =>
-                  updateNestedSetting("difficulty_feature_weights", key, value)
-                }
-              />
-            </Col>
-          ))}
-        </Row>
+        <FeatureInputs
+          settings={settings}
+          setting="difficulty_feature_weights"
+          updateNestedSetting={updateNestedSetting}
+          className="g-3"
+        />
       </Card.Body>
     </Card>
   );

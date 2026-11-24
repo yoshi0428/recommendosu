@@ -3,7 +3,7 @@ import { Card } from "react-bootstrap";
 import NumberInput from "./NumberInput";
 import "./CandidateFilters.css";
 
-// One column per filter: [setting name (min_<name> / max_<name>), label].
+// One column for each filter: [setting name (min_<name> / max_<name>), label].
 const RANGE_FILTERS = [
   ["stars", "Stars"],
   ["bpm", "BPM"],

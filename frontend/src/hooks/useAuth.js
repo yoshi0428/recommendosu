@@ -10,7 +10,8 @@ export function useAuth() {
       try {
         setUser(await getCurrentUser());
       } catch {
-        // Backend unreachable: treat as logged out, so the login screen shows.
+        // If the backend does not answer, treat the user as logged out, so
+        // that the login screen shows.
       } finally {
         setLoading(false);
       }
@@ -19,15 +20,11 @@ export function useAuth() {
     checkAuthentication();
   }, []);
 
-  // Throws if the server refuses; the caller shows the error.
+  // If the server refuses, this throws, and the caller shows the error.
   async function handleLogout() {
     await logout();
     setUser(null);
   }
 
-  return {
-    user,
-    loading,
-    logout: handleLogout,
-  };
+  return { user, loading, logout: handleLogout };
 }

@@ -9,9 +9,9 @@ function ModOptions({ settings, updateSetting }) {
   const handleExactModsChange = (enabled) => {
     updateSetting("exact_mods", enabled);
 
-    // Reset mod selection when switching modes. Exact mode only uses the
-    // checked mods, so the default exclusions are dropped there and
-    // restored when switching back.
+    // Clear the mod selection when the mode changes. Exact mode uses only the
+    // checked mods, so it removes the default exclusions. Normal mode puts
+    // them back.
     updateSetting("mods", []);
     updateSetting("excluded_mods", enabled ? [] : [...DEFAULT_EXCLUDED_MODS]);
   };

@@ -5,14 +5,15 @@ import { ChevronUp, Funnel } from "react-bootstrap-icons";
 import ModCheckboxes from "./ModCheckboxes";
 import "./SiteHeader.css";
 
-// Quick filters for min_<name> / max_<name>. srName is the name screen
-// readers announce ("Minimum stars").
+// The quick filters for min_<name> / max_<name>. srName is the name that
+// screen readers read ("Minimum stars").
 const QUICK_RANGES = [
   { name: "stars", label: "Stars", srName: "stars", step: "0.1", inputMode: "decimal", width: "60px" },
   { name: "bpm", label: "BPM", srName: "BPM", step: "1", inputMode: "numeric", width: "60px" },
   { name: "pp", label: "PP", srName: "PP", step: "1", inputMode: "numeric", width: "65px" },
 ];
 
+// A "Label: [min] - [max]" pair of small number fields for one quick filter.
 function RangeInput({ settings, updateSetting, name, label, srName, step, inputMode, width }) {
   const input = (bound, srBound, placeholder) => {
     const key = `${bound}_${name}`;
@@ -59,8 +60,8 @@ function SiteHeader({
   advancedSettingsButton,
   logout,
 }) {
-  // Phones only: the quick filters and nav buttons are hidden behind a toggle
-  // so the results get most of the screen. Larger screens always show them.
+  // On phones only, a toggle hides the quick filters and the nav buttons, so
+  // that the results get most of the screen. Larger screens always show them.
   const [controlsOpen, setControlsOpen] = useState(false);
 
   const handleSubmit = (e) => {
@@ -82,7 +83,7 @@ function SiteHeader({
     >
       <div className="container-fluid px-3 px-md-4">
         <div className="row align-items-center g-2">
-          {/* Left side: Coffee button */}
+          {/* Left side: the coffee button */}
           <div className="site-header-collapsible col-12 col-lg-2 order-last order-lg-first d-flex justify-content-center justify-content-lg-start">
             <a
               href="https://buymeacoffee.com/recommendosu"
@@ -94,7 +95,7 @@ function SiteHeader({
             </a>
           </div>
 
-          {/* Center section */}
+          {/* Center: the title and the quick filters */}
           <div className="col-12 col-lg-8">
             <div className="quick-mods d-flex flex-column align-items-center gap-2 text-center">
               <h1 className="mb-0 fs-4 site-header-title">
@@ -103,16 +104,7 @@ function SiteHeader({
 
               <Form
                 onSubmit={handleSubmit}
-                className="
-                  d-flex
-                  align-items-center
-                  justify-content-center
-                  flex-wrap
-                  gap-1 gap-md-2
-                  small
-                  text-muted
-                  w-100
-                "
+                className="d-flex align-items-center justify-content-center flex-wrap gap-1 gap-md-2 small text-muted w-100"
               >
                 {QUICK_RANGES.map((range) => (
                   <RangeInput
@@ -123,7 +115,7 @@ function SiteHeader({
                   />
                 ))}
 
-                {/* Quick Mod Checkboxes */}
+                {/* The quick mod checkboxes */}
                 <div className="site-header-collapsible site-header-mods d-flex flex-wrap align-items-center gap-2 ps-3">
                   <ModCheckboxes
                     settings={settings}
@@ -133,7 +125,7 @@ function SiteHeader({
                   />
                 </div>
 
-                {/* Run / Advanced Settings */}
+                {/* Run or cancel, Advanced Settings, and the filter toggle */}
                 <div className="site-header-actions d-flex align-items-center gap-2 flex-nowrap">
                   {loading ? (
                     <Button
@@ -172,10 +164,9 @@ function SiteHeader({
             </div>
           </div>
 
-          {/* Right side */}
+          {/* Right side: About and Logout */}
           <div className="site-header-collapsible col-12 col-lg-2">
             <div className="d-flex align-items-center justify-content-center justify-content-lg-end gap-2">
-              {/* About */}
               <Button
                 as={Link}
                 to="/about"
@@ -185,7 +176,6 @@ function SiteHeader({
                 About
               </Button>
 
-              {/* Logout */}
               {logout && (
                 <Button variant="outline-danger" size="sm" onClick={logout}>
                   Logout

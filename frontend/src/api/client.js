@@ -1,5 +1,14 @@
 const API_BASE = "/api/v1";
 
+// Make an Error from a failed response. Use the "detail" message of the
+// backend if the body has one. If not, name the request and the status.
+async function responseError(response, request) {
+  const data = await response.json().catch(() => null);
+  return new Error(
+    data?.detail || `${request} failed with status ${response.status}`
+  );
+}
+
 export async function getCurrentUser() {
   const response = await fetch(`${API_BASE}/auth/me`, {
     credentials: "include",
@@ -54,7 +63,7 @@ export async function getRecommendations(body, options = {}) {
     signal: options.signal,
   });
 
-  // A recommendation cancelled with cancelRecommendation() ends with 204 and
+  // A recommendation that cancelRecommendation() cancelled ends with 204 and
   // no body.
   if (response.status === 204) {
     return null;
@@ -62,8 +71,8 @@ export async function getRecommendations(body, options = {}) {
 
   const contentType = response.headers.get("content-type") || "";
 
-  // Nginx can return an HTML 504 page when the recommendation backend takes too long to respond.
-  // Do not try to parse that HTML response as JSON.
+  // If the backend takes too long, Nginx can return an HTML 504 page. Do not
+  // parse that HTML as JSON.
   if (response.status === 504) {
     throw new Error(
       "Recommendation generation took too long. " +
@@ -71,7 +80,7 @@ export async function getRecommendations(body, options = {}) {
     );
   }
 
-  // Only parse the response as JSON when the server actually says that it returned JSON.
+  // Parse the response as JSON only if the server says that it is JSON.
   if (contentType.includes("application/json")) {
     const data = await response.json();
 
@@ -93,8 +102,8 @@ export async function getRecommendations(body, options = {}) {
     return data;
   }
 
-  // Any other non-JSON response is unexpected.
-  // This handles HTML error pages and other proxy/server responses safely.
+  // Any other response that is not JSON is unexpected, for example an HTML
+  // error page from the proxy. Report its status and type.
   throw new Error(
     `Recommendation request failed with status ${response.status}. ` +
       `Server returned ${contentType || "an unknown response type"}.`
@@ -120,19 +129,11 @@ export async function getRecommendationPage(
     }
   );
 
-  const contentType = response.headers.get("content-type") || "";
-  const data = contentType.includes("application/json")
-    ? await response.json()
-    : null;
-
   if (!response.ok) {
-    throw new Error(
-      data?.detail ||
-        `Recommendation page request failed with status ${response.status}`
-    );
+    throw await responseError(response, "Recommendation page request");
   }
 
-  return data;
+  return response.json();
 }
 
 export async function cancelRecommendation(recommendationId) {
@@ -145,12 +146,7 @@ export async function cancelRecommendation(recommendationId) {
   );
 
   if (!response.ok) {
-    const data = await response.json().catch(() => null);
-
-    throw new Error(
-      data?.detail ||
-        `Cancellation request failed with status ${response.status}`
-    );
+    throw await responseError(response, "Cancellation request");
   }
 
   return response.json();

@@ -16,11 +16,11 @@ import RecommendationSettingsModal from "../components/recommendations/Recommend
 
 import "./RecommendationsPage.css";
 
-// Must match RECOMMENDATION_PAGE_SIZE in main.py, which also sizes the first
-// page returned by POST /recommend.
+// This must be the same as RECOMMENDATION_PAGE_SIZE in main.py, which also
+// sets the size of the first page that POST /recommend returns.
 const RECOMMENDATION_PAGE_SIZE = 1000;
 
-// The per-variant scores in the breakdown shown when a row is clicked.
+// The scores of a variant that the breakdown shows when the user clicks a row.
 const SCORE_BREAKDOWN = [
   ["Final", "final_score"],
   ["Content", "content_similarity"],
@@ -37,30 +37,31 @@ const EMPTY_RESULT = {
 };
 
 function RecommendationsPage({ user, logout }) {
-  // App only renders this page once the user has loaded, so their ID can
-  // seed the initial settings directly.
+  // App renders this page only after the user loaded, so the initial settings
+  // can use the ID of the user directly.
   const [settings, setSettings] = useState(() => ({
     ...createDefaultSettings(),
     player_id: user?.player_id ?? null,
   }));
 
-  // Full results can be millions of rows, so they stay on the server. `rows`
-  // is a sparse array of length totalCount that pages are written into as
-  // they load; `version` is bumped after each write so the table re-renders.
+  // A full result can have millions of rows, so it stays on the server. `rows`
+  // is a sparse array of length totalCount. Each page goes into it when the
+  // page loads. `version` goes up after each write, so that the table renders
+  // again.
   const [result, setResult] = useState(EMPTY_RESULT);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [selectedRecommendation, setSelectedRecommendation] = useState(null);
 
-  // Reference to hold the active AbortController for requests
+  // The AbortController and the ID of the running recommendation request.
   const abortControllerRef = useRef(null);
   const recommendationIdRef = useRef(null);
 
-  // Page requests in flight for the current result, and their AbortController.
+  // The page requests that run for the current result, and their AbortController.
   const loadingPagesRef = useRef(new Set());
   const pageAbortControllerRef = useRef(null);
 
-  // Automatically hide the breakdown notification after 2 seconds
+  // Hide the breakdown automatically after 2 seconds.
   useEffect(() => {
     if (!selectedRecommendation) {
       return;
@@ -91,10 +92,8 @@ function RecommendationsPage({ user, logout }) {
   };
 
   const handleSubmit = async () => {
-    // Cancel any existing request.
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
+    // Cancel the request that runs now, if there is one.
+    abortControllerRef.current?.abort();
 
     const controller = new AbortController();
     const recommendationId = crypto.randomUUID();
@@ -111,8 +110,8 @@ function RecommendationsPage({ user, logout }) {
         recommendationId,
       });
 
-      // null: the backend confirmed the cancellation before the browser's
-      // request was aborted. Either way, keep the previous results.
+      // null means that the backend confirmed the cancellation before the
+      // browser aborted the request. In both cases, keep the previous results.
       if (data === null || controller.signal.aborted) {
         return;
       }
@@ -155,7 +154,7 @@ function RecommendationsPage({ user, logout }) {
     }
   };
 
-  // Fetch any pages overlapping [startIndex, endIndex] that are not loaded yet.
+  // Fetch the pages in [startIndex, endIndex] that did not load yet.
   const loadRange = useCallback(
     (startIndex, endIndex) => {
       const { id, totalCount, rows } = result;
@@ -219,10 +218,8 @@ function RecommendationsPage({ user, logout }) {
       }
     }
 
-    // Also abort the browser's request.
-    if (controller) {
-      controller.abort();
-    }
+    // Also abort the request of the browser.
+    controller?.abort();
 
     abortControllerRef.current = null;
     recommendationIdRef.current = null;
@@ -300,8 +297,8 @@ function RecommendationsPage({ user, logout }) {
           </Container>
         </main>
 
-        {/* Bottom right, beside the audio player; hidden on smaller screens
-            (see RecommendationsPage.css). */}
+        {/* At the bottom right, next to the audio player. Small screens hide
+            it (see RecommendationsPage.css). */}
         {selectedRecommendation && (
           <div className="score-breakdown shadow-lg">
             <Alert
@@ -311,9 +308,7 @@ function RecommendationsPage({ user, logout }) {
               className="mb-0 border shadow-sm text-center"
             >
               <div className="fw-bold mb-2">
-                Breakdown for {selectedRecommendation.artist} -{" "}
-                {selectedRecommendation.title} [{selectedRecommendation.version}
-                ]:
+                {`Breakdown for ${selectedRecommendation.artist} - ${selectedRecommendation.title} [${selectedRecommendation.version}]:`}
               </div>
 
               <div className="d-flex flex-wrap justify-content-center gap-3 small">

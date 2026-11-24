@@ -1,9 +1,10 @@
 import { Form } from "react-bootstrap";
 
-// The checkboxes shown, in this order. bot/options.py mirrors these lists.
+// The checkboxes, in the order that they show. bot/options.py has copies of
+// these lists.
 const INDIVIDUAL_MODS = ["NM", "HD", "HR", "DT", "EZ", "HT", "FL"];
 
-// The combinations the recommender database has variants for.
+// The mod combinations that have variants in the recommender database.
 const MOD_COMBINATIONS = [
   ["HD"],
   ["HR"],
@@ -26,10 +27,10 @@ const MOD_COMBINATIONS = [
   ["DT", "FL"],
 ];
 
-// One checkbox per mod, cycling required (checked) -> excluded
-// (indeterminate) -> allowed (unchecked). With exact_mods, the checked mods
-// are the exact combination, and mods that can't extend it are disabled.
-// Used by the header's quick filters (compact) and the Advanced settings.
+// One checkbox for each mod. A click moves the mod from required (checked) to
+// excluded (indeterminate) to allowed (unchecked). With exact_mods, the checked
+// mods are the exact combination, and a mod that cannot extend it is disabled.
+// The quick filters of the header (compact) and the Advanced settings use it.
 function ModCheckboxes({ settings, updateSetting, idPrefix, compact = false }) {
   const currentMods = settings.mods ?? [];
   const excludedMods = settings.excluded_mods ?? [];
@@ -59,7 +60,7 @@ function ModCheckboxes({ settings, updateSetting, idPrefix, compact = false }) {
         currentMods.filter((m) => m !== mod)
       );
 
-      // Required -> excluded (exact mode has no exclusions).
+      // Required -> excluded. (Exact mode has no exclusions.)
       if (!exactMods && !isExcluded) {
         updateSetting("excluded_mods", [...excludedMods, mod]);
       }

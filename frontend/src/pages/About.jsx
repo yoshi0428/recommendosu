@@ -325,7 +325,7 @@ function About() {
             alt="quagsire"
             width="640"
             height="542"
-            // 2MB, at the bottom of the page: only load it when scrolled near.
+            // 2MB, at the bottom of the page. Load it only when the user scrolls near it.
             loading="lazy"
             className="img-fluid d-block mx-auto"
             style={{ maxWidth: "400px" }}

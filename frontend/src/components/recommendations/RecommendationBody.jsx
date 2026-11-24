@@ -4,6 +4,34 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import RecommendationRow from "./RecommendationRow";
 import { useAudioPreview } from "./AudioPreview";
 
+const COLUMNS = [
+  "Artist - Title",
+  "PP",
+  "Mods",
+  "Stars",
+  "BPM",
+  "CS",
+  "AR",
+  "OD",
+  "Length",
+  "Combo",
+];
+
+// The estimated height of a row in pixels, before the table measures it.
+const ROW_HEIGHT = 70;
+
+// An empty row that takes the place of the rows outside the visible window.
+function SpacerRow({ height }) {
+  return (
+    <tr>
+      <td
+        colSpan={COLUMNS.length}
+        style={{ height: `${height}px`, padding: 0, border: 0 }}
+      />
+    </tr>
+  );
+}
+
 function RecommendationBody({
   recommendations,
   totalCount,
@@ -14,13 +42,13 @@ function RecommendationBody({
   const scrollRef = useRef(null);
   const { playerOpen } = useAudioPreview();
 
-  // TanStack Virtual can't be optimized by the React Compiler, which this
-  // project doesn't use, so the warning doesn't apply.
+  // The React Compiler cannot optimize TanStack Virtual. This project does not
+  // use the React Compiler, so the warning does not apply.
   // eslint-disable-next-line react-hooks/incompatible-library
   const rowVirtualizer = useVirtualizer({
     count: totalCount,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => 70,
+    estimateSize: () => ROW_HEIGHT,
     overscan: 10,
   });
 
@@ -29,10 +57,12 @@ function RecommendationBody({
   }, [rowVirtualizer, totalCount]);
 
   const virtualRows = rowVirtualizer.getVirtualItems();
-  const firstIndex = virtualRows[0]?.index;
-  const lastIndex = virtualRows[virtualRows.length - 1]?.index;
+  const firstRow = virtualRows[0];
+  const lastRow = virtualRows[virtualRows.length - 1];
+  const firstIndex = firstRow?.index;
+  const lastIndex = lastRow?.index;
 
-  // Rows past the first page are fetched from the server as they scroll in.
+  // When rows after the first page scroll into view, fetch them from the server.
   useEffect(() => {
     if (firstIndex !== undefined) {
       onVisibleRangeChange(firstIndex, lastIndex);
@@ -61,9 +91,6 @@ function RecommendationBody({
     );
   }
 
-  const firstRow = virtualRows[0];
-  const lastRow = virtualRows[virtualRows.length - 1];
-
   const topPadding = firstRow?.start ?? 0;
   const bottomPadding = lastRow
     ? rowVirtualizer.getTotalSize() - lastRow.end
@@ -73,40 +100,23 @@ function RecommendationBody({
     <div
       ref={scrollRef}
       className="recommendation-scroll flex-grow-1 overflow-auto position-relative"
-      // Room to scroll the last rows out from under the audio player.
+      // Space to scroll the last rows out from under the audio player.
       style={{ minHeight: 0, paddingBottom: playerOpen ? "5rem" : 0 }}
     >
-      {/* table-responsive wrapper handles smooth horizontal scrolling when zoomed in */}
       <div className="w-100">
         <table className="recommendation-table table table-hover table-sm align-middle mb-0">
           <thead className="sticky-top bg-body">
             <tr>
-              <th className="text-center">Artist - Title</th>
-              <th className="text-center">PP</th>
-              <th className="text-center">Mods</th>
-              <th className="text-center">Stars</th>
-              <th className="text-center">BPM</th>
-              <th className="text-center">CS</th>
-              <th className="text-center">AR</th>
-              <th className="text-center">OD</th>
-              <th className="text-center">Length</th>
-              <th className="text-center">Combo</th>
+              {COLUMNS.map((column) => (
+                <th key={column} className="text-center">
+                  {column}
+                </th>
+              ))}
             </tr>
           </thead>
 
           <tbody>
-            {topPadding > 0 && (
-              <tr>
-                <td
-                  colSpan="10"
-                  style={{
-                    height: `${topPadding}px`,
-                    padding: 0,
-                    border: 0,
-                  }}
-                />
-              </tr>
-            )}
+            {topPadding > 0 && <SpacerRow height={topPadding} />}
 
             {virtualRows.map((virtualRow) => {
               const recommendation = recommendations[virtualRow.index];
@@ -119,9 +129,9 @@ function RecommendationBody({
                     ref={rowVirtualizer.measureElement}
                   >
                     <td
-                      colSpan="10"
+                      colSpan={COLUMNS.length}
                       className="text-center text-muted"
-                      style={{ height: "70px" }}
+                      style={{ height: `${ROW_HEIGHT}px` }}
                     >
                       Loading...
                     </td>
@@ -144,18 +154,7 @@ function RecommendationBody({
               );
             })}
 
-            {bottomPadding > 0 && (
-              <tr>
-                <td
-                  colSpan="10"
-                  style={{
-                    height: `${bottomPadding}px`,
-                    padding: 0,
-                    border: 0,
-                  }}
-                />
-              </tr>
-            )}
+            {bottomPadding > 0 && <SpacerRow height={bottomPadding} />}
           </tbody>
         </table>
       </div>

@@ -12,13 +12,13 @@ const DEFAULT_DIFFICULTY_FEATURE_WEIGHTS = {
   bpm: 0.5,
 };
 
-// Mods excluded from recommendations until the user re-enables them.
+// The mods that recommendations leave out until the user allows them again.
 export const DEFAULT_EXCLUDED_MODS = ["EZ", "HT", "FL"];
 
-// The settings the UI can change, as POST /recommend's body. Everything else
-// (the result limit, similarity weights, score weights...) is left out, so the
-// backend uses its own defaults (RecommendationSettings in
-// beatmap_recommender/api/model.py).
+// The settings that the UI can change, as the body of POST /recommend. All
+// other settings (the result limit, the similarity weights, the score
+// weights...) are not in the body, so the backend uses its own defaults
+// (RecommendationSettings in beatmap_recommender/api/model.py).
 export function createDefaultSettings() {
   return {
     player_id: null,
@@ -37,13 +37,8 @@ export function createDefaultSettings() {
     min_od: null,
     max_od: null,
 
-    difficulty_std_floors: {
-      ...DEFAULT_DIFFICULTY_STD_FLOORS,
-    },
-
-    difficulty_feature_weights: {
-      ...DEFAULT_DIFFICULTY_FEATURE_WEIGHTS,
-    },
+    difficulty_std_floors: { ...DEFAULT_DIFFICULTY_STD_FLOORS },
+    difficulty_feature_weights: { ...DEFAULT_DIFFICULTY_FEATURE_WEIGHTS },
 
     top_weight: 3.0,
     recent_weight: 1.0,

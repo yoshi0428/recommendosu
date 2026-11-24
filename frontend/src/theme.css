@@ -1,8 +1,8 @@
-/* The site is dark only (data-bs-theme="dark" in index.html).
-   Loaded after Bootstrap so these variables win. */
+/* The site has only a dark theme (data-bs-theme="dark" in index.html).
+   This file loads after Bootstrap, so these variables have priority. */
 
-/* Bootstrap's grey outline buttons are 3.3:1 on the dark page, below WCAG AA,
-   so lighten them (5.2:1). */
+/* The gray outline buttons of Bootstrap have a contrast of 3.3:1 on the dark
+   page, below WCAG AA. Thus make them lighter (5.2:1). */
 .btn-outline-secondary {
   --bs-btn-color: #8f969d;
   --bs-btn-border-color: #8f969d;
@@ -27,8 +27,8 @@
     scrollbar-color: var(--app-scrollbar-thumb-hover) transparent;
   }
 
-  /* Safari, which doesn't support scrollbar-color. Browsers that do ignore
-     these once scrollbar-color is set. */
+  /* For Safari, which does not support scrollbar-color. Other browsers
+     ignore these rules when scrollbar-color is set. */
   .recommendation-scroll::-webkit-scrollbar,
   .modal-body::-webkit-scrollbar {
     width: 10px;

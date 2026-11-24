@@ -37,8 +37,8 @@
     display: none !important;
   }
 
-  /* Keep the Run / Advanced / Filters row on top, so opening the filters
-     pushes them out below it instead of above it. */
+  /* Keep the Run / Advanced / Filters row on top. Thus the filters open
+     below the row, not above it. */
   .site-header-actions {
     order: -1;
     flex-basis: 100%;
@@ -53,7 +53,7 @@
     padding-left: 0 !important;
   }
 
-  /* Small enough that Stars and BPM share a row even on 360px phones. */
+  /* Small enough that Stars and BPM share a row, also on 360px phones. */
   .site-header .form-control[type="number"] {
     width: 46px !important;
     padding: 0.125rem 0.25rem;
@@ -62,8 +62,8 @@
     text-align: center;
   }
 
-  /* The spinners eat most of the narrow inputs; phones have a numeric
-     keypad anyway. */
+  /* The spinners take most of the narrow inputs. Phones have a numeric
+     keypad, so they do not need the spinners. */
   .site-header input[type="number"] {
     appearance: textfield;
     -moz-appearance: textfield;

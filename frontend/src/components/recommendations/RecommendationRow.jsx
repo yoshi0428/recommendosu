@@ -5,7 +5,7 @@ import { PauseFill, PlayFill } from "react-bootstrap-icons";
 
 import { previewKeyOf, useAudioPreview } from "./AudioPreview";
 
-// helper function to format seconds into mm:ss or hh:mm:ss
+// Format seconds as m:ss, or as h:mm:ss for an hour or more.
 const formatDuration = (totalSeconds) => {
   if (totalSeconds == null || isNaN(totalSeconds)) return "—";
   const seconds = Math.round(totalSeconds);
@@ -17,15 +17,15 @@ const formatDuration = (totalSeconds) => {
 
   if (hours > 0) {
     return `${hours}:${pad(minutes)}:${pad(remainingSeconds)}`;
-  } else {
-    return `${minutes}:${pad(remainingSeconds)}`;
   }
+  return `${minutes}:${pad(remainingSeconds)}`;
 };
 
-// A number with `digits` decimals and an optional suffix, or "—" if missing.
+// A number with `digits` decimals and an optional suffix, or "—" if the value is missing.
 const formatStat = (value, digits, suffix = "") =>
   value != null ? `${Number(value).toFixed(digits)}${suffix}` : "—";
 
+// The max combo as "1,234x", or "—" if it is missing.
 const formatCombo = (combo) => (combo != null ? `${combo.toLocaleString()}x` : "—");
 
 function RecommendationRow({
@@ -68,12 +68,15 @@ function RecommendationRow({
     ? `https://assets.ppy.sh/beatmaps/${beatmapset_id}/covers/list.jpg`
     : null;
 
-  // Keep the play/pause overlay visible while loading or playing.
+  // Keep the play/pause overlay visible while the preview loads or plays.
   const overlayHidden = coverUrl && !isPlaying && !isLoading;
+  const PreviewIcon = isPlaying ? PauseFill : PlayFill;
 
   return (
     <tr
       data-index={virtualRow.index}
+      // A wrapper function, because the react-hooks/refs lint rule rejects
+      // a direct ref={rowVirtualizer.measureElement} here.
       ref={(node) => {
         rowVirtualizer.measureElement(node);
       }}
@@ -135,16 +138,8 @@ function RecommendationRow({
                     role="status"
                     aria-label="Loading preview"
                   />
-                ) : isPlaying ? (
-                  <PauseFill
-                    size={24}
-                    className="text-white"
-                    style={{
-                      filter: "drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5))",
-                    }}
-                  />
                 ) : (
-                  <PlayFill
+                  <PreviewIcon
                     size={24}
                     className="text-white"
                     style={{
@@ -182,7 +177,7 @@ function RecommendationRow({
               </strong>
             </a>
 
-            {/* Stats shown under the title on phones, where the stat columns are hidden */}
+            {/* On phones, the stat columns are hidden, so the stats show under the title. */}
             <div className="recommendation-mobile-stats small text-body-secondary">
               <span className="fw-semibold text-body">{formatStat(pp, 0, "pp")}</span>
               <span>{mods || "NM"}</span>
@@ -200,7 +195,7 @@ function RecommendationRow({
         </div>
       </td>
 
-      {/* Core stats visible on all screens */}
+      {/* The stat columns. Phones hide them (see RecommendationRow.css). */}
       {[
         formatStat(pp, 0),
         mods || "NM",

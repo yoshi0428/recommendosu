@@ -1,7 +1,7 @@
-/* One, two or four min/max pairs per line depending on the card's own width
-   (not the window's, since the settings modal is narrower than the window),
-   so the eight pairs always fill whole lines. The inputs stretch to fill
-   their pair, so no width is left unused on the right. */
+/* One, two or four min/max pairs on each line. The number depends on the
+   width of the card, not of the window, because the settings modal is
+   narrower than the window. Thus the eight pairs always fill full lines. The
+   inputs stretch to fill their pair, so no space stays empty on the right. */
 .candidate-filters-body {
   container-type: inline-size;
 }

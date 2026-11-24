@@ -13,12 +13,12 @@ function AuthScreen() {
 
           <h1 className="mb-3">osu! Beatmap Recommender</h1>
 
-          <p className={"text-muted mb-2"}>
+          <p className="text-muted mb-2">
             Log in with your osu! account to get personalized beatmap
             recommendations.
           </p>
 
-          <p className={"text-muted mb-4"}>
+          <p className="text-muted mb-4">
             Logging in is required so recommendations can be generated using
             your own osu! account. This avoids overloading a single shared OAuth
             token when multiple people are using the site and repeatedly
