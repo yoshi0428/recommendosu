@@ -12,14 +12,14 @@ This policy covers the recommendosu Discord bot (the "bot"), which yoshi0428 run
 | Your Discord user ID and the ID of your latest `/rec` result | You run `/rec` | The memory of the bot | Until you run `/unlink`, you run `/rec` again, or the bot restarts |
 | Your `/rec` result (the list of recommended maps), labeled with your Discord user ID | You run `/rec` | The memory of the recommender server | 30 minutes after your last use of it, or until your next `/rec` |
 | The public top and recent scores of the osu! player | `/rec` runs for that player | The recommender database | Kept, and refreshed on later requests (see "osu! scores" below) |
-| The public play history of your linked osu! account: each map that the account played, with its play count | You run `/rec` for your linked account | The recommender database | Kept, and updated at most once a day while you use `/rec` (see "osu! scores" below) |
+| The public play history of the osu! account that you linked: each map that the account played, with its play count | You run `/rec` for the account that you linked | The recommender database | Kept, and updated at most once a day while you use `/rec` (see "osu! scores" below) |
 | Server logs. They can include the osu! usernames and player IDs that `/link` and `/rec` look up | Any command | Log files on the server | Until the log rotation overwrites them (the oldest entries go first) |
 
 ### osu! scores
 
 To recommend maps, the bot fetches the top and recent scores of a player from the osu! API. These scores are already public on osu!. The bot stores them, so that it does not fetch them again for each request. The recommendosu.com website uses the same data. The scores are tied to the osu! player ID, not to a Discord account.
 
-For your linked account only, the bot also stores its full play history from the osu! API: the list of all the maps that the account played, with their play counts. This list is also public on osu!. With it, "exclude already played" can hide all the maps that you ever played, not only your top and recent plays. The bot does not store this list for other players that someone looks up with `/rec`.
+For the account that you linked only, the bot also stores its full play history from the osu! API: the list of all the maps that the account played, with their play counts. This list is also public on osu!. With it, "exclude already played" can hide all the maps that you ever played, not only your top and recent plays. The bot does not store this list for other players that someone looks up with `/rec`. `/link` does not check that an account belongs to you: you can link any osu! username.
 
 ## What the bot does not collect
 
@@ -29,7 +29,13 @@ For your linked account only, the bot also stores its full play history from the
 
 ## How the data is used
 
-The data is used only to run the commands that you use: to remember your linked account for `/rec`, to page through your results, and to let `/classify index` find a map from your last `/rec`. The logs are used to fix problems.
+The data is used only to run the commands that you use:
+
+- to remember the account that you linked for `/rec`.
+- to page through your results.
+- to let `/classify index` find a map from your last `/rec`.
+
+The logs are used to fix problems.
 
 The data is not sold. It is not used for advertising, analytics or tracking.
 
@@ -46,7 +52,7 @@ The bot posts `/rec` replies in the channel. Thus anyone who can read the channe
 
 ## Removing your data
 
-- Run `/unlink`. It deletes your linked account from the bot and forgets your latest `/rec`. After that, nothing can get to your cached `/rec` result, and it is deleted within 30 minutes.
+- Run `/unlink`. It deletes your link from the bot and forgets your latest `/rec`. After that, nothing can get to your cached `/rec` result, and it is deleted within 30 minutes.
 - To have anything else removed, use the contacts below. For example, log entries, or the stored scores and play history of your osu! account. `/unlink` does not delete these. If someone later runs `/rec` for that account, the bot fetches its scores again. If the account is linked again, the bot also fetches its play history again.
 
 ## Children

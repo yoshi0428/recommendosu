@@ -19,11 +19,12 @@ function AuthScreen() {
           </p>
 
           <p className="text-muted mb-4">
-            Logging in is required so recommendations can be generated using
-            your own osu! account. This avoids overloading a single shared OAuth
-            token when multiple people are using the site and repeatedly
-            fetching top/recent plays. If this still doesn't convince you, you
-            can have a look at the{" "}
+            The login tells the site who you are. Thus it can fill in your
+            player ID and get your top and recent plays. The site reads only
+            public data, and it never changes anything on your account. The
+            osu! requests of all users together stay under the limit of 60
+            requests per minute that osu! asks for. To see how it works, look
+            at the{" "}
             <a
               href="https://github.com/yoshi0428/osu-predict"
               target="_blank"
