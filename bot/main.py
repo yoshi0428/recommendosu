@@ -23,7 +23,7 @@ import discord
 from discord import app_commands
 
 from bot.api import BackendClient, BackendError
-from bot.changelog import changelog_embed_parts
+from bot.changelog import changelog_parts
 from bot.links import LinkStore
 from bot.help import help_embed_parts
 from bot.options import (
@@ -229,9 +229,9 @@ class RecommendationView(discord.ui.View):
 # ── Commands ──────────────────────────────────────────────────────────────────
 
 
-def embed_with_fields(title, description, fields, url=None):
+def embed_with_fields(title, description, fields):
     """Return an embed with one full-width field for each (name, value) in fields."""
-    embed = discord.Embed(title=title, url=url, description=description, color=EMBED_COLOR)
+    embed = discord.Embed(title=title, description=description, color=EMBED_COLOR)
 
     for name, value in fields:
         embed.add_field(name=name, value=value, inline=False)
@@ -435,9 +435,9 @@ def register_commands(bot: RecommendOsuBot):
             await interaction.followup.send(str(exc), ephemeral=True)
             return
 
-        description, fields = changelog_embed_parts(entries)
-        embed = embed_with_fields("Changelog", description, fields, url=f"{SITE_URL}/changelog")
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        message, parts = changelog_parts(entries)
+        embeds = [discord.Embed(title=title, description=text, color=EMBED_COLOR) for title, text in parts]
+        await interaction.followup.send(message, embeds=embeds, ephemeral=True)
 
     @tree.command(name="help", description="What /rec can do, with examples")
     async def help(interaction: discord.Interaction):

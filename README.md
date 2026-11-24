@@ -1,6 +1,6 @@
 # recommendosu
 
-This document is not complete. When I have time, I add to it. [recommendosu.com](https://recommendosu.com/) runs on my PC.
+This document is not complete. When I have time, I add to it. [recommendosu.com](https://recommendosu.com/) runs on a VPS.
 
 To add the Discord bot to your server, use this [link](https://discord.com/oauth2/authorize?client_id=1561877569727369296).
 
@@ -89,10 +89,6 @@ discord.py
 # Running the code
 
 This section lists the entry points.
-
-### OSDB Parser
-
-- `/osdb_parse/osdb_parser.py`: Parses a .osdb file in `/osdb_parse/inputs`. To get .osdb files, read the comment at the top of the file. I used this script to get the .osdb files for NM1 to NM5 and for some other tournament formats.
 
 ### Beatmap Classifier
 
@@ -298,6 +294,35 @@ The rate limiter and the refresh times are in the memory of the backend.
 This is satisfactory because production runs only one uvicorn process.
 With more workers or replicas, each one gets its own limit of 60 requests each minute.
 Then, this data must move to a shared location, for example Redis.
+
+# Feedback
+
+The website logs what a logged-in player does with a recommendation. The Discord bot does not log feedback.
+Each event is one row of `feedback_events` in `beatmap_recommender/feedback.db`. `FEEDBACK_DB_PATH` selects a different file.
+
+- `details`: the player clicked the row.
+- `preview`: the audio preview started.
+- `open`: the player opened the osu! page of the map.
+
+A background thread then finds out if the player played the map in the 7 days after the event.
+It reads the scores that the backend stored. Failed plays count as plays.
+The thread also fetches the recent scores of the player one time, approximately 20 hours after an event.
+If you do not want the thread, set `FEEDBACK_CHECK=0`.
+
+The columns show the result:
+
+- `played_at` is set: the player played the map. `played_mods` and `played_rank` describe the first play.
+- `played_at` is NULL and `checked_at` is set: the player did not play the map before `checked_at`.
+- `played_at` is NULL and `checked_at` is NULL: the result is not known. Do not count this event as "not played".
+
+This query shows the result of each event type:
+
+```sql
+SELECT event_type, COUNT(*) AS events, COUNT(played_at) AS played,
+       SUM(played_at IS NULL AND checked_at IS NOT NULL) AS not_played
+FROM feedback_events
+GROUP BY event_type;
+```
 
 # Logging
 

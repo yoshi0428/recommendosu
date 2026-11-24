@@ -15,11 +15,11 @@ import main
 from beatmap_recommender import changelog
 from bot.api import BackendClient
 from bot.changelog import (
+    DESCRIPTION_LIMIT,
     EMBED_TOTAL_LIMIT,
-    FIELD_NAME_LIMIT,
-    FIELD_VALUE_LIMIT,
     MAX_ENTRIES,
-    changelog_embed_parts,
+    TITLE_LIMIT,
+    changelog_parts,
     format_date,
 )
 
@@ -94,29 +94,68 @@ def test_format_date_matches_the_website():
     assert format_date("2026-11-01") == "November 1, 2026"
 
 
-def test_embed_lists_the_newest_entries():
-    description, fields = changelog_embed_parts([ENTRIES[1], ENTRIES[0]])
+def test_each_entry_is_one_embed():
+    message, embeds = changelog_parts([ENTRIES[1], ENTRIES[0]])
 
-    assert "recommendosu.com/changelog" in description
-    assert fields == [
+    assert "recommendosu.com/changelog" in message
+    assert embeds == [
         ("November 1, 2026: Fixes", "• Cancelling no longer shows an error."),
         ("October 19, 2026: Discord bot", "• Added /rec.\n• Added /classify."),
     ]
 
 
 def test_empty_changelog():
-    assert changelog_embed_parts([]) == ("No changes posted yet.", [])
+    assert changelog_parts([]) == ("No changes posted yet.", [])
 
 
-def test_embed_fits_discord_limits_however_long_the_changelog():
-    entries = [
-        {"date": "2026-01-01", "title": "t" * 400, "changes": ["c" * 300] * 10}
-        for _ in range(MAX_ENTRIES + 3)
-    ]
-    description, fields = changelog_embed_parts(entries)
+def entry(changes, title="Title"):
+    return {"date": "2026-01-01", "title": title, "changes": changes}
 
-    assert 0 < len(fields) <= MAX_ENTRIES
-    for name, value in fields:
-        assert len(name) <= FIELD_NAME_LIMIT
-        assert len(value) <= FIELD_VALUE_LIMIT
-    assert len("Changelog") + len(description) + sum(len(n) + len(v) for n, v in fields) <= EMBED_TOTAL_LIMIT
+
+def check_limits(embeds):
+    assert len(embeds) <= MAX_ENTRIES
+    for title, text in embeds:
+        assert 0 < len(title) <= TITLE_LIMIT
+        assert 0 < len(text) <= DESCRIPTION_LIMIT
+    assert sum(len(title) + len(text) for title, text in embeds) <= EMBED_TOTAL_LIMIT
+
+
+def test_a_long_entry_stays_one_text_without_gaps():
+    changes = ["c" * 300] * 12
+    _, embeds = changelog_parts([entry(changes)])
+
+    check_limits(embeds)
+    assert embeds == [("January 1, 2026: Title", "\n".join(f"• {change}" for change in changes))]
+
+
+def test_a_long_title_moves_into_the_text():
+    _, embeds = changelog_parts([entry(["Change."], title="t" * 400)])
+
+    check_limits(embeds)
+    assert embeds == [("January 1, 2026", "t" * 400 + "\n• Change.")]
+
+
+def test_entries_that_do_not_fit_are_left_out_whole():
+    entries = [entry(["c" * 300] * 12) for _ in range(MAX_ENTRIES + 3)]
+    _, embeds = changelog_parts(entries)
+
+    check_limits(embeds)
+    assert embeds == changelog_parts(entries[:1])[1]
+
+
+def test_at_most_max_entries_show():
+    assert len(changelog_parts([entry(["Change."])] * (MAX_ENTRIES + 3))[1]) == MAX_ENTRIES
+
+
+def test_a_newest_entry_that_never_fits_points_to_the_website():
+    message, embeds = changelog_parts([entry(["c" * 5000])])
+    assert embeds == []
+    assert "too long" in message and "recommendosu.com/changelog" in message
+
+
+def test_the_newest_entry_of_the_repository_shows_in_full():
+    entries = [e.model_dump(mode="json") for e in changelog.read_changelog()]
+    _, embeds = changelog_parts(entries)
+
+    check_limits(embeds)
+    assert all(f"• {change}" in embeds[0][1] for change in entries[0]["changes"])

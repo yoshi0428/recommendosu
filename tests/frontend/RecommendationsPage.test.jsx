@@ -9,18 +9,20 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getRecommendations } from "@/api/client";
+import { getRecommendations, sendFeedback } from "@/api/client";
 import RecommendationsPage from "@/pages/RecommendationsPage";
 
 vi.mock("@/api/client", () => ({
   getRecommendations: vi.fn(),
   getRecommendationPage: vi.fn(async () => ({ recommendations: [] })),
   cancelRecommendation: vi.fn(async () => ({})),
+  sendFeedback: vi.fn(async () => {}),
 }));
 
 vi.mock("@/components/recommendations/RecommendationBody", () => ({
-  default: ({ recommendations, totalCount }) => (
+  default: ({ recommendations, totalCount, onFeedback }) => (
     <div>
+      <button onClick={() => onFeedback("open", recommendations[1])}>open second</button>
       {totalCount} results{recommendations[0] ? `: ${recommendations[0].title}` : ""}
     </div>
   ),
@@ -57,6 +59,36 @@ describe("RecommendationsPage", () => {
 
     expect(getRecommendations.mock.calls[0][0]).toMatchObject({ player_id: 42 });
     expect(await screen.findByText("1 results: Song")).toBeInTheDocument();
+  });
+
+  it("logs feedback with the position and the player of the result", async () => {
+    getRecommendations.mockResolvedValue({
+      recommendation_id: "abc",
+      player_id: 77,
+      total_count: 2,
+      recommendations: [
+        { title: "Song", variant_id: 5, final_score: 0.9 },
+        { title: "Other", variant_id: 6, final_score: 0.8 },
+      ],
+    });
+    const user = renderPage();
+
+    await user.click(screen.getByText("Apply & Run"));
+    await screen.findByText(/2 results/);
+    await user.click(screen.getByText("open second"));
+
+    expect(sendFeedback.mock.calls).toEqual([
+      [
+        {
+          event_type: "open",
+          recommendation_id: "abc",
+          variant_id: 6,
+          position: 1,
+          for_player_id: 77,
+          final_score: 0.8,
+        },
+      ],
+    ]);
   });
 
   it("doesn't show an error when the backend confirms a cancellation", async () => {

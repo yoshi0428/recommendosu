@@ -105,7 +105,8 @@ const neighbour = (playlist, activeKey, step) => {
 // the virtualized table. Thus the playback continues when its row scrolls out
 // of view (and unmounts).
 // playlist: the result rows in table order, for the previous/next buttons.
-export function AudioPreviewProvider({ children, playlist = null }) {
+// onFeedback: the code calls it when a preview starts, but not when it resumes.
+export function AudioPreviewProvider({ children, playlist = null, onFeedback }) {
   // The key of the row with the loaded preview, or null if the player is closed.
   const [activeKey, setActiveKey] = useState(null);
   // The key of the row with the preview that loads now.
@@ -143,7 +144,9 @@ export function AudioPreviewProvider({ children, playlist = null }) {
 
   // Play or pause the preview of the given row. If another preview (or no
   // preview) is loaded, load this one first.
-  const togglePreview = useCallback(async (key, { beatmapsetId }) => {
+  const togglePreview = useCallback(async (row) => {
+    const key = previewKeyOf(row);
+    const beatmapsetId = row.beatmapset_id;
     const audio = audioRef.current;
     if (!audio || !beatmapsetId) return;
 
@@ -169,6 +172,7 @@ export function AudioPreviewProvider({ children, playlist = null }) {
 
       activeKeyRef.current = key;
       setActiveKey(key);
+      onFeedback?.("preview", row);
     } catch (error) {
       // A newer preview or a close replaced this one, so there is nothing to report.
       if (requestId !== requestIdRef.current) return;
@@ -180,7 +184,7 @@ export function AudioPreviewProvider({ children, playlist = null }) {
         setLoadingKey(null);
       }
     }
-  }, []);
+  }, [onFeedback]);
 
   const togglePlayback = () => {
     if (audioRef.current) playOrPause(audioRef.current);
@@ -214,8 +218,7 @@ export function AudioPreviewProvider({ children, playlist = null }) {
 
   const previous = neighbour(playlist, activeKey, -1);
   const next = neighbour(playlist, activeKey, 1);
-  const playRow = (row) =>
-    row && togglePreview(previewKeyOf(row), { beatmapsetId: row.beatmapset_id });
+  const playRow = (row) => row && togglePreview(row);
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
   const volumeFill = muted ? 0 : (volume / MAX_VOLUME) * 100;

@@ -6,6 +6,7 @@ import uuid
 from contextlib import asynccontextmanager
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
+from typing import Literal
 from urllib.parse import quote
 
 import httpx
@@ -46,6 +47,7 @@ from beatmap_recommender.content_similarity.core_modules.played_maps import star
 from beatmap_recommender.content_similarity.core_modules.score_collector import PlayerNotFoundError
 from beatmap_recommender.content_similarity.core_modules.variant_table import load_variant_table
 from beatmap_recommender.database import connect_db
+from beatmap_recommender.feedback import initialize_feedback_db, log_event, start_feedback_thread
 from beatmap_recommender.recommender import recommend_player
 from beatmap_recommender.result_cache import get_result_page, store_result
 
@@ -99,7 +101,7 @@ MAX_BOT_RECOMMENDATION_PAGE_SIZE = 100
 
 
 def make_background_api_client():
-    """Return a client-credentials client of this app, at low priority, for the worker of played_maps.py."""
+    """Return a client-credentials client of this app, at low priority, for the workers of played_maps.py and feedback.py."""
     from beatmap_recommender.recommender_db_setup.osu_api_client import OsuAPIClient as AppOsuAPIClient
 
     client = AppOsuAPIClient()
@@ -109,12 +111,15 @@ def make_background_api_client():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Prepare the auth database, the variant table and the sync worker before the first request."""
+    """Prepare the databases, the variant table and the background workers before the first request."""
     logger.info("OAuth client ID: %r, redirect URI: %r", OSU_CLIENT_ID, OSU_REDIRECT_URI)
     initialize_auth_db()
+    initialize_feedback_db()
     load_variant_table()
     if os.getenv("PLAYED_MAPS_SYNC", "1") != "0":
         start_sync_worker(connect=connect_db, make_api=make_background_api_client)
+    if os.getenv("FEEDBACK_CHECK", "1") != "0":
+        start_feedback_thread(connect=connect_db, make_api=make_background_api_client)
     yield
 
 
@@ -387,6 +392,43 @@ async def recommend_page(
 async def recommend_cancel(recommendation_id: str, session_id: str | None = Cookie(default=None)):
     require_player(session_id)
     return {"recommendation_id": recommendation_id, "cancelled": cancel_recommendation(recommendation_id)}
+
+
+# ── Feedback ──────────────────────────────────────────────────────────────
+
+
+class FeedbackEvent(BaseModel):
+    """One thing that the player did with a recommendation (see feedback.py)."""
+
+    event_type: Literal["details", "preview", "open"]
+    recommendation_id: str = Field(min_length=1, max_length=64)
+    # The upper limits are those of a SQLite integer column.
+    variant_id: int = Field(ge=1, lt=2**63)
+    position: int = Field(ge=0, lt=2**63, description="Index of the row in the ranked result.")
+    for_player_id: int = Field(ge=1, lt=2**63, description="The player of the recommendations.")
+    final_score: float | None = Field(default=None, allow_inf_nan=False)
+
+
+# This is not an async def, so FastAPI runs it in a thread.
+@app.post(
+    f"{API_PREFIX}/feedback",
+    status_code=204,
+    summary="Log a click or a preview of a recommendation",
+    tags=["Recommendations"],
+)
+def feedback(event: FeedbackEvent, session_id: str | None = Cookie(default=None)):
+    player_id = require_player(session_id)
+
+    conn = connect_db(read_only=True)
+
+    try:
+        log_event(conn, player_id, event.model_dump())
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    finally:
+        conn.close()
+
+    return Response(status_code=204)
 
 
 # ── Discord Bot ───────────────────────────────────────────────────────────

@@ -53,3 +53,37 @@
     background-color: var(--app-scrollbar-thumb-hover);
   }
 }
+
+/* The nav buttons at the top of the About, Changelog, Terms and Privacy pages.
+   They have the same width and stay in one row. The blue matches the links. */
+.page-nav {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  max-width: 30.5rem;
+}
+
+.page-nav .btn {
+  --bs-btn-color: #9ec5fe;
+  --bs-btn-bg: rgba(110, 168, 254, 0.12);
+  --bs-btn-border-color: rgba(110, 168, 254, 0.45);
+  --bs-btn-hover-color: #fff;
+  --bs-btn-hover-bg: rgba(110, 168, 254, 0.28);
+  --bs-btn-hover-border-color: #6ea8fe;
+  --bs-btn-active-color: #fff;
+  --bs-btn-active-bg: rgba(110, 168, 254, 0.36);
+  --bs-btn-active-border-color: #6ea8fe;
+  --bs-btn-focus-shadow-rgb: 110, 168, 254;
+}
+
+/* On phones, the label is only "Recommendations", so that it fits on one line. */
+@media (max-width: 575.98px) {
+  .page-nav .btn {
+    --bs-btn-padding-x: 0.25rem;
+    --bs-btn-font-size: 0.875rem;
+  }
+
+  .page-nav-long {
+    display: none;
+  }
+}

@@ -38,6 +38,7 @@ function RecommendationBody({
   onVisibleRangeChange,
   loading,
   onSelectRecommendation,
+  onFeedback,
 }) {
   const scrollRef = useRef(null);
   const { playerOpen } = useAudioPreview();
@@ -148,6 +149,7 @@ function RecommendationBody({
                   }
                   recommendation={recommendation}
                   onSelectRecommendation={onSelectRecommendation}
+                  onFeedback={onFeedback}
                   virtualRow={virtualRow}
                   rowVirtualizer={rowVirtualizer}
                 />

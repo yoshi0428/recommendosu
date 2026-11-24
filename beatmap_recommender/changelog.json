@@ -1,6 +1,16 @@
 [
   {
     "date": "2026-11-24",
+    "title": "click and preview feedback, terms and privacy pages",
+    "changes": [
+      "The site now saves your clicks and audio previews of recommendations, and whether you played the map in the 7 days after. I'll use this to make the recommendations better",
+      "To find plays, the site also checks your recent osu! scores about 20 hours after a click or preview, even if you're not on the site then",
+      "The Discord bot doesn't save clicks or previews",
+      "Added a Terms of Service (https://recommendosu.com/terms) and a Privacy Policy (https://recommendosu.com/privacy) for the website. The Privacy Policy lists what the site stores and how to have it removed"
+    ]
+  },
+  {
+    "date": "2026-11-24",
     "title": "fairer map similarity, same results for every status filter",
     "changes": [
       "Fixed a bug: with Map Status set to Ranked, the top ranked maps were in a different order than with All. A filter changed the similarity score of the same map. Now a status filter only removes maps",

@@ -3,7 +3,7 @@
 // The results table is virtualized, so a row unmounts as soon as it scrolls
 // out of view. The preview must continue to play when that happens.
 
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -176,5 +176,64 @@ describe("previous, next and repeat", () => {
     await user.click(repeat);
     expect(container.querySelector("audio").loop).toBe(true);
     expect(repeat).toHaveAttribute("aria-pressed", "true");
+  });
+});
+
+describe("feedback", () => {
+  function Row({ onFeedback }) {
+    return (
+      <AudioPreviewProvider onFeedback={onFeedback}>
+        <table>
+          <tbody>
+            <RecommendationRow
+              recommendation={RECOMMENDATION}
+              onFeedback={onFeedback}
+              virtualRow={{ index: 0 }}
+              rowVirtualizer={{ measureElement: () => {} }}
+            />
+          </tbody>
+        </table>
+      </AudioPreviewProvider>
+    );
+  }
+
+  it("reports a preview when it starts, not when it pauses or resumes", async () => {
+    const onFeedback = vi.fn();
+    const user = userEvent.setup();
+    const { container } = render(<Row onFeedback={onFeedback} />);
+    const cover = container.querySelector(".recommendation-cover");
+
+    await user.click(cover);
+    await screen.findByRole("button", { name: "Pause preview" });
+    await user.click(cover);
+    await user.click(cover);
+
+    expect(onFeedback.mock.calls).toEqual([["preview", RECOMMENDATION]]);
+  });
+
+  it("doesn't report a preview that fails to load", async () => {
+    HTMLMediaElement.prototype.play.mockImplementation(() => Promise.reject(new Error("no preview")));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const onFeedback = vi.fn();
+    const user = userEvent.setup();
+    const { container } = render(<Row onFeedback={onFeedback} />);
+
+    await user.click(container.querySelector(".recommendation-cover"));
+    await waitFor(() => expect(console.error).toHaveBeenCalled());
+
+    expect(onFeedback).not.toHaveBeenCalled();
+  });
+
+  it("reports link clicks, middle clicks and row clicks", () => {
+    const onFeedback = vi.fn();
+    const { container } = render(<Row onFeedback={onFeedback} />);
+    const link = container.querySelector("a");
+
+    fireEvent.click(link);
+    fireEvent(link, new MouseEvent("auxclick", { bubbles: true, button: 1 }));
+    fireEvent(link, new MouseEvent("auxclick", { bubbles: true, button: 2 }));
+    fireEvent.click(container.querySelector("tr"));
+
+    expect(onFeedback.mock.calls.map(([type]) => type)).toEqual(["open", "open", "details"]);
   });
 });

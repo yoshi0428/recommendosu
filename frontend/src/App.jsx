@@ -15,6 +15,8 @@ const recommendationsPageImport = import("./pages/RecommendationsPage");
 const RecommendationsPage = lazy(() => recommendationsPageImport);
 const About = lazy(() => import("./pages/About"));
 const Changelog = lazy(() => import("./pages/Changelog"));
+const Terms = lazy(() => import("./pages/Terms"));
+const Privacy = lazy(() => import("./pages/Privacy"));
 
 function App() {
   const { user, loading, logout } = useAuth();
@@ -41,6 +43,8 @@ function App() {
         <Routes>
           <Route path="/about" element={<About />} />
           <Route path="/changelog" element={<Changelog />} />
+          <Route path="/terms" element={<Terms />} />
+          <Route path="/privacy" element={<Privacy />} />
 
           <Route
             path="/"

@@ -7,6 +7,7 @@ import {
   cancelRecommendation,
   getRecommendationPage,
   getRecommendations,
+  sendFeedback,
 } from "../api/client";
 
 import { createDefaultSettings } from "../utils/recommendation";
@@ -31,6 +32,7 @@ const SCORE_BREAKDOWN = [
 
 const EMPTY_RESULT = {
   id: null,
+  playerId: null,
   totalCount: 0,
   rows: [],
   version: 0,
@@ -132,6 +134,8 @@ function RecommendationsPage({ user, logout }) {
 
       setResult({
         id: data?.recommendation_id ?? recommendationId,
+        // The user can change the settings after the run, so keep the player here.
+        playerId: data?.player_id ?? settings.player_id,
         totalCount,
         rows,
         version: 0,
@@ -205,6 +209,29 @@ function RecommendationsPage({ user, logout }) {
     [result]
   );
 
+  // Log a click or a preview of a row.
+  const handleFeedback = useCallback(
+    (eventType, recommendation) => {
+      const { id, playerId, rows } = result;
+      const position = rows.indexOf(recommendation);
+
+      // The row is from an earlier result, so its position is not known.
+      if (!id || position === -1) {
+        return;
+      }
+
+      sendFeedback({
+        event_type: eventType,
+        recommendation_id: id,
+        variant_id: recommendation.variant_id,
+        position,
+        for_player_id: playerId,
+        final_score: recommendation.final_score,
+      });
+    },
+    [result]
+  );
+
   const handleCancel = async () => {
     const controller = abortControllerRef.current;
     const recommendationId = recommendationIdRef.current;
@@ -235,7 +262,7 @@ function RecommendationsPage({ user, logout }) {
   };
 
   return (
-    <AudioPreviewProvider playlist={result.rows}>
+    <AudioPreviewProvider playlist={result.rows} onFeedback={handleFeedback}>
       <div
         className="recommendations-page d-flex flex-column position-relative"
         style={{
@@ -292,6 +319,7 @@ function RecommendationsPage({ user, logout }) {
                 onVisibleRangeChange={loadRange}
                 loading={loading}
                 onSelectRecommendation={setSelectedRecommendation}
+                onFeedback={handleFeedback}
               />
             </div>
           </Container>

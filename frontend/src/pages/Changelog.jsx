@@ -44,9 +44,10 @@ function Changelog() {
   return (
     <div className="bg-dark text-light min-vh-100">
       <Container className="py-5">
-        <div className="mb-4 d-flex flex-wrap gap-2">
+        <div className="page-nav mb-4">
           <Button as={Link} to="/" variant="outline-secondary">
-            Back to Recommendations
+            <span className="page-nav-long">Back to&nbsp;</span>
+            Recommendations
           </Button>
           <Button as={Link} to="/about" variant="outline-secondary">
             About

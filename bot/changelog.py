@@ -8,20 +8,14 @@ make sure that the text fits in a Discord embed.
 
 import datetime
 
-# Discord embed limits.
-FIELD_NAME_LIMIT = 256
-FIELD_VALUE_LIMIT = 1024
+# Discord limits. EMBED_TOTAL_LIMIT is for all the embeds of one message.
+TITLE_LIMIT = 256
+DESCRIPTION_LIMIT = 4096
 EMBED_TOTAL_LIMIT = 6000
-
-# The older entries are on the website.
+# The older entries are on the website. Discord permits 10 embeds.
 MAX_ENTRIES = 5
 
 CHANGELOG_URL = "https://recommendosu.com/changelog"
-
-
-def _truncate(text, limit):
-    """Cut text to limit characters. If the text is cut, end it with "…"."""
-    return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
 def format_date(date):
@@ -30,28 +24,36 @@ def format_date(date):
     return f"{day:%B} {day.day}, {day.year}"
 
 
-def changelog_embed_parts(entries):
+def changelog_parts(entries):
     """
-    Return (description, [(field name, field value), ...]) for the /changelog
-    embed: one field for each entry, newest first, as many as fit (MAX_ENTRIES
-    at most). The bot shows the text as written, so an entry can use Discord
-    markdown.
+    Return (message, [(title, description), ...]) for /changelog: one embed
+    for each entry, newest first, as many as fit (MAX_ENTRIES at most).
+
+    The code never cuts an entry. An entry that does not fit is left out. The
+    text is in the description of the embed, because a field holds only 1024
+    characters, and a second field adds a gap. The bot shows the text as
+    written, so an entry can use Discord markdown.
     """
     if not entries:
         return "No changes posted yet.", []
 
-    description = f"The latest changes. The full list is at {CHANGELOG_URL}."
-    total = len(description)
-    fields = []
+    embeds = []
+    total = 0
 
     for entry in entries[:MAX_ENTRIES]:
-        name = _truncate(f"{format_date(entry['date'])}: {entry['title']}", FIELD_NAME_LIMIT)
-        value = _truncate("\n".join(f"• {change}" for change in entry["changes"]) or "-", FIELD_VALUE_LIMIT)
+        title = f"{format_date(entry['date'])}: {entry['title']}"
+        text = "\n".join(f"• {change}" for change in entry["changes"]) or "-"
 
-        if total + len(name) + len(value) > EMBED_TOTAL_LIMIT:
+        if len(title) > TITLE_LIMIT:
+            title, text = format_date(entry["date"]), f"{entry['title']}\n{text}"
+
+        total += len(title) + len(text)
+        if len(text) > DESCRIPTION_LIMIT or total > EMBED_TOTAL_LIMIT:
             break
 
-        total += len(name) + len(value)
-        fields.append((name, value))
+        embeds.append((title, text))
 
-    return description, fields
+    # Discord shows no link preview for a URL in <>.
+    if not embeds:
+        return f"The newest entry is too long for Discord. Read it at <{CHANGELOG_URL}>.", []
+    return f"The latest changes. The full list is at <{CHANGELOG_URL}>.", embeds

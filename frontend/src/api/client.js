@@ -151,3 +151,20 @@ export async function cancelRecommendation(recommendationId) {
 
   return response.json();
 }
+
+// Log what the user did with a recommendation. This hides network errors,
+// because the user does not need the log. With keepalive, the request
+// continues after the user leaves the page.
+export async function sendFeedback(event) {
+  try {
+    await fetch(`${API_BASE}/feedback`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(event),
+      keepalive: true,
+    });
+  } catch {
+    // The event is lost.
+  }
+}

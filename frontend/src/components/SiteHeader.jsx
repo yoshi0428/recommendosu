@@ -166,7 +166,7 @@ function SiteHeader({
 
           {/* Right side: About and Logout */}
           <div className="site-header-collapsible col-12 col-lg-2">
-            <div className="d-flex align-items-center justify-content-center justify-content-lg-end gap-2">
+            <div className="site-header-nav d-flex align-items-center justify-content-center justify-content-lg-end gap-2">
               <Button
                 as={Link}
                 to="/about"

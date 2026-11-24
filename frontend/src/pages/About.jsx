@@ -7,9 +7,10 @@ function About() {
   return (
     <div className="bg-dark text-light min-vh-100">
       <Container className="py-5">
-        <div className="mb-4 d-flex flex-wrap gap-2">
+        <div className="page-nav mb-4">
           <Button as={Link} to="/" variant="outline-secondary">
-            Back to Recommendations
+            <span className="page-nav-long">Back to&nbsp;</span>
+            Recommendations
           </Button>
           <Button as={Link} to="/changelog" variant="outline-secondary">
             Changelog
@@ -40,7 +41,7 @@ function About() {
             </a>{" "}
             uses Python with FastAPI for the backend, SQLite for the database,
             and react-bootstrap for the frontend. It is currently deployed on
-            this website using my PC and Docker Compose.
+            this website using a VPS and Docker Compose.
           </p>
 
           <p className="mb-3">
@@ -55,7 +56,7 @@ function About() {
             at osu!pm or <u>yoshiekn</u> on Discord.
           </p>
 
-          <p className="mb-0">
+          <p className="mb-3">
             I've also made a Discord server{" "}
             <a
               href="https://discord.gg/Dh4TzKGGB7"
@@ -64,7 +65,13 @@ function About() {
             >
               here
             </a>
-            , if you want to see the changelogs.
+          </p>
+
+          <p className="mb-0">
+            Before you use the site, please read the{" "}
+            <Link to="/terms">Terms of Service</Link> and the{" "}
+            <Link to="/privacy">Privacy Policy</Link>. The Privacy Policy tells
+            what data the site stores and how to have it removed.
           </p>
         </div>
 
@@ -132,7 +139,7 @@ function About() {
 
           <p>
             <strong>Weights:</strong> 50% content similarity --- 25% difficulty
-            --- 20% NM1–5 category match --- 5% mod preference
+            --- 20% NM1-5 category match --- 5% mod preference
           </p>
 
           <p>
@@ -144,7 +151,7 @@ function About() {
           <hr className="my-4" />
 
           <p>
-            The <strong>NM1–5 classifier</strong> estimates the tournament category characteristics of
+            The <strong>NM1-5 classifier</strong> estimates the tournament category characteristics of
             each beatmap and compares them with the player's category
             preferences. These preferences are derived from past plays, taking
             into account factors such as recency, top-play performance, and PP

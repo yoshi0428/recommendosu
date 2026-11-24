@@ -31,6 +31,7 @@ const formatCombo = (combo) => (combo != null ? `${combo.toLocaleString()}x` : "
 function RecommendationRow({
   recommendation,
   onSelectRecommendation,
+  onFeedback,
   virtualRow,
   rowVirtualizer,
 }) {
@@ -80,7 +81,10 @@ function RecommendationRow({
       ref={(node) => {
         rowVirtualizer.measureElement(node);
       }}
-      onClick={() => onSelectRecommendation?.(recommendation)}
+      onClick={() => {
+        onFeedback?.("details", recommendation);
+        onSelectRecommendation?.(recommendation);
+      }}
       style={{ cursor: "pointer" }}
       title="Click to view score breakdown"
     >
@@ -91,7 +95,7 @@ function RecommendationRow({
             style={{ cursor: "pointer" }}
             onClick={(e) => {
               e.stopPropagation();
-              togglePreview(previewKey, { beatmapsetId: beatmapset_id });
+              togglePreview(recommendation);
             }}
           >
             {coverUrl && (
@@ -164,7 +168,14 @@ function RecommendationRow({
               onMouseLeave={(e) => {
                 e.currentTarget.style.textDecoration = "none";
               }}
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onFeedback?.("open", recommendation);
+              }}
+              // A middle click opens the link, but it does not cause a click event.
+              onAuxClick={(e) => {
+                if (e.button === 1) onFeedback?.("open", recommendation);
+              }}
             >
               <strong
                 className={`text-break d-block${
