@@ -1,30 +1,31 @@
 """
 Training/prediction consistency for the fusion classifier.
 
-The model is trained by beatmap_classifier/train_fusion.py, which builds its
-inputs from a classifier database (get_data() vectors, beatmap_variants rows)
-and the maps' .osu files. Predictions for the website are made later by
-beatmap_recommender/recommender_db_setup/precompute_nm1-5.py, which builds
-the same inputs again with beatmap_classifier/classifier/inference.py from the
+beatmap_classifier/train_fusion.py trains the model. It builds its inputs
+from a classifier database (get_data() vectors, beatmap_variants rows) and
+the .osu files of the maps. Later, beatmap_recommender/recommender_db_setup/
+precompute_nm1-5.py makes the predictions for the website. It builds the same
+inputs again with beatmap_classifier/classifier/inference.py, from the
 recommender database and its own copies of the .osu files.
 
-If the two disagree (different order, scaling, stats...) the model gets
-inputs unlike anything it was trained on. Nothing crashes and the training
-accuracy still looks fine, because training never runs inference. The only
-symptom is quietly worse NM1-NM5 probabilities on the site. This is called
-*training/serving skew*, and a test like this is the standard way to catch it.
+If the two do not agree (a different order, scale, stats...), the model gets
+inputs that are unlike its training data. Nothing crashes, and the training
+accuracy still looks good, because training never runs inference. The only
+sign is worse NM1-NM5 probabilities on the site, without an error. This is
+called *training/serving skew*, and a test like this one is the usual way to
+find it.
 
 How the test works, for one tournament map from each of NM1-NM5:
-  * Training side: train_fusion.py's own functions on
+  * Training side: the functions of train_fusion.py on
     beatmap_classifier/curated_collection.db and beatmap_classifier/data.
-  * Prediction side: inference.model_inputs() on the recommender's copy of
-    the .osu file and its beatmap_variants rows, as precompute does.
+  * Prediction side: inference.model_inputs() on the copy of the .osu file
+    in the recommender and its beatmap_variants rows, as precompute does.
   * Compare the two.
 
 Needs beatmap_classifier/curated_collection.db, beatmap_recommender/dummy.db,
 the .osu files in beatmap_classifier/data and beatmap_recommender/data, and
-torch. Marked slow (loading the classifier database takes ~6s); run with
-`pytest -m slow`.
+torch. It is marked slow (the classifier database takes about 6s to load).
+Run it with `pytest -m slow`.
 """
 
 import hashlib
@@ -57,7 +58,7 @@ pytestmark = [
     ),
 ]
 
-# One tournament map per category, with the recommender's .osu file and that file's MD5.
+# One tournament map for each category, with the .osu file of the recommender and the MD5 of that file.
 BEATMAPS = {
     "NM1": ("1001573", "64ac315bc3b8764cf0408acb8b10b2a3",
             "Ranked/2016/Cocoa, Chino, Rize, Chiya, Syaro, Maya, Megu - Honjitsu wa Makoto ni Rarirurein (Momochikun) [Extrarirurein].osu"),
@@ -77,7 +78,7 @@ BEATMAPS = {
 # ---------------------------------------------------------------------------
 @pytest.fixture(scope="module")
 def training():
-    """What train_fusion.load_dataset() builds each map's inputs from. scope="module": it takes seconds."""
+    """The data that train_fusion.load_dataset() builds the inputs of each map from. scope="module", because it takes seconds."""
     X, _, beatmap_ids = get_data(str(CLASSIFIER_DB))
     with sqlite3.connect(f"{CLASSIFIER_DB.as_uri()}?mode=ro", uri=True) as conn:
         vector_normalization = get_vector_normalization(conn.cursor())
@@ -91,7 +92,7 @@ def training():
 
 @pytest.fixture(scope="module", params=list(BEATMAPS), ids=list(BEATMAPS))
 def pair(request, training):
-    """For one beatmap: the inputs training builds, and the ones inference builds."""
+    """Return, for one beatmap, the inputs that training builds and the inputs that inference builds."""
     label = request.param
     beatmap_id, md5, relative_path = BEATMAPS[label]
     path = DATA / relative_path
@@ -102,7 +103,7 @@ def pair(request, training):
     if training_file is None:
         pytest.skip(f"{beatmap_id}.osu not in beatmap_classifier/data")
 
-    # Prediction side: the beatmap_variants rows precompute passes.
+    # Prediction side: the beatmap_variants rows that precompute passes.
     with sqlite3.connect(f"{RECOMMENDER_DB.as_uri()}?mode=ro", uri=True) as conn:
         conn.row_factory = sqlite3.Row
         stats_by_mod = {
@@ -136,9 +137,9 @@ def describe(names, train, pred, mismatched):
 # Tests
 # ---------------------------------------------------------------------------
 def test_saved_vector_normalization_matches_training():
-    # get_data() computes its scales from the training database. The copy saved
-    # with the model must be the same, or inference scales the movement features'
-    # vectors differently from the data the model learned on.
+    # get_data() calculates its scales from the training database. The copy that
+    # is saved with the model must be the same. If not, inference scales the
+    # vectors of the movement features differently from the training data.
     config_path = inference.MODEL_DIR / "fusion_config.json"
     if not config_path.exists():
         pytest.skip("no trained model in models/fusion")

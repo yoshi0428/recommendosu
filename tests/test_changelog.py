@@ -1,6 +1,6 @@
 """
 Tests for the changelog: beatmap_recommender/changelog.py, GET
-/api/v1/changelog, and the Discord bot's /changelog text (bot/changelog.py).
+/api/v1/changelog, and the /changelog text of the Discord bot (bot/changelog.py).
 """
 
 import asyncio
@@ -64,7 +64,7 @@ def test_endpoint_is_public_and_reads_the_file_each_time(changelog_file):
     assert response.status_code == 200
     assert response.json() == [ENTRIES[1], ENTRIES[0]]
 
-    # Edited without a restart.
+    # The edit shows without a restart.
     changelog_file([])
     assert client.get("/api/v1/changelog").json() == []
 

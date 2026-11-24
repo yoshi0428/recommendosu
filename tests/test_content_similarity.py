@@ -1,10 +1,10 @@
 """
 Tests for content_similarity.py.
 
-calculate_seed_similarity is pure numpy math, so it can be tested with tiny
-hand-made matrices: two or three maps whose distances are obvious. When code
-is optimized (batching, argpartition, einsum), small hand-checkable inputs are
-the best way to confirm the optimized version still gives the right answer.
+calculate_seed_similarity is only numpy math, so very small hand-made matrices
+can test it: two or three maps with obvious distances. When code is optimized
+(batches, argpartition, einsum), small inputs that a person can check are the
+best way to make sure that the optimized version still gives the right answer.
 """
 
 import numpy as np
@@ -21,7 +21,7 @@ N_FEATURES = len(SIMILARITY_FEATURES)
 
 
 def maps(*rows):
-    """Build a (n_maps x n_features) matrix where every feature equals the given value."""
+    """Return a (n_maps x n_features) matrix where each feature has the given value."""
     return np.array([[value] * N_FEATURES for value in rows], dtype=np.float32)
 
 
@@ -43,8 +43,8 @@ def test_identical_map_has_similarity_one():
 
 
 def test_each_candidate_keeps_its_best_seed():
-    # The candidate sits right on seed "b", so its similarity must come from
-    # "b" (distance 0), not from the far-away seed "a".
+    # The candidate is exactly on seed "b", so its similarity must come from
+    # "b" (distance 0), not from the distant seed "a".
     result = calculate_seed_similarity(
         ids("a", "b"), maps(0.0, 10.0),
         ids("c1", "c2", "c3"), maps(10.0, 5.0, 0.0),
@@ -55,7 +55,7 @@ def test_each_candidate_keeps_its_best_seed():
 
 
 def test_top_k_limits_neighbours_per_seed():
-    # With top_k=1, each seed only "claims" its single nearest candidate.
+    # With top_k=1, each seed "claims" only its one nearest candidate.
     result = calculate_seed_similarity(
         ids("seed"), maps(0.0),
         ids("near", "middle", "far"), maps(0.1, 5.0, 10.0),
@@ -65,9 +65,10 @@ def test_top_k_limits_neighbours_per_seed():
 
 
 def test_batching_does_not_change_the_result():
-    # The function processes seeds in batches to bound memory. Batching is an
-    # implementation detail, so batch_size=1 and a large batch must agree.
-    # Random data with a fixed seed is reproducible, so the test isn't flaky.
+    # The function processes the seeds in batches to limit memory. The batches
+    # are an implementation detail, so batch_size=1 and a large batch must give
+    # the same result. Random data with a fixed seed is the same on each run, so
+    # the test does not fail at random.
     rng = np.random.default_rng(seed=0)
     seeds = rng.normal(size=(7, N_FEATURES)).astype(np.float32)
     candidates = rng.normal(size=(40, N_FEATURES)).astype(np.float32)
@@ -90,18 +91,18 @@ def test_empty_inputs_return_empty_dict():
 
 
 def test_feature_weights_change_what_counts_as_similar():
-    # Two candidates: one differs only in star_rating, the other only in bpm.
+    # Two candidates: one is different only in star_rating, the other only in bpm.
     seed = np.zeros((1, N_FEATURES), dtype=np.float32)
     star_diff = np.zeros(N_FEATURES, dtype=np.float32)
     bpm_diff = np.zeros(N_FEATURES, dtype=np.float32)
     star_diff[SIMILARITY_FEATURES.index("star_rating")] = 1.0
     bpm_diff[SIMILARITY_FEATURES.index("bpm")] = 1.0
-    # A third, unrelated candidate so the standard deviations aren't degenerate.
+    # A third, unrelated candidate, so that the standard deviations are not degenerate.
     other = np.full(N_FEATURES, 0.5, dtype=np.float32)
     candidates = np.stack([star_diff, bpm_diff, other])
 
     weights = {feature: 1.0 for feature in SIMILARITY_FEATURES}
-    weights["star_rating"] = 5.0  # Star rating differences now matter a lot.
+    weights["star_rating"] = 5.0  # Now differences in star rating have a large effect.
 
     result = calculate_seed_similarity(
         ids("seed"), seed, ids("star", "bpm", "other"), candidates,
@@ -111,10 +112,10 @@ def test_feature_weights_change_what_counts_as_similar():
 
 
 def test_inf_bpm_does_not_poison_every_similarity(recommender_db):
-    # Regression test for the loved gimmick maps with infinite BPM. One inf
-    # used to turn all means/stds into NaN and wipe out every similarity.
-    # A *regression test* reproduces a bug that was fixed, so it can't
-    # silently come back.
+    # Regression test for the loved gimmick maps with infinite BPM. Before the
+    # fix, one inf made all means and stds NaN, and all similarities failed.
+    # A *regression test* repeats a bug that was fixed, so that the bug cannot
+    # come back without notice.
     db = recommender_db
     db.add_beatmap(1, stars=5.0)
     db.add_beatmap(2, stars=5.1)
@@ -149,7 +150,7 @@ def test_player_without_scores_gets_empty_index(seeded_db):
     [(None, None), (100, None), (100, "loved"), (None, "ranked"), (424242, None)],
 )
 def test_get_maps_matches_sql(seeded_db, player_id, status):
-    # get_maps() reads the in-memory variant table; this is the SQL it replaced.
+    # get_maps() reads the variant table in memory. This is the SQL that it replaced.
     query = f"""
         SELECT CAST(bv.beatmap_id AS TEXT), {", ".join(f"COALESCE(bv.{name}, 0.0)" for name in SIMILARITY_FEATURES)}
         FROM beatmap_variants AS bv

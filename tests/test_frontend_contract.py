@@ -2,17 +2,18 @@
 Contract tests: the frontend and backend must agree on default settings.
 
 frontend/src/utils/recommendation.js keeps its own copy of the defaults in
-beatmap_recommender/api/model.py for the settings the Advanced panel can
+beatmap_recommender/api/model.py, for the settings that the Advanced panel can
 change (difficulty tables, scoring weights...). The frontend sends its copy
-with every request, so it's what the site actually uses. Change a weight in
-model.py and forget the JS file, and the change silently never reaches users.
+with each request, so the site uses the copy. If you change a weight in
+model.py and forget the JS file, the change never gets to users, and no error
+shows.
 
-Settings the UI can't change (score weights, similarity weights, the result
-limit...) aren't copied or sent at all, so the backend's defaults apply.
+The settings that the UI cannot change (score weights, similarity weights,
+the result limit...) are not copied or sent, so the backend defaults apply.
 
 These tests load the JavaScript module with Node, print its defaults as JSON,
-and compare them with the Python values. They're skipped if Node isn't
-installed.
+and compare them with the Python values. If Node is not installed, the tests
+are skipped.
 """
 
 import json
@@ -31,8 +32,8 @@ pytestmark = pytest.mark.skipif(shutil.which("node") is None, reason="node is no
 
 @pytest.fixture(scope="module")
 def frontend_defaults():
-    # recommendation.js is a plain ES module with no imports, so Node can
-    # load it directly; no build step needed.
+    # recommendation.js is a plain ES module with no imports, so Node can load
+    # it directly. No build step is necessary.
     script = f"""
         const m = await import({json.dumps(FRONTEND_UTILS.as_uri())});
         console.log(JSON.stringify({{
@@ -58,12 +59,12 @@ def test_feature_weight_tables_match(frontend_defaults):
     ["limit", "similarity_feature_weights", "recommendation_config"],
 )
 def test_settings_the_ui_cant_change_are_left_to_the_backend(frontend_defaults, field):
-    # Not sent, so a change in model.py reaches the site without a JS change.
+    # Not sent, so a change in model.py gets to the site without a JS change.
     assert field not in frontend_defaults["settings"]
 
 
-# Every scalar default the frontend sends, paired with the backend default.
-# (Defaults the frontend doesn't send fall back to the backend's anyway.)
+# Each scalar default that the frontend sends, with the backend default.
+# (For the defaults that the frontend does not send, the backend defaults apply.)
 @pytest.mark.parametrize(
     "field",
     [
@@ -79,5 +80,5 @@ def test_default_settings_match(frontend_defaults, field):
 
 
 def test_frontend_defaults_pass_backend_validation(frontend_defaults):
-    # Whatever the form sends by default must be accepted by the API as-is.
+    # The API must accept the default values of the form as they are.
     model.RecommendationSettings(**frontend_defaults["settings"])

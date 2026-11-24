@@ -11,7 +11,7 @@ let store;
 let reload;
 
 beforeEach(() => {
-  // jsdom's storage isn't usable here; the boundary only needs get/set/remove.
+  // The storage of jsdom does not work here. The boundary needs only get/set/remove.
   store = new Map();
   vi.stubGlobal("sessionStorage", {
     getItem: (key) => store.get(key) ?? null,
@@ -41,7 +41,7 @@ function renderPage(Page) {
   );
 }
 
-// A lazily loaded page whose file can't be fetched (e.g. after a redeploy).
+// A lazy page with a file that cannot be fetched (for example, after a redeploy).
 const missingChunk = () =>
   lazy(() => Promise.reject(new TypeError("Failed to fetch dynamically imported module: /assets/About-old.js")));
 

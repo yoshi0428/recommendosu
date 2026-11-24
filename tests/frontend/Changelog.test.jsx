@@ -2,21 +2,12 @@
 
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { getChangelog } from "@/api/client";
 import Changelog from "@/pages/Changelog";
 
 vi.mock("@/api/client", () => ({ getChangelog: vi.fn() }));
-
-beforeEach(() => {
-  // jsdom's localStorage isn't usable here; useTheme only needs get/set.
-  const store = new Map();
-  vi.stubGlobal("localStorage", {
-    getItem: (key) => store.get(key) ?? null,
-    setItem: (key, value) => store.set(key, String(value)),
-  });
-});
 
 function renderPage() {
   render(

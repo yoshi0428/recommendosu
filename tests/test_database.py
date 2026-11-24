@@ -1,9 +1,9 @@
 """
 Tests for database.py and the variant table cache that depends on it.
 
-Requests query the database file at DB_PATH directly; only the variant
-table (every beatmap variant as numpy columns) is kept in memory, and only
-for DB_PATH, since tests and scripts use other files that change under them.
+Requests query the database file at DB_PATH directly. Only the variant table
+(all the beatmap variants as numpy columns) stays in memory, and only for
+DB_PATH, because tests and scripts use other files that can change.
 """
 
 import sqlite3

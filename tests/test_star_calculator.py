@@ -1,20 +1,20 @@
 """
 Tests for recommender_db_setup/star_calculator.py (VersionAwareOsuCalculator).
 
-The wrapper exists because osu-tools-py decodes every .osu file as the latest
-format (v14). Old maps (v3-v5) then get modern note stacking instead of the
-legacy stacking osu! uses for them, which inflates their star rating.
+The wrapper exists because osu-tools-py decodes each .osu file as the latest
+format (v14). Then old maps (v3-v5) get the modern note stacking, not the
+legacy stacking that osu! uses for them. This makes their star rating too high.
 
-There's nothing to fake here: the whole point is how the *real* calculator
-treats *real* files. So these tests use two real beatmaps from
-beatmap_recommender/data and compare against values verified on the osu!
+There is nothing to fake here: the purpose is to test how the *real*
+calculator treats *real* files. Thus these tests use two real beatmaps from
+beatmap_recommender/data, and compare with values checked on the osu!
 website:
 
     beatmap 1147  (2007, format v3)   5.06*  (unwrapped osu-tools-py: 6.56*)
     beatmap 4811125 (2024, format v14) 4.56*  (wrapper must change nothing)
 
-They're skipped when osu-tools-py (which needs .NET) or the .osu files
-aren't available, e.g. inside the backend Docker image or on a fresh clone.
+The tests are skipped if osu-tools-py (which needs .NET) or the .osu files
+are not available, for example in the backend Docker image or in a new clone.
 """
 
 import hashlib
@@ -23,7 +23,7 @@ from pathlib import Path
 
 import pytest
 
-# importorskip: import the module, or skip this whole file if it's missing.
+# importorskip: import the module, or skip this full file if the module is missing.
 osu_tools = pytest.importorskip("osu_tools")
 
 from beatmap_recommender.recommender_db_setup.beatmap_mods import calculate_difficulty  # noqa: E402
@@ -40,7 +40,7 @@ OLD_MAP = {
     "path": DATA_DIR / "2007" / "IOSYS - Marisa wa Taihen na Mono wo Nusunde Ikimashita (DJPop) [Hard].osu",
     "md5": "7553a13a8c4a518c25e37d1ca6483303",
     "format": "v3",
-    # Expected star ratings per mod combination.
+    # The expected star ratings for each mod combination.
     "stars": {(): 5.06, ("HR",): 5.38, ("DT",): 7.78},
 }
 
@@ -54,13 +54,13 @@ MODERN_MAP = {
 
 
 def require_map(beatmap):
-    """Skip the test if the .osu file is missing; fail if it's a different file."""
+    """Skip the test if the .osu file is missing. Fail if it is a different file."""
     path = beatmap["path"]
     if not path.exists():
         pytest.skip(f"{path.name} not found in beatmap_recommender/data")
 
-    # Guard against the test silently checking the wrong file (e.g. a map
-    # that was updated and re-downloaded under the same name).
+    # Make sure that the test does not check the wrong file without notice (for
+    # example, a map that was updated and downloaded again with the same name).
     data = path.read_bytes()
     assert hashlib.md5(data).hexdigest() == beatmap["md5"], f"{path.name} changed on disk"
     assert data.startswith(f"osu file format {beatmap['format']}".encode())
@@ -69,7 +69,7 @@ def require_map(beatmap):
 
 @pytest.fixture(scope="module")
 def calculator():
-    # One calculator for the whole file: creating it starts the .NET runtime.
+    # One calculator for the full file, because its creation starts the .NET runtime.
     return VersionAwareOsuCalculator()
 
 
@@ -92,12 +92,12 @@ def test_old_format_map_uses_legacy_stacking(calculator, mods):
 
 def test_unwrapped_calculator_still_overestimates_old_maps(calculator, plain_calculator):
     """
-    Documents *why* the wrapper exists: plain osu-tools-py gives the old map
-    6.56* instead of 5.06*.
+    Shows *why* the wrapper exists: plain osu-tools-py gives the old map 6.56*,
+    not 5.06*.
 
-    If this test starts failing after upgrading osu-tools-py, it means
-    upstream fixed the format-version bug. That's good news: the wrapper may
-    no longer be needed, and this test is how you'll find out.
+    If this test fails after an upgrade of osu-tools-py, the upstream project
+    fixed the format-version bug. That is good news: maybe the wrapper is not
+    necessary anymore, and this test is how you will know.
     """
     path = require_map(OLD_MAP)
 
@@ -109,8 +109,8 @@ def test_unwrapped_calculator_still_overestimates_old_maps(calculator, plain_cal
 
 
 def test_modern_map_is_unchanged_by_wrapper(calculator, plain_calculator):
-    # For v14 maps the wrapper must be a no-op, so its output should equal
-    # osu-tools-py's to the last digit.
+    # For v14 maps, the wrapper must change nothing. Thus its output must be
+    # equal to the output of osu-tools-py, to the last digit.
     path = require_map(MODERN_MAP)
 
     assert stars(calculator, path) == stars(plain_calculator, path)
@@ -118,15 +118,15 @@ def test_modern_map_is_unchanged_by_wrapper(calculator, plain_calculator):
 
 
 def test_missing_file_fails_cleanly(calculator):
-    # populate.py relies on calculate_difficulty returning None for a bad
-    # file (it logs and moves on) instead of crashing the whole run.
+    # populate.py needs calculate_difficulty to return None for a bad file
+    # (populate.py logs it and continues), not to crash the full run.
     assert calculate_difficulty("/does/not/exist.osu", [], calculator) is None
 
 
 def test_calculator_can_be_reused(calculator):
-    # populate.py keeps one calculator per worker for ~150k files. The
-    # wrapper opens a file stream per call and must close it every time;
-    # repeated calls on the same file must keep working and agree.
+    # populate.py keeps one calculator for each worker, for about 150k files.
+    # The wrapper opens a file stream on each call and must close it each
+    # time. Repeated calls on the same file must still work and agree.
     path = require_map(OLD_MAP)
     results = {stars(calculator, path) for _ in range(20)}
     assert len(results) == 1
@@ -136,9 +136,9 @@ def test_calculator_can_be_reused(calculator):
 @pytest.mark.parametrize("beatmap", [OLD_MAP, MODERN_MAP], ids=["v3", "v14"])
 def test_database_was_built_with_version_aware_stars(calculator, beatmap):
     """
-    The stored star ratings must match what the version-aware calculator
-    produces. If the database (or part of it) was ever populated with the
-    plain calculator, old maps would show up here with ~1.5* too much.
+    The stored star ratings must match the output of the version-aware
+    calculator. If the plain calculator ever filled the database (or part of
+    it), old maps would show here with about 1.5* too much.
     """
     path = require_map(beatmap)
 

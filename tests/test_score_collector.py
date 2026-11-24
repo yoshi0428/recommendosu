@@ -1,6 +1,6 @@
 """
-Tests for the code that runs at the start of every recommendation request:
-fetching a player's scores from osu! and saving them to the database.
+Tests for the code that runs at the start of each recommendation request: it
+fetches the scores of a player from osu! and saves them to the database.
 
     score_collector.update_player_scores
         -> fetch_player_scores        (osu! API, through OsuAPIClient)
@@ -8,15 +8,16 @@ fetching a player's scores from osu! and saving them to the database.
         -> store_player_scores
             -> db_insertion.insert_score  (upsert into `scores`)
 
-The osu! API is replaced with fakes at two different levels:
+Fakes replace the osu! API at two different levels:
 
-  * FakeOsuAPI replaces the whole client. It's used to test score_collector,
-    which only needs *something* with a .get(endpoint, params) method.
-  * Fake HTTP responses replace requests.Session.get. They're used to test
-    OsuAPIClient's own retry, rate-limit and 404 logic.
+  * FakeOsuAPI replaces the full client. The tests of score_collector use it,
+    because score_collector needs only *something* with a .get(endpoint,
+    params) method.
+  * Fake HTTP responses replace requests.Session.get. The tests of the retry,
+    rate limit and 404 logic of OsuAPIClient use them.
 
-Choosing the level to fake is a key testing skill: fake the layer just below
-the code you're testing, so the code under test runs for real.
+The choice of the level to fake is an important testing skill. Fake the layer
+just below the code that you test, so that the tested code runs for real.
 """
 
 import json
@@ -41,10 +42,11 @@ PLAYER_ID = 100
 
 def api_score(score_id, beatmap_id=1, mods=("HD", "DT"), pp=250.0, user_id=PLAYER_ID, **overrides):
     """
-    A score shaped like the osu! API v2 /users/{id}/scores/* response.
+    A score in the shape of the osu! API v2 /users/{id}/scores/* response.
 
-    Only the fields normalize_score reads are included. Real responses have
-    many more, which is fine because normalize_score ignores them.
+    It has only the fields that normalize_score reads. Real responses have
+    many more fields. That is not a problem, because normalize_score ignores
+    them.
     """
     score = {
         "id": score_id,
@@ -63,7 +65,7 @@ def api_score(score_id, beatmap_id=1, mods=("HD", "DT"), pp=250.0, user_id=PLAYE
 
 
 def read_scores(conn):
-    """All rows in `scores` as dicts, keyed by score_id, so tests can look one up directly."""
+    """Return all the rows in `scores` as dicts, keyed by score_id, so that a test can find one directly."""
     conn.row_factory = sqlite3.Row
     rows = conn.execute("SELECT * FROM scores").fetchall()
     conn.row_factory = None
@@ -77,7 +79,7 @@ def test_normalize_score_maps_api_fields():
     row = normalize_score(api_score(42, beatmap_id=10818), source="top")
 
     assert row == {
-        "score_id": "42",          # IDs become strings, matching the TEXT columns.
+        "score_id": "42",          # The IDs become strings, as in the TEXT columns.
         "player_id": PLAYER_ID,
         "beatmap_id": "10818",
         "status": "ranked",
@@ -86,15 +88,15 @@ def test_normalize_score_maps_api_fields():
         "accuracy": 0.9812,
         "pp": 250.0,
         "rank": "S",
-        "mods": "HD,DT",           # The format the rest of the app parses.
+        "mods": "HD,DT",           # The format that the rest of the app parses.
         "created_at": "2026-10-01T12:00:00Z",
         "source": "top",
     }
 
 
 def test_normalize_score_no_mods_is_empty_string():
-    # NM is stored as "" (that's what the real scores table contains), and
-    # canonicalize_mods turns "" into "NM" later.
+    # NM is stored as "" (as in the real scores table), and later
+    # canonicalize_mods changes "" into "NM".
     assert normalize_score(api_score(1, mods=()), "top")["mods"] == ""
     assert normalize_score(api_score(1, mods=None), "top")["mods"] == ""
 
@@ -105,8 +107,8 @@ def test_normalize_score_reads_player_from_nested_user():
 
 
 def test_normalize_score_keeps_null_pp():
-    # Failed or unranked plays have pp = null. That must survive as NULL,
-    # not crash and not become 0.
+    # Failed or unranked plays have pp = null. It must stay NULL. It must not
+    # cause a crash, and it must not become 0.
     assert normalize_score(api_score(1, pp=None), "recent")["pp"] is None
 
 
@@ -145,9 +147,9 @@ def test_insert_score_adds_a_row(db_with_map):
     assert rows["1"]["mods"] == "HD,DT"
 
 
-# The source column records which API list(s) a score came from. The ranking
-# code treats "top,recent" as a top play, and mod preferences rely on not
-# counting it twice, so this column's merge rules are worth pinning down.
+# The source column records the API list (or lists) that a score came from.
+# The ranking code treats "top,recent" as a top play, and the mod preferences
+# must not count it twice. Thus these tests fix the merge rules of the column.
 @pytest.mark.parametrize(
     ("first", "second", "expected"),
     [
@@ -165,12 +167,12 @@ def test_insert_score_merges_sources(db_with_map, first, second, expected):
     insert(db_with_map.conn, 1, second)
 
     rows = read_scores(db_with_map.conn)
-    assert len(rows) == 1  # Upsert, not a duplicate row.
+    assert len(rows) == 1  # An upsert, not a second row.
     assert rows["1"]["source"] == expected
 
 
 def test_insert_score_updates_changed_fields(db_with_map):
-    # osu! recalculates pp from time to time; re-fetching must store the new value.
+    # osu! calculates pp again from time to time. A new fetch must store the new value.
     insert(db_with_map.conn, 1, "top", pp=250.0)
     insert(db_with_map.conn, 1, "top", pp=263.5)
 
@@ -181,8 +183,8 @@ def test_insert_score_updates_changed_fields(db_with_map):
 # store_player_scores
 # ---------------------------------------------------------------------------
 def test_store_skips_scores_on_unknown_beatmaps(recommender_db):
-    # The recommender DB only contains ranked/loved maps. A play on a
-    # graveyard map has nothing to join against, so it's skipped.
+    # The recommender database has only ranked and loved maps. A play on a
+    # graveyard map has no beatmap row to join, so the code skips it.
     recommender_db.add_beatmap(1)
 
     stored = store_player_scores(
@@ -196,8 +198,8 @@ def test_store_skips_scores_on_unknown_beatmaps(recommender_db):
 
 
 def test_store_marks_score_in_both_lists_as_top_recent(recommender_db):
-    # A fresh personal best shows up in both /scores/best and /scores/recent
-    # in the same fetch.
+    # A new personal best is in both /scores/best and /scores/recent in the
+    # same fetch.
     recommender_db.add_beatmap(1)
     same_score = api_score(7, beatmap_id=1)
 
@@ -207,8 +209,8 @@ def test_store_marks_score_in_both_lists_as_top_recent(recommender_db):
 
 
 def test_store_keeps_older_history(recommender_db):
-    # Scores that drop out of the API's top/recent lists are kept, so the
-    # player's history grows over time.
+    # The code keeps the scores that leave the top and recent lists of the API.
+    # Thus the history of the player grows over time.
     recommender_db.add_beatmap(1)
     recommender_db.add_beatmap(2)
 
@@ -223,10 +225,11 @@ def test_store_keeps_older_history(recommender_db):
 # ---------------------------------------------------------------------------
 class FakeOsuAPI:
     """
-    Stands in for OsuAPIClient. Returns canned responses per endpoint and
-    records every request, so tests can check what was asked for.
+    A replacement for OsuAPIClient. It returns fixed responses for each
+    endpoint, and records each request, so that the tests can check the
+    requests.
 
-    Like the real API, it honours offset and clamps limit to 100.
+    As the real API does, it obeys offset and limits limit to 100.
     """
 
     def __init__(self, top=(), recent=(), error=None):
@@ -248,7 +251,7 @@ class FakeOsuAPI:
 
 
 def by_endpoint(requests_made):
-    """Requests grouped by endpoint (best, then recent), each in the order it was made."""
+    """Return the requests grouped by endpoint (best, then recent), each group in request order."""
     return sorted(requests_made, key=lambda request: request[0])
 
 
@@ -264,8 +267,8 @@ def test_update_player_scores_fetches_and_stores(recommender_db):
     assert rows["1"]["source"] == "top"
     assert rows["2"]["source"] == "recent"
 
-    # The request parameters are part of the contract with osu!. The two
-    # endpoints are fetched concurrently, so only the order within each is fixed.
+    # The request parameters are part of the contract with osu!. The code fetches
+    # the two endpoints at the same time, so only the order in each one is fixed.
     assert by_endpoint(api.requests) == [
         (f"/users/{PLAYER_ID}/scores/best", {"limit": 100, "offset": 0, "include_fails": 1}),
         (f"/users/{PLAYER_ID}/scores/recent", {"limit": 100, "offset": 0, "include_fails": 1}),
@@ -273,7 +276,7 @@ def test_update_player_scores_fetches_and_stores(recommender_db):
 
 
 def test_fetch_pages_past_the_100_score_api_limit():
-    # osu! returns at most 100 scores per request, so a top 200 takes two
+    # osu! returns 100 scores for each request at most. Thus a top 200 needs two
     # requests: offset 0 and offset 100.
     top = [api_score(i) for i in range(200)]
     recent = [api_score(1000 + i) for i in range(150)]
@@ -287,19 +290,19 @@ def test_fetch_pages_past_the_100_score_api_limit():
         ("best", 0, 100),
         ("best", 100, 100),
         ("recent", 0, 100),
-        ("recent", 100, 100),  # Returns 50, so paging stops here.
+        ("recent", 100, 100),  # This returns 50, so the paging stops here.
     ]
 
 
 def test_fetch_stops_after_a_short_page():
-    # A player with only 30 top plays: one request, no empty follow-up.
+    # A player with only 30 top plays: one request, and no empty second request.
     api = FakeOsuAPI(top=[api_score(i) for i in range(30)])
 
     top_scores, recent_scores = score_collector.fetch_player_scores(api, PLAYER_ID, limit=200)
 
     assert len(top_scores) == 30
     assert recent_scores == []
-    assert len(api.requests) == 2  # One per endpoint.
+    assert len(api.requests) == 2  # One for each endpoint.
 
 
 def test_fetch_last_page_asks_only_for_the_remainder():
@@ -314,16 +317,16 @@ def test_fetch_last_page_asks_only_for_the_remainder():
 def test_unknown_player_raises_player_not_found(recommender_db):
     api = FakeOsuAPI(error=OsuAPINotFoundError("404"))
 
-    # PlayerNotFoundError is what main.py turns into a 404 response.
+    # main.py changes PlayerNotFoundError into a 404 response.
     with pytest.raises(PlayerNotFoundError, match=str(PLAYER_ID)):
         update_player_scores(recommender_db.conn, api, PLAYER_ID)
 
 
 def test_stored_scores_feed_the_recommender(recommender_db):
     """
-    Integration check across the boundary: scores saved by the collector
-    must be readable by the ranking code. If normalize_score ever changed
-    the mods format, the unit tests above would still pass, but this would
+    An integration check across the boundary: the ranking code must be able to
+    read the scores that the collector saved. If normalize_score changed the
+    mods format, the unit tests above would still pass, but this test would
     fail.
     """
     from beatmap_recommender.content_similarity.core_modules.variant_ranking import (
@@ -345,10 +348,10 @@ def test_stored_scores_feed_the_recommender(recommender_db):
 # ---------------------------------------------------------------------------
 def http_response(status, body=None, headers=None):
     """
-    A real requests.Response object with canned content.
+    A real requests.Response object with fixed content.
 
-    Using the real class (instead of a homemade fake) means
-    raise_for_status() and .json() behave exactly like in production.
+    Because it is the real class (not a homemade fake), raise_for_status()
+    and .json() work exactly as in production.
     """
     response = requests.Response()
     response.status_code = status
@@ -363,14 +366,14 @@ def fake_http(monkeypatch):
     """
     Make OsuAPIClient fast and offline.
 
-    * time.sleep is replaced with a function that records the delay instead
-      of waiting, so retry tests take milliseconds instead of minutes.
-    * random.uniform returns 0, so backoff delays are predictable.
-    * The shared rate limiter never waits, so `fake.sleeps` contains only
-      retry delays. (The rate limiter tests use their own.)
+    * A function that records the delay replaces time.sleep. It does not
+      wait, so the retry tests take milliseconds, not minutes.
+    * random.uniform returns 0, so the backoff delays are predictable.
+    * The shared rate limiter never waits, so `fake.sleeps` holds only retry
+      delays. (The rate limiter tests use their own clock.)
     * requests.Session.get returns the queued responses in order.
 
-    Tests put responses (or exceptions) into `fake.queue`.
+    The tests put responses (or exceptions) into `fake.queue`.
     """
 
     class Fake:
@@ -411,7 +414,7 @@ def test_client_retries_server_errors_with_backoff(fake_http):
     fake_http.queue += [http_response(502), http_response(503), http_response(200, ["ok"])]
 
     assert OsuAPIClient("t").get("/x") == ["ok"]
-    # Exponential backoff: 2**0, 2**1 (the random jitter is patched to 0).
+    # Exponential backoff: 2**0, 2**1 (the test sets the random jitter to 0).
     assert fake_http.sleeps == [1, 2]
 
 
@@ -448,41 +451,19 @@ def test_client_401_is_not_retried(fake_http):
     assert len(fake_http.calls) == 1
 
 
-class FakeClock:
-    """time.monotonic and time.sleep for osu_api_client: sleeping advances the clock."""
-
-    def __init__(self):
-        self.now = 1000.0
-        self.sleeps = []
-
-    def monotonic(self):
-        return self.now
-
-    def sleep(self, seconds):
-        self.sleeps.append(seconds)
-        self.now += seconds
-
-
-@pytest.fixture
-def fake_clock(monkeypatch):
-    clock = FakeClock()
-    monkeypatch.setattr(osu_api_client.time, "monotonic", clock.monotonic)
-    monkeypatch.setattr(osu_api_client.time, "sleep", clock.sleep)
-    return clock
-
-
+# fake_clock is in conftest.py.
 def test_rate_limiter_allows_a_burst_then_paces(fake_clock):
     limiter = osu_api_client.RateLimiter(burst=4, interval=1.5)
 
     for _ in range(4):
         limiter.acquire()
-    assert fake_clock.sleeps == []  # A score refresh's 4 requests go out at once.
+    assert fake_clock.sleeps == []  # The 4 requests of a score refresh go out at once.
 
     limiter.acquire()
     limiter.acquire()
     assert fake_clock.sleeps == [pytest.approx(1.5), pytest.approx(1.5)]
 
-    # Idle time refills the bucket, up to the burst size.
+    # Idle time fills the bucket again, up to the burst size.
     fake_clock.now += 60
     for _ in range(4):
         limiter.acquire()
@@ -507,8 +488,8 @@ def test_default_rate_limiter_stays_under_60_requests_per_minute(fake_clock):
 
 
 def test_rate_limit_is_shared_by_every_client(fake_http, fake_clock, monkeypatch):
-    # Each recommendation makes its own client, so per-client pacing would
-    # let concurrent users add up past the limit.
+    # Each recommendation makes its own client. With a limit for each client,
+    # users at the same time could go past the limit together.
     monkeypatch.setattr(osu_api_client, "rate_limiter", osu_api_client.RateLimiter(burst=1, interval=1.5))
     fake_http.queue += [http_response(200, []), http_response(200, [])]
 

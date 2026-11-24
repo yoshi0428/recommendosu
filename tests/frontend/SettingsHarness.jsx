@@ -1,13 +1,13 @@
-// A test helper, not a test: renders a settings component with real state.
+// A test helper, not a test: it renders a settings component with real state.
 //
-// ModOptions, CandidateFilters, etc. don't own their state; they receive
-// `settings` and call `updateSetting(key, value)`, and RecommendationsPage
-// does the actual state update. To test a component on its own, this wrapper
-// plays the page's role using the same functional update, so several
-// updateSetting calls in one click all apply (as they do in the app).
+// ModOptions, CandidateFilters and the others do not own their state. They get
+// `settings` and call `updateSetting(key, value)`, and RecommendationsPage does
+// the real state update. To test a component alone, this wrapper does the work
+// of the page, with the same functional update. Thus several updateSetting
+// calls in one click all apply (as in the app).
 //
-// `onSettingsChange` reports the latest settings object, so tests can assert
-// on exactly what would be sent to the backend.
+// `onSettingsChange` reports the latest settings object, so that the tests can
+// check exactly what the backend would get.
 
 import { useEffect, useState } from "react";
 

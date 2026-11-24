@@ -1,8 +1,8 @@
 // Tests for pages/RecommendationsPage.jsx: running and cancelling a request.
 //
-// vi.mock replaces a whole module for this file, so the page talks to fake
-// API functions instead of fetch, and the results table (which needs real
-// layout to render rows) is replaced by a stub.
+// vi.mock replaces a full module for this file. Thus the page uses fake API
+// functions, not fetch, and a stub replaces the results table (which needs a
+// real layout to render rows).
 
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -27,7 +27,7 @@ vi.mock("@/components/recommendations/RecommendationBody", () => ({
 }));
 
 beforeEach(() => {
-  // jsdom's localStorage isn't usable here; AudioPreview (its volume) only needs get/set.
+  // The localStorage of jsdom does not work here. AudioPreview (its volume) needs only get/set.
   const store = new Map();
   vi.stubGlobal("localStorage", {
     getItem: (key) => store.get(key) ?? null,
@@ -60,8 +60,8 @@ describe("RecommendationsPage", () => {
   });
 
   it("doesn't show an error when the backend confirms a cancellation", async () => {
-    // The backend answers a cancelled POST /recommend with 204, which
-    // getRecommendations returns as null.
+    // The backend answers a cancelled POST /recommend with 204, and
+    // getRecommendations returns that as null.
     getRecommendations.mockResolvedValue(null);
     const user = renderPage();
 

@@ -1,6 +1,4 @@
-from beatmap_recommender.content_similarity.core_modules.mod_preferences import (
-    canonicalize_mods,
-)
+from beatmap_recommender.content_similarity.core_modules.mod_preferences import canonicalize_mods
 from beatmap_recommender.recommender_db_setup.beatmap_mods import (
     apply_bpm_mod,
     apply_length_mod,
@@ -10,12 +8,11 @@ from beatmap_recommender.recommender_db_setup.beatmap_mods import (
 
 def insert_base_beatmap(conn, beatmap_data, md5, year, status):
     """
-    Insert the base beatmap.
+    Insert the base beatmap with its BASE statistics (no mods), or update it
+    if it exists. If a map is both ranked and loved, it stays ranked.
 
-    beatmap_id is the PRIMARY KEY, so a map cannot accidentally
-    become multiple independent beatmaps because of augmentation.
-
-    The values stored here are BASE beatmap statistics.
+    beatmap_id is the PRIMARY KEY. Thus augmentation cannot make one map into
+    several separate beatmaps.
     """
     conn.execute(
         """
@@ -106,7 +103,7 @@ def insert_variant(
     difficulty_result,
 ):
     """
-    Insert one beatmap + mod combination.
+    Insert one beatmap + mod combination, or update it if it exists.
 
     Example:
 
@@ -119,34 +116,18 @@ def insert_variant(
         beatmap_id = 12345
         mods = "DT"
 
-    The statistics stored in beatmap_variants are the EFFECTIVE
-    statistics for this particular mod combination.
+    The statistics in beatmap_variants are the EFFECTIVE statistics of this
+    mod combination. Return (variant_id, canonical mods string).
     """
-
     cursor = conn.cursor()
-
-    # Canonical mod string
     mods_string = canonicalize_mods(mods)
 
-    # Calculate modded difficulty statistics
-    stats = get_modded_stats(
-        base_data,
-        difficulty_result,
-        mods,
-    )
-
-    # Calculate effective BPM
+    stats = get_modded_stats(base_data, difficulty_result, mods)
     effective_bpm, effective_min_bpm, effective_max_bpm = apply_bpm_mod(
-        base_data["bpm"],
-        base_data["min_bpm"],
-        base_data["max_bpm"],
-        mods,
+        base_data["bpm"], base_data["min_bpm"], base_data["max_bpm"], mods
     )
-
-    # Calculate effective length
     effective_length = apply_length_mod(base_data["length_seconds"], mods)
 
-    # Insert / update variant
     cursor.execute(
         """
         INSERT INTO beatmap_variants (
@@ -235,6 +216,12 @@ def insert_variant(
 
 
 def insert_score(conn, score):
+    """
+    Insert a score (a normalize_score() dict), or update it if it exists.
+
+    If the same score comes from the other list (top or recent), its source
+    becomes "top,recent".
+    """
     conn.execute(
         """
         INSERT INTO scores (

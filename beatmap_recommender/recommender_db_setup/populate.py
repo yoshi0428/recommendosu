@@ -1,26 +1,27 @@
 """
-Populate the recommender database from the .osu files under data/<Status>/<Year>/.
+Fill the recommender database from the .osu files under data/<Status>/<Year>/.
 
-Single pass:
+One pass:
 
-    1. Scan every .osu file (md5, mode, BeatmapID). Non-osu!standard files are
-       dropped here, before any difficulty calculation.
-    2. Resolve each file's real beatmap ID (see beatmap_id_resolution.py):
-       files with a missing, 0/-1 or shared BeatmapID go through the manual
-       overrides CSV, then a seed DB, then the osu! API checksum lookup.
-       Files that can't be resolved are logged and not inserted.
-    3. Calculate all mod variants in worker processes and insert each file in
-       its own SAVEPOINT, so one bad file can't roll back the rest of a batch.
+    1. Scan each .osu file (md5, mode, BeatmapID). The files that are not
+       osu!standard are dropped here, before any difficulty calculation.
+    2. Find the real beatmap ID of each file (see beatmap_id_resolution.py).
+       Files with a missing, 0/-1 or shared BeatmapID go through the manual
+       overrides CSV, then a seed database, then the osu! API checksum lookup.
+       A file without a result is logged and not inserted.
+    3. Calculate all the mod variants in worker processes. Insert each file in
+       its own SAVEPOINT, so that one bad file cannot roll back the rest of a
+       batch.
 
-Every file that needed resolution, was skipped, or failed is written to
+Each file that needed an ID search, was skipped, or failed goes into
 populate_logs/populate_<timestamp>.csv.
 
 Usage (from the project root):
 
-    # check the ID resolution first; nothing is written to a database
+    # First, check the ID search. Nothing is written to a database.
     python -m beatmap_recommender.recommender_db_setup.populate --resolve-only --seed-db beatmap_recommender/dummy.db
 
-    # repopulate into a fresh file, reusing dummy.db's already-resolved IDs
+    # Fill a new file again, with the IDs that dummy.db already found.
     python -m beatmap_recommender.recommender_db_setup.populate --db beatmap_recommender/fresh.db --seed-db beatmap_recommender/dummy.db
 
 """
@@ -55,9 +56,6 @@ from beatmap_recommender.recommender_db_setup.db_table_creation import (
 from beatmap_recommender.recommender_db_setup.parser import parse_osu_file
 from beatmap_recommender.recommender_db_setup.star_calculator import VersionAwareOsuCalculator
 
-# ============================================================
-# Configuration
-# ============================================================
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATABASE_PATH = PROJECT_ROOT / "beatmap_recommender/dummy.db"
 ROOT_DIR = PROJECT_ROOT / "beatmap_recommender/data"
@@ -66,6 +64,8 @@ API_CACHE_PATH = LOG_DIR / "api_lookup_cache.json"
 NUM_WORKERS = 8
 BATCH_SIZE = 2500
 
+# The variants to store for each map: variant name -> mods.
+# tests/test_shared_constants.py reads this literal, so keep it a plain dict.
 MOD_VARIANTS = {
     "NM": [],
     "HD": ["HD"],
@@ -94,8 +94,8 @@ _worker_calculator = None
 
 def init_worker():
     """
-    Initialize one OsuCalculator per worker process.
-    This avoids repeatedly constructing the calculator for every beatmap.
+    Make one OsuCalculator for each worker process, so that the worker does
+    not make a new calculator for each beatmap.
     """
     global _worker_calculator
     _worker_calculator = VersionAwareOsuCalculator()
@@ -103,11 +103,9 @@ def init_worker():
 
 def process_difficulty(file_path):
     """
-    Calculate all requested mod variants for one .osu file.
-    This function runs inside worker processes.
-    The database is NOT touched here.
+    Calculate the difficulty of all the MOD_VARIANTS of one .osu file. This
+    function runs in the worker processes. It does NOT use the database.
     """
-    global _worker_calculator
     variant_results = {}
     for variant_name, mods in MOD_VARIANTS.items():
         result = calculate_difficulty(file_path, mods, _worker_calculator)
@@ -129,7 +127,8 @@ def process_difficulty(file_path):
 
 
 def make_api_client():
-    # Imported lazily: osu_api_client requires credentials in .env at import time.
+    """Return an authenticated osu! API client of the app."""
+    # Import it only here, because osu_api_client needs the credentials in .env at import time.
     from beatmap_recommender.recommender_db_setup.osu_api_client import OsuAPIClient
 
     client = OsuAPIClient()
@@ -138,9 +137,7 @@ def make_api_client():
 
 
 def insert_file(conn, file_path, result, resolution):
-    """
-    Insert one file and its variants inside a SAVEPOINT. Returns the outcome string.
-    """
+    """Insert one file and its variants inside a SAVEPOINT. Return the outcome string."""
     if not result["success"]:
         return f"failed: difficulty calculation ({result['failed_variant']})"
 
@@ -158,7 +155,7 @@ def insert_file(conn, file_path, result, resolution):
     beatmap_data["beatmapset_id"] = beatmapset_id
 
     if beatmap_data["ar"] is None:
-        # Pre-AR file formats: osu! uses OD as AR.
+        # File formats from before AR: osu! uses OD as AR.
         beatmap_data["ar"] = resolution["ar"] if resolution["ar"] is not None else beatmap_data["od"]
 
     path = Path(file_path)
@@ -192,26 +189,22 @@ def main():
         "--seed-db",
         type=Path,
         default=None,
-        help="existing DB to reuse resolved IDs from (opened read-only); saves API lookups",
+        help="an existing database with IDs to use again (opened read-only). This saves API lookups.",
     )
     parser.add_argument("--overrides", type=Path, default=DEFAULT_OVERRIDES_PATH, help="manual md5 -> ID CSV")
     parser.add_argument("--api-cache", type=Path, default=API_CACHE_PATH)
-    parser.add_argument("--resolve-only", action="store_true", help="scan + resolve + log, don't touch --db")
+    parser.add_argument("--resolve-only", action="store_true", help="scan + find IDs + log. Do not touch --db.")
     parser.add_argument("--workers", type=int, default=NUM_WORKERS)
     args = parser.parse_args()
 
     log_path = LOG_DIR / f"populate_{datetime.now():%Y%m%d-%H%M%S}{'_resolve_only' if args.resolve_only else ''}.csv"
 
-    # --------------------------------------------------------
     # 1. Scan
-    # --------------------------------------------------------
     headers = scan_osu_files(args.data)
     standard = [h for h in headers if h["mode"] == 0]
     print(f"Found {len(headers):,} .osu files, {len(standard):,} osu!standard.")
 
-    # --------------------------------------------------------
-    # 2. Resolve IDs
-    # --------------------------------------------------------
+    # 2. Find the IDs
     seed = {}
     if args.seed_db is not None:
         seed_conn = sqlite3.connect(f"file:{args.seed_db}?mode=ro", uri=True)
@@ -252,9 +245,7 @@ def main():
         print(f"\nLog: {log_path}")
         return
 
-    # --------------------------------------------------------
     # 3. Calculate + insert
-    # --------------------------------------------------------
     conn = sqlite3.connect(args.db)
     conn.execute("PRAGMA journal_mode = WAL")
     conn.execute("PRAGMA synchronous = NORMAL")

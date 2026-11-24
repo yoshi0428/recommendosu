@@ -1,11 +1,11 @@
 """
-Store the fusion classifier's NM1-NM5 probabilities for every NM variant
+Store the NM1-NM5 probabilities of the fusion classifier for each NM variant
 in the recommender database (variant_predictions), and the outcome of each
 attempt (classifier_prediction_status).
 
-The classifier reads the hit objects from the variant's local .osu file
-(found by its MD5) and its stats from the beatmap's NM/HD/HR/DT
-beatmap_variants rows.
+The classifier reads the hit objects from the local .osu file of the variant
+(found by its MD5), and the stats from the NM/HD/HR/DT beatmap_variants rows
+of the beatmap.
 """
 
 import hashlib
@@ -18,21 +18,19 @@ from beatmap_classifier.classifier.inference import (
     classify,
     load_classifier,
 )
+from beatmap_recommender.content_similarity.core_modules.classifier_influence import NM_LABELS
 
-# ============================================================
-# Configuration
-# ============================================================
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DB_PATH = PROJECT_ROOT / "beatmap_recommender/recommender.local.db"
 DATA_ROOT = PROJECT_ROOT / "beatmap_recommender/data"
 
 COMMIT_INTERVAL = 500
 
-# Which NM variants to classify:
-#     "pending" -> only variants with no status row yet
-#     "failed"  -> pending + variants whose last attempt failed
-#     "all"     -> every NM variant, overwriting existing predictions
-#                  (use after training a new model)
+# The NM variants to classify:
+#     "pending" -> only the variants with no status row yet
+#     "failed"  -> pending + the variants whose last attempt failed
+#     "all"     -> all the NM variants. This overwrites the existing
+#                  predictions (use it after you train a new model).
 SELECTION_MODE = "all"
 
 VARIANT_FILTERS = {
@@ -47,9 +45,9 @@ VARIANT_FILTERS = {
 # ============================================================
 def index_osu_files(root_dir):
     """
-    {MD5 of the file contents: path} for every .osu file under root_dir,
-    the same files populate.py scans (including downloaders' *_1.osu
-    copies), so every beatmap it inserted can be found by its md5.
+    Return {MD5 of the file contents: path} for each .osu file under root_dir.
+    These are the same files that populate.py scans (also the *_1.osu copies
+    from the downloaders), so the code can find each inserted beatmap by its md5.
     """
     index = {}
     paths = sorted(p for p in Path(root_dir).rglob("*") if p.suffix.lower() == ".osu")
@@ -68,7 +66,7 @@ def index_osu_files(root_dir):
 # Database
 # ============================================================
 def get_nm_variants(conn, mode):
-    """NM variants to classify, filtered by `mode` (see SELECTION_MODE), with their beatmap's md5."""
+    """Return the NM variants to classify, filtered by `mode` (see SELECTION_MODE), with the md5 of their beatmap."""
     if mode not in VARIANT_FILTERS:
         raise ValueError(f"Unknown selection mode {mode!r}; expected one of {list(VARIANT_FILTERS)}")
 
@@ -88,7 +86,7 @@ def get_nm_variants(conn, mode):
 
 
 def get_stats_by_mod(conn, beatmap_id):
-    """{mod: beatmap_variants row} of the beatmap, for the mods the classifier reads."""
+    """Return {mod: beatmap_variants row} of the beatmap, for the mods that the classifier reads."""
     rows = conn.execute(
         f"""
         SELECT *
@@ -102,7 +100,7 @@ def get_stats_by_mod(conn, beatmap_id):
 
 
 def save_prediction(conn, variant_id, probabilities):
-    """Save NM1-NM5 classifier probabilities."""
+    """Save the NM1-NM5 probabilities of the classifier."""
     conn.execute(
         """
         INSERT INTO variant_predictions (variant_id, nm1, nm2, nm3, nm4, nm5)
@@ -114,14 +112,14 @@ def save_prediction(conn, variant_id, probabilities):
             nm4 = excluded.nm4,
             nm5 = excluded.nm5
         """,
-        (variant_id, *(probabilities.get(label, 0.0) for label in ("NM1", "NM2", "NM3", "NM4", "NM5"))),
+        (variant_id, *(probabilities.get(label, 0.0) for label in NM_LABELS)),
     )
 
 
 def clear_prediction(conn, variant_id):
     """
-    Remove NM1-NM5 probabilities left over from a previous model,
-    so a variant that now fails doesn't keep a stale prediction.
+    Remove the NM1-NM5 probabilities of a previous model, so that a variant
+    that fails now does not keep an old prediction.
     """
     conn.execute(
         """
@@ -134,7 +132,7 @@ def clear_prediction(conn, variant_id):
 
 
 def save_status(conn, variant_id, status, error=None):
-    """Insert or update classifier processing status."""
+    """Insert or update the classifier status of the variant."""
     conn.execute(
         """
         INSERT INTO classifier_prediction_status (variant_id, status, error)
@@ -147,10 +145,8 @@ def save_status(conn, variant_id, status, error=None):
     )
 
 
-# ============================================================
-# Main precomputation
-# ============================================================
 def main():
+    """Classify the selected NM variants, and store each result and status."""
     print(f"Selection mode: {SELECTION_MODE}")
 
     conn = sqlite3.connect(DB_PATH)

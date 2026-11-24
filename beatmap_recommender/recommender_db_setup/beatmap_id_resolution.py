@@ -1,25 +1,25 @@
 """
-Resolve the real beatmap ID of every osu!standard .osu file before populating.
+Find the real beatmap ID of each osu!standard .osu file before the database is filled.
 
-A file's own BeatmapID can't always be trusted:
+The BeatmapID in a file is not always correct:
 
-    - missing entirely (old file formats)
-    - BeatmapID:0 / -1 (e.g. guest diffs)
-    - a real ID shared by several *different* files (every diff of a set
-      copying the Normal's ID)
+    - it is missing (old file formats)
+    - BeatmapID:0 / -1 (for example, guest difficulties)
+    - a real ID that several *different* files share (each difficulty of a
+      set copies the ID of the Normal)
 
-Because beatmap_id is the PRIMARY KEY, inserting under such an ID makes the
-files overwrite each other. Resolution order for a problem file:
+beatmap_id is the PRIMARY KEY, so an insert with such an ID makes the files
+overwrite each other. For a problem file, the search uses this order:
 
     1. manual overrides  (fixed_beatmap_rows.csv, keyed by md5)
-    2. seed database     (an existing DB's md5 -> beatmap_id, read-only), only
-                         when the seed's ID isn't the same bad/shared ID
+    2. seed database     (md5 -> beatmap_id of an existing database, read-only),
+                         only if the seed ID is not the same bad or shared ID
     3. osu! API          /beatmaps/lookup?checksum=<md5>, cached in a JSON file
 
-Files whose AR line is missing (pre-AR formats) also take AR from those
-sources; if none has it, AR falls back to OD, which is what osu! does.
+A file without an AR line (formats from before AR) also gets its AR from
+these sources. If none has it, AR is the same as OD, as in osu!.
 
-Files that can't be resolved are not inserted; they are logged instead.
+A file without a result is not inserted. It is logged.
 """
 
 import csv
@@ -57,7 +57,7 @@ LOG_FIELDS = [
 
 
 def new_log_row(header, **fields):
-    """A log row for one scanned file: its path, md5 and BeatmapID, plus fields; "" for the rest."""
+    """Return a log row for one scanned file: its path, md5 and BeatmapID, plus fields, and "" for the rest."""
     row = dict.fromkeys(LOG_FIELDS, "")
     row.update(file=header["path"], md5=header["md5"], file_beatmap_id=header["file_beatmap_id"] or "")
     row.update(fields)
@@ -65,9 +65,10 @@ def new_log_row(header, **fields):
 
 
 # ============================================================
-# Scanning
+# Scan
 # ============================================================
 def read_osu_header(path):
+    """Return the md5, game mode, IDs and AR presence of a .osu file, without a full parse."""
     raw = Path(path).read_bytes()
     text = decode_osu_bytes(raw)
 
@@ -86,6 +87,7 @@ def read_osu_header(path):
 
 
 def scan_osu_files(root_dir):
+    """Return read_osu_header() of each .osu file under root_dir, in path order."""
     paths = sorted(p for p in Path(root_dir).rglob("*") if p.suffix.lower() == ".osu")
     return [read_osu_header(p) for p in tqdm(paths, desc="Scanning .osu files")]
 
@@ -95,11 +97,11 @@ def scan_osu_files(root_dir):
 # ============================================================
 def load_overrides(path):
     """
-    fixed_beatmap_rows.csv -> {key: resolution}.
+    Read fixed_beatmap_rows.csv into {key: resolution}.
 
-    Rows whose old_beatmap_id is an md5 are keyed by that md5 (the file's ID is
-    wrong or missing). Rows whose old_beatmap_id is already the right ID only
-    correct the set ID / AR; they are keyed as "id:<beatmap_id>".
+    A row with an md5 as old_beatmap_id has that md5 as key (the ID of the
+    file is wrong or missing). A row with the right ID as old_beatmap_id only
+    corrects the set ID or the AR. Its key is "id:<beatmap_id>".
     """
     overrides = {}
     if path is None:
@@ -123,7 +125,7 @@ def load_overrides(path):
 
 
 def load_seed(conn):
-    """md5 -> (beatmap_id, beatmapset_id, ar) from an existing database."""
+    """Return md5 -> (beatmap_id, beatmapset_id, ar) from an existing database."""
     if conn is None:
         return {}
     return {
@@ -135,7 +137,7 @@ def load_seed(conn):
 
 
 class ChecksumLookup:
-    """/beatmaps/lookup?checksum= with a persistent JSON cache. Errors are retried on the next run."""
+    """/beatmaps/lookup?checksum= with a JSON cache on disk. The next run tries the errors again."""
 
     def __init__(self, cache_path, client_factory):
         self.cache_path = Path(cache_path)
@@ -174,17 +176,17 @@ class ChecksumLookup:
 
 
 # ============================================================
-# Resolution
+# ID search
 # ============================================================
 def resolve_beatmap_ids(headers, lookup, overrides=None, seed=None):
     """
     headers: read_osu_header() dicts for osu!standard files.
 
-    Returns (resolutions, log_rows):
-        resolutions: md5 -> {"beatmap_id", "beatmapset_id", "ar"} for every file
-                     that may be inserted. "ar" is None unless the file lacks it.
-        log_rows:    md5 -> log dict for every file that needed resolution or
-                     was rejected. populate.py fills in the final outcome.
+    Return (resolutions, log_rows):
+        resolutions: md5 -> {"beatmap_id", "beatmapset_id", "ar"} for each file
+                     that can be inserted. "ar" is None, unless the file has no AR.
+        log_rows:    md5 -> log dict for each file that needed an ID search or
+                     was rejected. populate.py adds the final outcome.
     """
     overrides = overrides or {}
     seed = seed or {}
@@ -214,8 +216,9 @@ def resolve_beatmap_ids(headers, lookup, overrides=None, seed=None):
         else:
             problem = None
 
-        # Manual overrides win over everything, including a valid-looking file ID
-        # (e.g. an old file version whose BeatmapID points at a different map).
+        # The manual overrides have priority over everything, also over a file ID
+        # that looks valid (for example, an old file version with a BeatmapID
+        # of a different map).
         if problem is None and md5 in overrides and overrides[md5]["beatmap_id"] != file_id:
             problem = "file BeatmapID contradicted by override"
 
@@ -230,7 +233,7 @@ def resolve_beatmap_ids(headers, lookup, overrides=None, seed=None):
         row = new_log_row(header, problem=problem or "no ApproachRate")
         log_rows[md5] = row
 
-        # Only the AR is missing: keep the file's ID, find the AR wherever it is cheapest.
+        # Only the AR is missing. Keep the ID of the file, and find the AR in the cheapest source.
         if problem is None:
             ar = (overrides.get(md5) or {}).get("ar")
             source = "override"
@@ -281,8 +284,9 @@ def resolve_beatmap_ids(headers, lookup, overrides=None, seed=None):
         }
         row.update(beatmap_id=resolved["beatmap_id"], beatmapset_id=resolved["beatmapset_id"] or "")
 
-    # Fill in set IDs (and AR) that the file left as -1 / missing. Old files and
-    # some unsubmitted-at-export diffs carry BeatmapSetID:-1 with a valid BeatmapID.
+    # Add the set IDs (and AR) that the file has as -1 or missing. Old files, and
+    # some difficulties that were not submitted at export, have BeatmapSetID:-1
+    # with a valid BeatmapID.
     for md5, resolution in resolutions.items():
         id_override = overrides.get(f"id:{resolution['beatmap_id']}") or {}
         if resolution["ar"] is None and not first_by_md5[md5]["has_ar"]:
@@ -314,8 +318,8 @@ def resolve_beatmap_ids(headers, lookup, overrides=None, seed=None):
         row["beatmapset_id"] = set_id or ""
         row["note"] = "; ".join(n for n in (row["note"], f"set ID from {source}") if n)
 
-    # Two different files must never end up under one ID. Prefer the file the API
-    # confirmed, then a file that already owned the ID itself, then path order.
+    # Two different files must never get the same ID. Prefer the file that the
+    # API confirmed, then a file that had the ID itself, then the path order.
     md5s_by_resolved_id = defaultdict(list)
     for md5, resolution in resolutions.items():
         md5s_by_resolved_id[resolution["beatmap_id"]].append(md5)

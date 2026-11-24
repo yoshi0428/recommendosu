@@ -1,9 +1,9 @@
 """
-Check that a change to the recommender doesn't change its output.
+Make sure that a change to the recommender does not change its output.
 
-Runs several recommendation requests offline and saves a hash of each full
-result (every row, in order, with its keys in order). Save a snapshot before
-the change, save another after it, then compare them:
+The script runs several recommendation requests offline, and saves a hash of
+each full result (all the rows, in order, with their keys in order). Save a
+snapshot before the change and another after it. Then compare them:
 
     git stash
     PYTHONPATH=. python beatmap_recommender/benchmarks/snapshot_recommender.py save before.pkl
@@ -11,41 +11,32 @@ the change, save another after it, then compare them:
     PYTHONPATH=. python beatmap_recommender/benchmarks/snapshot_recommender.py save after.pkl
     PYTHONPATH=. python beatmap_recommender/benchmarks/snapshot_recommender.py compare before.pkl after.pkl
 
-Scores lose weight with age (see ability.py), so the clock is frozen at
-FROZEN_NOW; otherwise two runs minutes apart would give slightly different
-scores. Floats are compared by value, so a numpy float64 and a Python float
-holding the same number count as equal.
+Scores lose weight with age (see ability.py), so the clock stops at
+FROZEN_NOW. If not, two runs a few minutes apart would give slightly
+different scores. Floats are compared by value, so a numpy float64 and a
+Python float with the same number count as equal.
 """
 
 import argparse
 import hashlib
-import os
 import pickle
 import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-# The recommender imports the OAuth module, which refuses to load without
-# these. Scores aren't fetched here, so placeholders are enough.
-for name in ("OSU_CLIENT_ID", "OSU_CLIENT_SECRET", "OSU_REDIRECT_URI"):
-    os.environ.setdefault(name, "unused")
+# common sets the placeholder credentials, so it must come before the recommender imports.
+from beatmap_recommender.benchmarks.common import DEFAULT_DB_PATH, DEFAULT_PLAYER_ID  # isort: skip
 
 import beatmap_recommender.content_similarity.core_modules.ability as ability
 from beatmap_recommender.api.model import RecommendationSettings
 from beatmap_recommender import database
 from beatmap_recommender.recommender import recommend_player_sync
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-
-# Opened read-only (scores aren't updated), so the file itself is never modified.
-DEFAULT_DB_PATH = PROJECT_ROOT / "beatmap_recommender/recommender.local.db"
-DEFAULT_PLAYER_ID = 10961031
-
 FROZEN_NOW = datetime(2026, 10, 16, tzinfo=timezone.utc)
 
 CASES = {
-    # No star bounds and every mod: all ~3 million variants.
+    # No star limits and all mods: all of the about 3 million variants.
     "worst_balanced": {"min_stars": 0.0, "max_stars": float("inf")},
     "default": {},
     "filtered": {
@@ -64,8 +55,8 @@ class FrozenDatetime(datetime):
 
 
 def hash_rows(rows):
-    # repr rather than pickle: pickle encodes a repeated object (such as one
-    # shared "HDDT" string) differently from equal copies of it. repr of a
+    # Use repr, not pickle: pickle encodes a repeated object (such as one
+    # shared "HDDT" string) differently from equal copies of it. The repr of a
     # float is exact, so equal hashes still mean identical values.
     digest = hashlib.sha256()
 

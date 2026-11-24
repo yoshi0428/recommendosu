@@ -1,16 +1,15 @@
 """
 Unit tests for mod_preferences.py.
 
-A *unit test* checks one small piece of code (usually one function) in
-isolation. These are the cheapest tests to write and run, and they pin down
-exact behaviour: "given this input, I expect exactly this output".
+A *unit test* checks one small part of code (usually one function) alone.
+These tests are the cheapest to write and run, and they fix the exact
+behavior: "for this input, I expect exactly this output".
 
-Every test follows the same three-step shape, often called Arrange / Act /
-Assert:
-    1. Arrange: set up the input.
-    2. Act: call the function under test.
-    3. Assert: check the result with a plain `assert`. pytest rewrites assert
-       statements so a failure shows both sides of the comparison.
+Each test has the same three steps, often called Arrange / Act / Assert:
+    1. Arrange: prepare the input.
+    2. Act: call the function that the test checks.
+    3. Assert: check the result with a plain `assert`. pytest changes assert
+       statements so that a failure shows both sides of the comparison.
 """
 
 import math
@@ -28,45 +27,45 @@ from beatmap_recommender.content_similarity.core_modules.mod_preferences import 
 # ---------------------------------------------------------------------------
 # canonicalize_mods
 # ---------------------------------------------------------------------------
-# `@pytest.mark.parametrize` runs the same test once per row of inputs. Each
-# row shows up as its own test in the output (e.g.
+# `@pytest.mark.parametrize` runs the same test one time for each row of inputs.
+# Each row shows as a separate test in the output (for example
 # `test_canonicalize_mods[HD,DT-HDDT]`), so you can see exactly which case
-# failed. It's the idiomatic way to check many input/output pairs without
-# copy-pasting the test body.
+# failed. This is the usual way to check many input/output pairs without a
+# copy of the test body for each.
 @pytest.mark.parametrize(
     ("raw", "expected"),
     [
-        # Empty / missing values all mean "no mod".
+        # Empty or missing values all mean "no mod".
         (None, "NM"),
         ("", "NM"),
         ("NM", "NM"),
         ([], "NM"),
         (["NM"], "NM"),
-        # The osu! API stores mods comma-separated; this is the real format
-        # found in the scores table of dummy.db.
+        # The osu! API stores mods separated by commas. This is the real format
+        # in the scores table of dummy.db.
         ("HD,DT", "HDDT"),
         ("HD,HR,DT", "HDHRDT"),
         ("NF,HD,DT", "NFHDDT"),
-        # Order in the input must not matter.
+        # The order of the input must have no effect.
         ("DTHD", "HDDT"),
         ("DT,HD", "HDDT"),
         (["DT", "HD"], "HDDT"),
         (("HR", "HD"), "HDHR"),
-        # Case and whitespace are forgiven.
+        # Case and whitespace are allowed.
         ("hd, dt", "HDDT"),
         (" hr ", "HR"),
         # HT comes before HD in MOD_ORDER. The beatmap_variants table stores
-        # this combination as "HTHD", so the canonical form has to match.
+        # this combination as "HTHD", so the canonical form must match it.
         ("HD,HT", "HTHD"),
-        # NC is DT with different audio, so it canonicalizes to DT.
+        # NC is DT with different audio, so its canonical form is DT.
         ("NC", "DT"),
         ("HD,NC", "HDDT"),
         ("DT,NC", "DT"),  # Some clients send both.
-        # Duplicates collapse.
+        # Duplicates become one mod.
         ("HDHD", "HD"),
-        # Lazer-only mods (seen in real scores like "HR,SO").
+        # Mods that only lazer has (seen in real scores such as "HR,SO").
         ("HR,SO", "HRSO"),
-        # Multi-character mods must be matched before shorter ones.
+        # Longer mod names must match before shorter ones.
         ("SV2", "SV2"),
         ("10K", "10K"),
     ],
@@ -76,16 +75,16 @@ def test_canonicalize_mods(raw, expected):
 
 
 def test_canonicalize_mods_rejects_unknown_mod():
-    # `pytest.raises` asserts that the code inside the `with` block raises
-    # this exception. If it doesn't raise, the test fails. `match` is a
-    # regex checked against the error message.
+    # `pytest.raises` checks that the code in the `with` block raises this
+    # exception. If it does not raise it, the test fails. `match` is a regex
+    # that must match the error message.
     with pytest.raises(ValueError, match="Unknown mod string"):
         canonicalize_mods("HDXX")
 
 
 def test_canonicalize_mods_is_idempotent():
-    # A *property* worth testing: canonicalizing an already canonical string
-    # must not change it. This catches whole classes of ordering bugs at once.
+    # A *property* to test: the canonical form of a canonical string must be
+    # the same string. This finds many types of ordering bugs at once.
     for mods in ["NM", "HD", "HDDT", "HTHD", "EZHDDT", "HDHRDTFL", "HDNC"]:
         assert canonicalize_mods(canonicalize_mods(mods)) == canonicalize_mods(mods)
 
@@ -102,7 +101,7 @@ def test_top_plays_weigh_more_than_recent_plays():
 
 def test_score_in_both_top_and_recent_is_not_double_counted():
     both = get_score_weight("top,recent", None, 3.0, 1.0, 0.0)
-    assert both == 3.0  # Same as a plain top play, not 3.0 + 1.0.
+    assert both == 3.0  # The same as a plain top play, not 3.0 + 1.0.
 
 
 def test_unknown_source_falls_back_to_recent_weight():
@@ -128,9 +127,9 @@ def test_normalize_scales_favourite_mod_to_one():
     normalized = normalize_mod_preferences({"HD": 10.0, "NM": 2.0})
 
     assert normalized["HD"] == 1.0
-    # log1p compresses big differences: 10x the raw weight is NOT 10x the
-    # normalized value. Comparing floats with == is fragile because of
-    # rounding, so use pytest.approx for anything computed.
+    # log1p makes big differences smaller: 10x the raw weight is NOT 10x the
+    # normalized value. A float comparison with == can fail because of
+    # rounding, so use pytest.approx for all calculated values.
     assert normalized["NM"] == pytest.approx(math.log1p(2) / math.log1p(10))
 
 
@@ -143,22 +142,22 @@ def test_normalize_handles_empty_and_zero_input():
 # get_preferred_mods (reads from a database)
 # ---------------------------------------------------------------------------
 def test_get_preferred_mods_from_scores(recommender_db):
-    # `recommender_db` comes from conftest.py: a throwaway database with the
-    # real schema. We add exactly the scores this test is about.
+    # `recommender_db` comes from conftest.py: a temporary database with the
+    # real schema. The test adds exactly the scores that it needs.
     db = recommender_db
     db.add_beatmap(1)
     db.add_beatmap(2)
     db.add_beatmap(3)
 
     db.add_score(7, 1, mods="HD,DT", source="top", pp=None)
-    db.add_score(7, 2, mods="DT,HD", source="top", pp=None)  # Same combo, other order.
+    db.add_score(7, 2, mods="DT,HD", source="top", pp=None)  # The same combination, in another order.
     db.add_score(7, 3, mods="", source="recent", pp=None)
-    db.add_score(7, 3, mods="XYZ", source="top", pp=None)  # Unknown mod: skipped, not a crash.
+    db.add_score(7, 3, mods="XYZ", source="top", pp=None)  # An unknown mod: skipped, not a crash.
     db.add_score(999, 1, mods="HR", source="top", pp=None)  # Another player: ignored.
 
     result = get_preferred_mods(db.conn, 7, top_weight=3.0, recent_weight=1.0, pp_weight=0.0)
 
-    # Sorted from most to least preferred.
+    # Sorted from the most preferred to the least preferred.
     assert [mods for mods, _ in result] == ["HDDT", "NM"]
     assert result[0][1] == 1.0
     assert result[1][1] == pytest.approx(math.log1p(1) / math.log1p(6))

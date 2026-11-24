@@ -5,13 +5,13 @@ The default request is the worst case: no star-rating bounds and every mod
 combination, so all ~3 million variants are scored. It uses the player's
 scores already stored in the database (update_scores=False).
 
-    # per-stage timings from the logs, 2 runs
+    # the time of each stage, from the logs, 2 runs
     PYTHONPATH=. python beatmap_recommender/benchmarks/profile_recommender.py
 
-    # cProfile, sorted by cumulative and by own time
+    # cProfile, sorted by cumulative time and by own time
     PYTHONPATH=. python beatmap_recommender/benchmarks/profile_recommender.py --cprofile
 
-    # a typical request (the default settings) instead of the worst case
+    # a typical request (the default settings), not the worst case
     PYTHONPATH=. python beatmap_recommender/benchmarks/profile_recommender.py --typical
 
 cProfile adds a lot of overhead to code that makes millions of small calls,
@@ -22,27 +22,18 @@ import argparse
 import cProfile
 import gc
 import logging
-import os
 import pstats
 import sys
 import time
 from pathlib import Path
 
-# The recommender imports the OAuth module, which refuses to load without
-# these. Scores aren't fetched here, so placeholders are enough.
-for name in ("OSU_CLIENT_ID", "OSU_CLIENT_SECRET", "OSU_REDIRECT_URI"):
-    os.environ.setdefault(name, "unused")
+# common sets the placeholder credentials, so it must come before the recommender imports.
+from beatmap_recommender.benchmarks.common import DEFAULT_DB_PATH, DEFAULT_PLAYER_ID  # isort: skip
 
 from beatmap_recommender.api.model import RecommendationSettings
 from beatmap_recommender.content_similarity.core_modules.variant_table import load_variant_table
 from beatmap_recommender import database
 from beatmap_recommender.recommender import recommend_player_sync
-
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-
-# Opened read-only (scores aren't updated), so the file itself is never modified.
-DEFAULT_DB_PATH = PROJECT_ROOT / "beatmap_recommender/recommender.local.db"
-DEFAULT_PLAYER_ID = 10961031
 
 WORST_CASE_SETTINGS = {
     "min_stars": 0.0,
@@ -71,7 +62,7 @@ def main():
 
     database.DB_PATH = args.db
 
-    # The server builds this at startup, so it isn't part of a request.
+    # The server builds this at startup, so it is not part of a request.
     start = time.perf_counter()
     load_variant_table()
     print(f"load_variant_table: {time.perf_counter() - start:.2f}s")
@@ -102,8 +93,8 @@ def main():
         rows = recommend_player_sync(settings, update_scores=False)
         print(f"run {run}: {time.perf_counter() - start:.2f}s ({len(rows)} rows)")
 
-        # Free this run's result before the next one, like the server does
-        # once a result expires, so runs don't slow each other down.
+        # Free the result of this run before the next one, as the server does
+        # when a result expires. Thus one run does not slow down the next.
         del rows
 
 

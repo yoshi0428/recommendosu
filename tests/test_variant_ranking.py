@@ -1,9 +1,10 @@
 """
-Tests for variant_ranking.py: turning candidate maps into a ranked list.
+Tests for variant_ranking.py: it changes the candidate maps into a ranked list.
 
-These are a mix of unit tests (calculate_difficulty_scores, the sort order)
-and small *integration tests*, which check that several pieces work together
-(SQL filters + scoring + sorting) against a real, if tiny, SQLite database.
+These tests are a mix of unit tests (calculate_difficulty_scores, the sort
+order) and small *integration tests*. An integration test checks that several
+parts work together (SQL filters + scoring + sorting) on a real, but very
+small, SQLite database.
 """
 
 import sqlite3
@@ -29,21 +30,21 @@ from beatmap_recommender.content_similarity.core_modules.variant_ranking import 
 )
 from beatmap_recommender.content_similarity.core_modules.variant_table import sql_like
 
-# The player created by the `seeded_db` fixture in conftest.py. (Don't import
-# from conftest.py directly; pytest loads it specially, and importing it a
-# second time as a normal module causes confusing duplicate state.)
+# The player that the `seeded_db` fixture in conftest.py makes. (Do not import
+# from conftest.py directly. pytest loads it in a special way, and a second
+# import as a normal module makes a confusing second copy of its state.)
 PLAYER_ID = 100
 CANDIDATES = ["10", "11", "12", "13", "14"]
 
 
 def variant_mods(variants):
-    """The set of (beatmap_id, mods) pairs, which is easy to assert on."""
+    """Return the set of (beatmap_id, mods) pairs, which is easy to check."""
     return {(v["beatmap_id"], v["mods"]) for v in variants}
 
 
 def test_weights_sum_to_one():
-    # A cheap sanity check on configuration: if someone tweaks a weight and
-    # forgets to rebalance, final scores silently drift out of [0, 1].
+    # A quick check of the configuration. If someone changes a weight and does
+    # not balance the others, the final scores go out of [0, 1] without an error.
     assert sum(RECOMMENDATION_CONFIG["weights"].values()) == pytest.approx(1.0)
 
 
@@ -71,7 +72,7 @@ def test_difficulty_score_is_neutral_without_profile():
 # get_candidate_variants (SQL filters)
 # ---------------------------------------------------------------------------
 def test_requested_mods_include_subsets(seeded_db):
-    # Asking for HD + DT (not exact) allows HD, DT, and HDDT.
+    # A request for HD + DT (not exact) allows HD, DT, and HDDT.
     variants = get_candidate_variants(seeded_db.conn, ["10"], requested_mods={"HD", "DT"})
     assert {v["mods"] for v in variants} == {"HD", "DT", "HDDT"}
 
@@ -96,7 +97,7 @@ def test_numeric_filters_and_status(seeded_db):
         seeded_db.conn, CANDIDATES,
         requested_mods={"NM"}, ranges={"stars": (4.0, 6.0)}, beatmap_status="ranked",
     )
-    # 11 is loved, 13 too hard, 14 too easy.
+    # 11 is loved, 13 is too hard, and 14 is too easy.
     assert variant_mods(variants) == {("10", "NM"), ("12", "NM")}
 
 
@@ -105,7 +106,7 @@ def test_year_filter(seeded_db):
     assert variant_mods(variants) == {("12", "NM")}
 
 
-# The columns get_candidate_variants returns, as the SQL it replaced selected them.
+# The columns that get_candidate_variants returns, as the SQL that it replaced selected them.
 CANDIDATE_SELECT = """
     SELECT variant_id, CAST(beatmap_id AS TEXT), beatmapset_id, mods, hp_drain,
            circle_size, od, ar, star_rating, max_combo, bpm, length_seconds,
@@ -128,9 +129,9 @@ CANDIDATE_SELECT = """
     ],
 )
 def test_filters_match_sqlite(seeded_db, filters, where):
-    # get_candidate_variants filters numpy columns instead of running SQL.
-    # Compare it against the SQL it replaced: same rows, same order, same
-    # Python types, including NULLs, which never pass a comparison in SQL.
+    # get_candidate_variants filters numpy columns. It does not run SQL. Compare
+    # it with the SQL that it replaced: the same rows, the same order, the same
+    # Python types. This includes NULLs, which never pass a comparison in SQL.
     conn = seeded_db.conn
     conn.execute("UPDATE beatmap_variants SET bpm = NULL, pp = NULL, max_combo = NULL WHERE mods = 'HD'")
 
@@ -165,13 +166,13 @@ def test_ranked_rows_are_built_the_same_however_they_are_read(seeded_db):
 # ---------------------------------------------------------------------------
 def test_played_variants_match_canonical_mods(seeded_db):
     played = get_player_played_variants(seeded_db.conn, PLAYER_ID)
-    # Score mods "HD,DT" must be matched to the "HDDT" variant row.
+    # The score mods "HD,DT" must match the "HDDT" variant row.
     assert variant_mods(played) == {("1", "NM"), ("2", "HDDT"), ("3", "HD"), ("4", "NM")}
 
 
 def test_nightcore_plays_match_double_time_variants(seeded_db):
-    # NC is DT with pitch-shifted audio. beatmap_variants only stores DT
-    # combinations, so NC plays must resolve to them instead of being dropped.
+    # NC is DT with a higher audio pitch. beatmap_variants stores only the DT
+    # combinations, so an NC play must find them. It must not be dropped.
     seeded_db.add_beatmap(60)
     seeded_db.add_beatmap(61)
     seeded_db.add_score(300, 60, mods="NC")
@@ -184,7 +185,7 @@ def test_nightcore_plays_match_double_time_variants(seeded_db):
 
 def test_exclude_recent_plays_keeps_top_plays(seeded_db):
     played = get_player_played_variants(seeded_db.conn, PLAYER_ID, exclude_recent_plays=True)
-    # Map 4 was only a recent play; map 3 was "top,recent" so it stays.
+    # Map 4 was only a recent play. Map 3 was "top,recent", so it stays.
     assert variant_mods(played) == {("1", "NM"), ("2", "HDDT"), ("3", "HD")}
 
 
@@ -200,20 +201,20 @@ def difficulty_profile(conn, player_id, exclude_recent_plays=False):
 def test_difficulty_profile_reflects_player(seeded_db):
     profile = difficulty_profile(seeded_db.conn, PLAYER_ID)
 
-    # The player's plays are 5.0, 5.8 (HDDT), 5.67 (HD) and one 2.0-star
-    # warm-up worth only 30pp. Star rating is weighted by pp, so that warm-up
-    # should pull the mean down *less* than it would in a plain average.
+    # The plays of the player are 5.0, 5.8 (HDDT), 5.67 (HD) and one 2.0-star
+    # warm-up worth only 30pp. The star rating is weighted by pp, so the warm-up
+    # must pull the mean down *less* than in a plain average.
     unweighted_mean = (5.0 + 5.8 + 5.67 + 2.0) / 4
     assert unweighted_mean < profile["star_rating_mean"] < 5.8
 
-    # pp uses only top plays (300, 280, 250), heavily weighted toward the best.
+    # pp uses only the top plays (300, 280, 250), with much more weight on the best.
     assert 250 < profile["pp_mean"] < 300
 
 
 def test_difficulty_profile_for_player_without_plays_is_empty_dict(seeded_db):
-    # Regression test: this used to return the tuple ({}, {}), and callers
-    # crashed on profile.get(...) with a 500. Real-world trigger: a player
-    # whose plays are all "recent" requests recommendations with
+    # Regression test: this function returned the tuple ({}, {}) before, and the
+    # callers crashed on profile.get(...) with a 500. The real cause: a player
+    # with only "recent" plays asked for recommendations with
     # exclude_recent_plays=True.
     seeded_db.add_beatmap(50)
     seeded_db.add_score(555, 50, source="recent")
@@ -227,7 +228,7 @@ def test_difficulty_profile_for_player_without_plays_is_empty_dict(seeded_db):
 # rank_variants (the whole ranking step)
 # ---------------------------------------------------------------------------
 def rank(conn, **overrides):
-    """Call rank_variants with the app's default settings plus overrides."""
+    """Call rank_variants with the default settings of the app, plus the overrides."""
     similarity_index = {"10": 0.9, "11": 0.8, "12": 0.7, "13": 0.95, "14": 0.95}
     kwargs = dict(
         similarity_index=similarity_index,
@@ -275,8 +276,8 @@ def test_final_score_is_the_weighted_sum(seeded_db):
 
 
 def test_rank_variants_applies_star_window(seeded_db):
-    # Window is mean +/- 1 std = [4.7, 5.7]. Maps 13 (9*) and 14 (1.5*) have
-    # high content similarity but must still be excluded.
+    # The window is mean +/- 1 std = [4.7, 5.7]. Maps 13 (9*) and 14 (1.5*) have
+    # a high content similarity, but they must still be excluded.
     ranked = rank(seeded_db.conn)
 
     assert {r["beatmap_id"] for r in ranked}.isdisjoint({"13", "14"})
@@ -289,8 +290,8 @@ def test_explicit_star_filter_overrides_window(seeded_db):
 
 
 def test_min_pp_alone_lifts_star_ceiling(seeded_db):
-    # Map 13 (9*) sits above the [4.7, 5.7] window. A lone min_pp removes
-    # the ceiling but keeps the floor, so 14 (1.5*) stays out.
+    # Map 13 (9*) is above the [4.7, 5.7] window. A min_pp alone removes the
+    # maximum but keeps the minimum, so 14 (1.5*) stays out.
     ranked = rank(seeded_db.conn, ranges={"pp": (100, None)})
     beatmap_ids = {r["beatmap_id"] for r in ranked}
 
@@ -300,7 +301,7 @@ def test_min_pp_alone_lifts_star_ceiling(seeded_db):
 
 
 def test_min_pp_with_max_pp_still_lifts_star_ceiling(seeded_db):
-    # Map 13's 9* variants are worth 20 * 9**2 = 1620 pp.
+    # The 9* variants of map 13 are worth 20 * 9**2 = 1620 pp.
     ranked = rank(seeded_db.conn, ranges={"pp": (100, 2000)})
 
     assert "13" in {r["beatmap_id"] for r in ranked}
@@ -321,8 +322,8 @@ def test_explicit_max_stars_wins_over_min_pp(seeded_db):
 
 
 def test_ranking_without_difficulty_profile(seeded_db):
-    # What the ranker receives for a player with no matching plays (see the
-    # regression test above). It must still rank, just without a star window.
+    # What the ranker gets for a player with no matching plays (see the
+    # regression test above). It must still rank, only without a star window.
     ranked = rank(seeded_db.conn, difficulty_profile={})
 
     assert {r["beatmap_id"] for r in ranked} == set(CANDIDATES)
@@ -354,8 +355,9 @@ def test_cancelled_request_stops_ranking(seeded_db):
 # ---------------------------------------------------------------------------
 @pytest.mark.parametrize("seed", range(5))
 def test_descending_order_matches_lexsort_with_ties(seed):
-    # Few distinct values, so most rows tie on the primary key (and many on
-    # every key), plus NaNs and signed zeros, which lexsort treats specially.
+    # Few distinct values, so most rows tie on the primary key (and many tie on
+    # all the keys). Also NaNs and signed zeros, which lexsort treats in a
+    # special way.
     rng = np.random.default_rng(seed)
     keys = [rng.integers(0, 4, 2000).astype(np.float64) / 4 for _ in range(4)]
     keys[0][rng.choice(2000, 50)] = np.nan
@@ -376,7 +378,7 @@ def test_descending_order_without_ties_or_extra_keys():
 
 
 def test_settings_normalize_mods():
-    # The recommender relies on mods arriving uppercase and stripped.
+    # The recommender needs the mods in uppercase, without spaces.
     settings = RecommendationSettings(mods=[" hd", "Dt"], excluded_mods=["fl "])
 
     assert settings.mods == ["HD", "DT"]

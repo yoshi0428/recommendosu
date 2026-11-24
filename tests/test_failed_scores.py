@@ -1,9 +1,9 @@
 """
 Failed plays (rank F) are stored, because the score refresh asks osu! for
-them (include_fails=1), but they aren't evidence of what the player can do:
-they must not change the content-similarity seeds, the difficulty profile,
-the mod preferences or the NM category preferences. They still count as
-played, so "exclude already played" hides them.
+them (include_fails=1). But they do not show what the player can do. They must
+not change the content-similarity seeds, the difficulty profile, the mod
+preferences or the NM category preferences. They still count as played, so
+"exclude already played" hides them.
 """
 
 from beatmap_recommender.content_similarity.core_modules.classifier_influence import (
@@ -31,7 +31,7 @@ def profiles(conn):
 
 
 def close(a, b):
-    """Equal, up to float noise (the recency weights read the clock on every call)."""
+    """Return True if equal, up to float noise (the recency weights read the clock on each call)."""
     if isinstance(a, dict):
         return a.keys() == b.keys() and all(close(a[k], b[k]) for k in a)
     if isinstance(a, (list, tuple)):
@@ -42,8 +42,8 @@ def close(a, b):
 
 
 def add_fails(db):
-    # A 9-star map with a mod combination the player never passed, and a map
-    # with classifier predictions (the category preferences only read those).
+    # A 9-star map with a mod combination that the player never passed, and a
+    # map with classifier predictions (the category preferences read only those).
     db.add_score(PLAYER_ID, 13, mods="HR", source="recent", pp=None, created_at="2026-11-19T00:00:00Z", rank="F")
     db.add_score(PLAYER_ID, 10, mods="HR", source="recent", pp=None, created_at="2026-11-19T00:00:00Z", rank="F")
 
@@ -55,7 +55,7 @@ def test_failed_plays_change_no_profile(seeded_db):
 
 
 def test_a_passed_play_does_change_them(seeded_db):
-    # The same plays as passes do count, so the test above isn't vacuous.
+    # The same plays as passes do count, so the test above is not empty of meaning.
     before = profiles(seeded_db.conn)
     seeded_db.add_score(PLAYER_ID, 13, mods="HR", source="recent", pp=500, created_at="2026-11-19T00:00:00Z")
     seeded_db.add_score(PLAYER_ID, 10, mods="HR", source="recent", pp=400, created_at="2026-11-19T00:00:00Z")

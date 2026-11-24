@@ -1,18 +1,18 @@
 """
 Smoke test against the real data in beatmap_recommender/dummy.db.
 
-A *smoke test* doesn't check exact values. It runs the real thing on real
-data and asks "does anything catch fire?" It catches the problems hand-made
-test data never contains: weird loved maps, odd mod strings, NULLs in
-unexpected columns, performance cliffs.
+A *smoke test* does not check exact values. It runs the real code on real data
+and asks "does anything catch fire?" It finds the problems that hand-made test
+data never has: strange loved maps, odd mod strings, NULLs in unexpected
+columns, sudden slowdowns.
 
-It's marked `slow` (loading every variant from the 583MB database takes a while), so a plain `pytest` run
-skips it. Run it explicitly with:
+It is marked `slow` (the load of all the variants from the 583MB database takes
+some time), so a plain `pytest` run skips it. To run it, use:
 
     python -m pytest -m slow
 
-It's skipped automatically if dummy.db isn't present (e.g. on a fresh clone,
-since the databases aren't in git).
+If dummy.db is not present, the test is skipped automatically (for example,
+in a new clone, because the databases are not in git).
 """
 
 import sqlite3
@@ -26,7 +26,7 @@ from beatmap_recommender.recommender import recommend_player_sync
 DUMMY_DB = database.PROJECT_ROOT / "beatmap_recommender" / "dummy.db"
 
 pytestmark = [
-    # `pytestmark` applies these marks to every test in this file.
+    # `pytestmark` applies these marks to all the tests in this file.
     pytest.mark.slow,
     pytest.mark.skipif(not DUMMY_DB.exists(), reason="beatmap_recommender/dummy.db not found"),
 ]
@@ -37,8 +37,8 @@ def player_ids():
     """
     The players in dummy.db with the most scores.
 
-    `scope="module"` runs this fixture once for the whole file instead of
-    once per test. Use it for expensive, read-only setup.
+    `scope="module"` runs this fixture one time for the full file, not one
+    time for each test. Use it for setup that is slow and read-only.
     """
     with sqlite3.connect(f"{DUMMY_DB.as_uri()}?mode=ro", uri=True) as conn:
         rows = conn.execute(
@@ -49,8 +49,8 @@ def player_ids():
 
 @pytest.fixture(scope="module", autouse=True)
 def dummy_db_path():
-    # Point the recommender at dummy.db for this file. `monkeypatch` is
-    # per-test, so a module-scoped fixture uses its context manager form.
+    # Point the recommender at dummy.db for this file. `monkeypatch` works for
+    # one test only, so a module-scoped fixture uses its context manager form.
     with pytest.MonkeyPatch.context() as monkeypatch:
         monkeypatch.setattr(database, "DB_PATH", DUMMY_DB)
         yield
@@ -60,8 +60,8 @@ def test_recommendations_for_real_players(player_ids):
     for player_id in player_ids:
         settings = RecommendationSettings(player_id=player_id, limit=500)
 
-        # update_scores=False: use the scores already in dummy.db instead of
-        # calling the osu! API.
+        # update_scores=False: use the scores in dummy.db, and do not call the
+        # osu! API.
         ranked = recommend_player_sync(settings, update_scores=False)
 
         assert ranked, f"no recommendations for player {player_id}"

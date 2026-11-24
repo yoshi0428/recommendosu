@@ -1,13 +1,13 @@
-// Tests for src/api/client.js: the functions that talk to the backend.
+// Tests for src/api/client.js: the functions that send requests to the backend.
 //
-// No server runs during these tests. `fetch` is replaced with a fake
-// (vi.fn) that returns whatever response a test sets up. This lets each test:
+// No server runs during these tests. A fake (vi.fn) replaces `fetch`, and it
+// returns the response that the test prepares. Thus each test can:
 //   1. check what the client *sent* (URL, method, headers, body), and
-//   2. check how it *handles* each kind of reply, including ones that are
-//      hard to trigger for real, like nginx's HTML 504 timeout page.
+//   2. check how it *handles* each type of reply, also replies that are hard
+//      to cause for real, such as the HTML 504 timeout page of nginx.
 //
-// `Response` is the browser's real response class (Node has it too), so
-// .json(), .ok and .headers behave exactly like in the browser.
+// `Response` is the real response class of the browser (Node also has it), so
+// .json(), .ok and .headers work exactly as in the browser.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -30,14 +30,14 @@ function jsonResponse(body, status = 200) {
 let fetchMock;
 
 beforeEach(() => {
-  // beforeEach runs before every test in this file, so each test starts
-  // with a fresh fake that has no recorded calls. src/test/setup.js removes
-  // it again after each test.
+  // beforeEach runs before each test in this file, so each test starts with
+  // a new fake that has no recorded calls. tests/frontend/setup.js removes it
+  // after each test.
   fetchMock = vi.fn();
   vi.stubGlobal("fetch", fetchMock);
 });
 
-// The URL and options of the n-th fetch call.
+// The URL and the options of the n-th fetch call.
 function fetchCall(n = 0) {
   const [url, options] = fetchMock.mock.calls[n];
   return { url, options };
@@ -69,7 +69,7 @@ describe("getRecommendations", () => {
   });
 
   it("formats FastAPI validation errors (422) readably", async () => {
-    // This is the shape FastAPI/pydantic returns for invalid settings.
+    // FastAPI/pydantic returns this shape for invalid settings.
     fetchMock.mockResolvedValue(
       jsonResponse(
         {
@@ -115,8 +115,8 @@ describe("getRecommendations", () => {
   });
 
   it("passes an abort through as an AbortError", async () => {
-    // RecommendationsPage treats AbortError as "the user cancelled", not as
-    // an error to show, so the error type matters.
+    // RecommendationsPage treats AbortError as "the user cancelled", not as an
+    // error to show. Thus the error type is important.
     fetchMock.mockRejectedValue(new DOMException("aborted", "AbortError"));
 
     await expect(getRecommendations({})).rejects.toMatchObject({ name: "AbortError" });
@@ -185,8 +185,8 @@ describe("auth helpers", () => {
   });
 
   it("getCurrentUser returns null when logged out", async () => {
-    // A 401 here is normal (it's how the app knows to show the login screen),
-    // so it must not throw.
+    // A 401 here is normal (it tells the app to show the login screen), so it
+    // must not throw.
     fetchMock.mockResolvedValue(jsonResponse({ detail: "Not authenticated." }, 401));
     expect(await getCurrentUser()).toBeNull();
   });

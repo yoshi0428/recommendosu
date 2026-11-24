@@ -1,8 +1,8 @@
 // Component tests for CandidateFilters: the min/max number inputs.
 //
-// The important behaviour is the value that ends up in settings, because
-// that's what the backend receives: numbers (not strings), and null when a
-// box is empty (null means "no filter").
+// The important behavior is the value in settings at the end, because the
+// backend gets that value: numbers (not strings), and null when a box is
+// empty (null means "no filter").
 
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -59,9 +59,9 @@ describe("CandidateFilters", () => {
   });
 
   it("each box updates its own setting", async () => {
-    // A copy-paste slip (e.g. "Max CS" wired to min_cs) is easy to make in
-    // a component like this and hard to spot by eye. Typing into every box
-    // and checking every key catches it.
+    // A copy-paste mistake (for example, "Max CS" connected to min_cs) is easy
+    // to make in a component like this, and hard to see. The test types into
+    // each box and checks each key, so it finds that mistake.
     const { user, latest } = renderFilters();
     const fields = {
       "Min Stars": "min_stars",

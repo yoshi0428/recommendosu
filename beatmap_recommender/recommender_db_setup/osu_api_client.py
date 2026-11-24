@@ -18,8 +18,9 @@ TOKEN_URL = "https://osu.ppy.sh/oauth/token"
 
 class OsuAPIClient(osu_api_client.OsuAPIClient):
     """
-    The app's osu! API client, authenticated with its own client credentials
-    instead of a user's token. For scripts that populate the database.
+    The osu! API client of the app. It authenticates with the client
+    credentials of the app, not with the token of a user. The database scripts
+    and the played-maps worker (main.py) use it.
     """
 
     def __init__(self):
@@ -28,8 +29,8 @@ class OsuAPIClient(osu_api_client.OsuAPIClient):
 
     def authenticate(self):
         """
-        Get a client credentials OAuth token.
-        The token is cached in memory and refreshed automatically.
+        Get a client credentials OAuth token. The token stays in memory, and
+        ensure_authenticated() refreshes it automatically.
         """
         response = self.session.post(
             TOKEN_URL,
@@ -45,16 +46,14 @@ class OsuAPIClient(osu_api_client.OsuAPIClient):
         data = response.json()
         self.access_token = data["access_token"]
 
-        # Refresh slightly before expiration.
+        # Refresh the token a little before it expires.
         expires_in = data.get("expires_in", 3600)
         self.token_expires_at = time.time() + expires_in - 60
 
         print("Successfully authenticated with osu! API.")
 
     def ensure_authenticated(self):
-        """
-        Refresh the token if needed.
-        """
+        """Refresh the token if it is missing or expires soon."""
         if self.access_token is None or time.time() >= self.token_expires_at:
             self.authenticate()
 

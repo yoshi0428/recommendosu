@@ -1,15 +1,15 @@
 // Component tests for ModOptions.
 //
-// React Testing Library's approach: test a component the way a user uses
-// it. Find elements by what the user sees (a checkbox labelled "HD"), click
-// them, and check what changed, rather than poking at React internals. If
-// you later restyle or restructure the component, these tests keep passing
-// as long as it still *behaves* the same.
+// The approach of React Testing Library: test a component as a user uses it.
+// Find elements by what the user sees (a checkbox with the label "HD"), click
+// them, and check what changed. Do not look at React internals. If you later
+// change the style or the structure of the component, these tests still pass,
+// if it still *behaves* the same.
 //
 //   render(<X />)                  draws the component into the fake DOM
 //   screen.getByRole(...)          finds an element (throws if missing)
 //   userEvent.setup() + user.click simulates a real click, including focus
-//   expect(el).toBeChecked()       jest-dom matchers, from src/test/setup.js
+//   expect(el).toBeChecked()       jest-dom matchers, from tests/frontend/setup.js
 
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -19,7 +19,7 @@ import { SettingsHarness } from "./SettingsHarness";
 import ModOptions from "@/components/ModOptions";
 
 function renderModOptions(initialSettings = {}) {
-  // Keep a reference to the latest settings, updated after every change.
+  // Keep a reference to the latest settings, updated after each change.
   const latest = { settings: null };
   const user = userEvent.setup();
 
@@ -42,8 +42,8 @@ describe("ModOptions, normal mode", () => {
   it("shows the default exclusions as indeterminate", () => {
     renderModOptions();
 
-    // An indeterminate checkbox (the dash) means "excluded" here.
-    // toBePartiallyChecked is how jest-dom checks for it.
+    // Here, an indeterminate checkbox (the dash) means "excluded".
+    // jest-dom checks for it with toBePartiallyChecked.
     expect(mod("EZ")).toBePartiallyChecked();
     expect(mod("HT")).toBePartiallyChecked();
     expect(mod("FL")).toBePartiallyChecked();
@@ -110,10 +110,10 @@ describe("ModOptions, exact combination mode", () => {
     await user.click(mod("DT"));
     expect(latest.settings.mods).toEqual(["HD", "DT"]);
 
-    // HDHRDT is a stored variant, so HR can still be added...
+    // HDHRDT is a stored variant, so HR can still be added,
     expect(mod("HR")).toBeEnabled();
-    // ...but there are no HDDTFL / EZHDDT / HTHDDT variants, and NM can't
-    // combine with anything.
+    // but there are no HDDTFL / EZHDDT / HTHDDT variants, and NM cannot
+    // combine with other mods.
     expect(mod("FL")).toBeDisabled();
     expect(mod("EZ")).toBeDisabled();
     expect(mod("HT")).toBeDisabled();

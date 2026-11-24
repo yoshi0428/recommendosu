@@ -1,7 +1,7 @@
 // Component tests for the shared audio preview player.
 //
-// The results table is virtualized, so a row is unmounted as soon as it
-// scrolls out of view. The preview must keep playing when that happens.
+// The results table is virtualized, so a row unmounts as soon as it scrolls
+// out of view. The preview must continue to play when that happens.
 
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -119,8 +119,8 @@ describe("AudioPreviewProvider", () => {
 });
 
 describe("previous, next and repeat", () => {
-  // Two variants of mapset 2 (same preview audio), then mapset 3, then a row
-  // that hasn't been fetched yet, then mapset 4.
+  // Two variants of mapset 2 (the same preview audio), then mapset 3, then a
+  // row that did not load yet, then mapset 4.
   const PLAYLIST = [
     { ...RECOMMENDATION, variant_id: 10 },
     { ...RECOMMENDATION, variant_id: 11 },

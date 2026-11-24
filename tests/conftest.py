@@ -1,21 +1,21 @@
 """
-Shared test setup.
+The shared test setup.
 
-pytest automatically loads every `conftest.py` before running the tests next
-to it. Anything defined here with `@pytest.fixture` can be requested by any
-test simply by naming it as a function parameter, e.g.
+pytest loads each `conftest.py` automatically, before it runs the tests in the
+same directory. Any test can use a `@pytest.fixture` from this file: it names
+the fixture as a function parameter. For example:
 
     def test_something(recommender_db):
         ...
 
-pytest sees the parameter name, finds the fixture with that name, runs it, and
-passes in whatever it returns (or `yield`s). Code after a `yield` runs once the
-test finishes, which is how fixtures clean up after themselves.
+pytest finds the fixture with that name, runs it, and passes in the value
+that it returns (or `yield`s). The code after a `yield` runs when the test
+ends. That is how a fixture cleans up.
 
-The main idea behind the fixtures below: tests must never touch the real
-databases, the real osu! API, or your real credentials. Each test gets its own
-small, throwaway copy of everything, so tests can't interfere with each other or
-with the running site.
+The main rule of these fixtures: a test must never use the real databases,
+the real osu! API, or your real credentials. Each test gets its own small
+temporary copy of everything. Thus the tests cannot affect each other or the
+running site.
 """
 
 import os
@@ -26,10 +26,10 @@ import pytest
 # ---------------------------------------------------------------------------
 # Environment
 # ---------------------------------------------------------------------------
-# beatmap_recommender/auth/osu_oauth.py raises at *import time* if these are
-# missing, and main.py imports it. Setting fake values here (conftest is loaded
-# before any test module) lets the app import. No test sends them anywhere:
-# every network call is replaced with a fake.
+# beatmap_recommender/auth/osu_oauth.py raises an error at *import time* if
+# these are missing, and main.py imports it. With fake values here (conftest
+# loads before all test modules), the app can import. No test sends them: a
+# fake replaces each network call.
 os.environ.setdefault("OSU_CLIENT_ID", "test-client-id")
 os.environ.setdefault("OSU_CLIENT_SECRET", "test-client-secret")
 os.environ.setdefault("OSU_REDIRECT_URI", "http://testserver/api/v1/auth/osu/callback")
@@ -41,8 +41,9 @@ os.environ.setdefault("OSU_REDIRECT_URI", "http://testserver/api/v1/auth/osu/cal
 @pytest.fixture(autouse=True)
 def reset_osu_api_state(monkeypatch):
     """
-    Give every test a fresh shared rate limiter and no remembered score
-    refreshes, so one test's API calls can't slow down or skip another's.
+    Give each test a new shared rate limiter and no remembered score
+    refreshes. Thus the API calls of one test cannot slow down or skip the
+    calls of another test.
     """
     from beatmap_recommender.api import osu_api_client
     from beatmap_recommender.content_similarity.core_modules import score_collector
@@ -55,12 +56,38 @@ def reset_osu_api_state(monkeypatch):
     monkeypatch.setattr(score_collector, "_last_refreshed", {})
 
 
+class FakeApiClock:
+    """time.monotonic and time.sleep for osu_api_client. A sleep moves the clock forward."""
+
+    def __init__(self):
+        self.now = 1000.0
+        self.sleeps = []
+
+    def monotonic(self):
+        return self.now
+
+    def sleep(self, seconds):
+        self.sleeps.append(seconds)
+        self.now += seconds
+
+
+@pytest.fixture
+def fake_clock(monkeypatch):
+    """Replace the clock of osu_api_client, so that rate limit waits are instant and recorded."""
+    from beatmap_recommender.api import osu_api_client
+
+    clock = FakeApiClock()
+    monkeypatch.setattr(osu_api_client.time, "monotonic", clock.monotonic)
+    monkeypatch.setattr(osu_api_client.time, "sleep", clock.sleep)
+    return clock
+
+
 # ---------------------------------------------------------------------------
 # Recommender database
 # ---------------------------------------------------------------------------
-# This schema is copied from beatmap_recommender/dummy.db (`sqlite3 dummy.db
-# .schema`), trimmed to the tables the recommender reads. Using the real
-# schema means the SQL in the app runs unchanged against the test data.
+# This schema is a copy from beatmap_recommender/dummy.db (`sqlite3 dummy.db
+# .schema`), with only the tables that the recommender reads. Because it is
+# the real schema, the SQL of the app runs on the test data without changes.
 RECOMMENDER_SCHEMA = """
 CREATE TABLE beatmaps (
     beatmap_id TEXT PRIMARY KEY,
@@ -136,9 +163,9 @@ CREATE TABLE scores (
 );
 """
 
-# How each mod changes a variant's stats in the fake data. These are rough
-# approximations of osu! behaviour; they only need to be *plausible* so that,
-# for example, HDDT variants really are harder than NM variants.
+# How each mod changes the stats of a variant in the fake data. These values
+# are rough approximations of osu!. They only need to be *plausible*, so that,
+# for example, the HDDT variants are really harder than the NM variants.
 _MOD_EFFECTS = {
     # mods: (star multiplier, bpm/clock multiplier, ar, od)
     "NM": (1.00, 1.0, None, None),
@@ -152,12 +179,12 @@ _MOD_EFFECTS = {
 
 class RecommenderDB:
     """
-    A tiny helper for building recommender test data.
+    A small helper that builds recommender test data.
 
-    Instead of writing raw INSERT statements in every test, tests call
-    `db.add_beatmap(...)` and `db.add_score(...)` with only the values they
-    care about; everything else gets a sensible default. This keeps each test
-    focused on *what is different* about its scenario.
+    A test does not write raw INSERT statements. It calls `db.add_beatmap(...)`
+    and `db.add_score(...)` with only the values that matter to it. All other
+    values get a sensible default. Thus each test shows only *what is
+    different* in its scenario.
     """
 
     def __init__(self, conn: sqlite3.Connection):
@@ -204,7 +231,7 @@ class RecommenderDB:
             v_ar = {"hr": min(10.0, ar * 1.4), "dt": min(11.0, ar + 1.3)}.get(ar_kind, ar)
             v_od = {"hr": min(10.0, od * 1.4), "dt": min(11.0, od + 1.5)}.get(od_kind, od)
             v_stars = stars * star_mult
-            # pp grows faster than stars, roughly like the real data.
+            # pp grows faster than stars, approximately as in the real data.
             v_pp = 20.0 * v_stars ** 2
 
             cursor = self.conn.execute(
@@ -243,8 +270,8 @@ class RecommenderDB:
         created_at="2026-10-01T00:00:00Z",
         rank="S",
     ):
-        # Note: the osu! API gives mods like "HD,DT", and NM is an empty string.
-        # That's the format stored in the real scores table, so tests use it too.
+        # The osu! API gives mods such as "HD,DT", and NM is an empty string.
+        # The real scores table stores that format, so the tests use it too.
         self._score_counter += 1
         self.conn.execute(
             """
@@ -261,24 +288,20 @@ class RecommenderDB:
         self.conn.commit()
 
 
-def _create_recommender_db(path):
-    conn = sqlite3.connect(path)
-    conn.executescript(RECOMMENDER_SCHEMA)
-    db = RecommenderDB(conn)
-    db.path = path
-    return db
-
-
 @pytest.fixture
 def recommender_db(tmp_path):
     """
     An empty recommender database with the real schema.
 
-    `tmp_path` is a built-in pytest fixture: a fresh temporary directory that
-    is unique to this test. Each test therefore gets its own database file
-    and nothing leaks between tests.
+    `tmp_path` is a built-in pytest fixture: a new temporary directory for
+    this test only. Thus each test gets its own database file, and no data
+    goes from one test to another.
     """
-    db = _create_recommender_db(tmp_path / "recommender.db")
+    path = tmp_path / "recommender.db"
+    conn = sqlite3.connect(path)
+    conn.executescript(RECOMMENDER_SCHEMA)
+    db = RecommenderDB(conn)
+    db.path = path
     yield db
     db.conn.close()
 
@@ -289,15 +312,16 @@ PLAYER_ID = 100
 @pytest.fixture
 def seeded_db(recommender_db):
     """
-    A small but realistic world: one player with a handful of plays, plus a
-    pool of unplayed candidate maps around (and far away from) their skill.
+    A small but realistic world: one player with a few plays, plus a pool of
+    candidate maps that the player did not play, near the skill of the player
+    (and far from it).
 
-    Player 100 mostly plays ~5.0-5.5 star maps, likes HD/HDDT, and has one
-    old easy recent play.
+    Player 100 mostly plays maps of about 5.0-5.5 stars, likes HD/HDDT, and
+    has one old, easy recent play.
     """
     db = recommender_db
 
-    # Maps the player has played (these become "seed" maps).
+    # The maps that the player played (these become the "seed" maps).
     db.add_beatmap(1, stars=5.0, bpm=180)
     db.add_beatmap(2, stars=4.0, bpm=170)   # Played with HDDT -> ~5.8 stars.
     db.add_beatmap(3, stars=5.4, bpm=200)
@@ -308,7 +332,7 @@ def seeded_db(recommender_db):
     db.add_score(PLAYER_ID, 3, mods="HD", source="top,recent", pp=280)
     db.add_score(PLAYER_ID, 4, mods="", source="recent", pp=30)
 
-    # Unplayed candidate maps.
+    # The candidate maps that the player did not play.
     db.add_beatmap(10, stars=5.1, bpm=185, predictions=(0.1, 0.1, 0.6, 0.1, 0.1))
     db.add_beatmap(11, stars=5.3, bpm=190, status="loved")
     db.add_beatmap(12, stars=4.8, bpm=175, year=2010)
@@ -326,11 +350,11 @@ def seeded_db(recommender_db):
 @pytest.fixture
 def auth_db(tmp_path, monkeypatch):
     """
-    Point the auth stores at a fresh temporary auth.db and create the tables.
+    Point the auth stores at a new temporary auth.db, and create the tables.
 
-    `monkeypatch` is a built-in pytest fixture that temporarily replaces an
-    attribute (here, the module-level AUTH_DB_PATH constant) and automatically
-    puts the original back after the test. Without it, tests would write
+    `monkeypatch` is a built-in pytest fixture. It replaces an attribute for
+    the time of the test (here, the AUTH_DB_PATH constant of the module), and
+    puts the original back after the test. Without it, the tests would write
     sessions into your real beatmap_recommender/auth.db.
     """
     from beatmap_recommender.auth import db

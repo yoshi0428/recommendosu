@@ -1,15 +1,14 @@
 """
-Tests for the plumbing around the recommender: cancellation, the in-memory
-result cache, and the SQLite-backed auth stores (OAuth state, sessions,
-tokens).
+Tests for the support code around the recommender: cancellation, the result
+cache in memory, and the auth stores in SQLite (OAuth state, sessions, tokens).
 
 New techniques in this file:
-    * Faking time. Code with expiry logic (TTLs, sessions) calls
-      time.time() / time.monotonic(). Rather than sleeping for 30 minutes in a
-      test, we replace the clock with one we control.
-    * Testing async functions without extra plugins: asyncio.run(...) runs a
-      coroutine to completion inside a normal test.
-    * Mocking a network call so a test never talks to osu!.
+    * A fake time. Code with expiry logic (TTLs, sessions) calls
+      time.time() / time.monotonic(). The test does not sleep for 30 minutes.
+      It replaces the clock with one that it controls.
+    * Tests of async functions without extra plugins: asyncio.run(...) runs a
+      coroutine to its end inside a normal test.
+    * A mock of a network call, so that a test never talks to osu!.
 """
 
 import asyncio
@@ -23,16 +22,16 @@ from beatmap_recommender.auth import oauth_state, osu_oauth, session, token_stor
 
 class FakeClock:
     """
-    A clock that only moves when the test says so.
+    A clock that moves only when the test tells it to.
 
-    Pass `clock.now` wherever the code expects time.time or time.monotonic,
-    then call `clock.advance(seconds)` to jump forward instantly.
+    Pass `clock.now` where the code expects time.time or time.monotonic. Then
+    call `clock.advance(seconds)` to jump forward at once.
 
-    Caveat: the app modules do `import time`, so `module.time` *is* the
-    global time module and patching it affects everything for the duration
-    of the test. That's fine for these short synchronous tests (monkeypatch
-    restores it afterwards), but don't combine it with asyncio.run, since the
-    event loop reads time.monotonic too.
+    Caution: the app modules do `import time`, so `module.time` *is* the
+    global time module. A patch on it affects everything for the time of the
+    test. That is not a problem for these short synchronous tests (monkeypatch
+    puts it back after the test). But do not use it with asyncio.run, because
+    the event loop also reads time.monotonic.
     """
 
     def __init__(self, start=1_000_000.0):
@@ -78,7 +77,7 @@ def test_generated_ids_are_unique():
 def test_check_cancelled_ignores_missing_or_unset_event():
     import threading
 
-    cancellation.check_cancelled(None)  # Must not raise.
+    cancellation.check_cancelled(None)  # This must not raise an error.
     cancellation.check_cancelled(threading.Event())
 
 
@@ -90,10 +89,10 @@ def cache_clock(monkeypatch):
     """
     Give result_cache a fake clock and an empty cache.
 
-    result_cache keeps its data in a module-level dict, which persists across
-    tests in the same process. Without resetting it, a result stored by one
-    test could be visible to the next: a common cause of tests that pass
-    alone but fail when run together (or vice versa).
+    result_cache keeps its data in a dict of the module, which stays between
+    tests in the same process. Without a reset, the next test could see a
+    result that the previous test stored. This is a usual cause of tests that
+    pass alone but fail together (or the opposite).
     """
     clock = FakeClock()
     monkeypatch.setattr(result_cache.time, "monotonic", clock.now)
@@ -110,7 +109,7 @@ def test_pages_are_slices_of_the_stored_result(cache_clock):
     total, page = result_cache.get_result_page("rec1", player_id=1, offset=1, limit=2)
 
     assert total == 5
-    assert page == ROWS[1:3]  # Dicts come back intact, in order.
+    assert page == ROWS[1:3]  # The dicts come back with no changes, in order.
 
 
 def test_page_past_the_end_is_empty(cache_clock):
@@ -119,8 +118,8 @@ def test_page_past_the_end_is_empty(cache_clock):
 
 
 def test_other_players_cannot_read_a_result(cache_clock):
-    # Security-relevant: recommendation IDs come from the client, so the
-    # player check is what stops one user reading another's result.
+    # Important for security: the recommendation IDs come from the client. Thus
+    # the player check is what stops one user from reading the result of another.
     result_cache.store_result("rec1", player_id=1, recommendations=ROWS)
     assert result_cache.get_result_page("rec1", player_id=2, offset=0, limit=10) is None
 
@@ -137,10 +136,10 @@ def test_results_expire_after_ttl_without_access(cache_clock):
     result_cache.store_result("rec1", 1, ROWS)
 
     cache_clock.advance(result_cache.RESULT_TTL_SECONDS - 1)
-    assert result_cache.get_result_page("rec1", 1, 0, 1) is not None  # Access refreshes the TTL...
+    assert result_cache.get_result_page("rec1", 1, 0, 1) is not None  # An access resets the TTL,
 
     cache_clock.advance(result_cache.RESULT_TTL_SECONDS - 1)
-    assert result_cache.get_result_page("rec1", 1, 0, 1) is not None  # ...so it's still alive.
+    assert result_cache.get_result_page("rec1", 1, 0, 1) is not None  # so the result is still there.
 
     cache_clock.advance(result_cache.RESULT_TTL_SECONDS + 1)
     assert result_cache.get_result_page("rec1", 1, 0, 1) is None
@@ -154,10 +153,10 @@ def test_empty_result_can_be_stored(cache_clock):
 # ---------------------------------------------------------------------------
 # auth/oauth_state.py
 # ---------------------------------------------------------------------------
-# These use the `auth_db` fixture from conftest.py, which points the modules
-# at a temporary auth.db. Your real one is never touched.
+# These tests use the `auth_db` fixture from conftest.py, which points the
+# modules at a temporary auth.db. The tests never touch your real auth.db.
 def test_state_can_only_be_used_once(auth_db):
-    # One-time use is what protects the OAuth login against CSRF/replay.
+    # One-time use is what protects the OAuth login against CSRF and replay attacks.
     oauth_state.store_state("xyz")
 
     assert oauth_state.consume_state("xyz") is True
@@ -173,7 +172,7 @@ def test_state_expires(auth_db, monkeypatch):
     monkeypatch.setattr(oauth_state.time, "time", clock.now)
 
     oauth_state.store_state("xyz")
-    clock.advance(601)  # States live for 600 seconds.
+    clock.advance(601)  # A state lasts 600 seconds.
 
     assert oauth_state.consume_state("xyz") is False
 
@@ -225,10 +224,10 @@ def test_store_tokens_upserts(auth_db):
 
 
 def test_tokens_are_deleted_with_their_session(auth_db):
-    # oauth_tokens has ON DELETE CASCADE on sessions. This only works because
-    # auth_db() enables PRAGMA foreign_keys=ON; SQLite ignores foreign
-    # keys by default. The test guards that easy-to-lose detail: logging out
-    # should not leave tokens behind.
+    # oauth_tokens has ON DELETE CASCADE on sessions. This works only because
+    # auth_db() sets PRAGMA foreign_keys=ON. By default, SQLite ignores foreign
+    # keys. This test protects that detail, which is easy to lose: a logout must
+    # not leave tokens behind.
     session_id = session.create_session(42)
     token_store.store_tokens(session_id, 42, "access", "refresh", 3600)
 
@@ -254,21 +253,21 @@ def test_valid_access_token_is_returned_without_refresh(auth_db, monkeypatch):
 
 def test_expiring_access_token_is_refreshed(auth_db, monkeypatch):
     session_id = session.create_session(42)
-    # Expires in 30s, inside the 60s safety buffer, so it should be refreshed.
+    # The token expires in 30s, inside the 60s safety buffer, so it must be refreshed.
     token_store.store_tokens(session_id, 42, "old-access", "old-refresh", expires_in=30)
 
     calls = []
 
-    # A *fake* replacing the real HTTP call to osu!. It records how it was
-    # called so we can assert on that too.
+    # A *fake* that replaces the real HTTP call to osu!. It records its calls,
+    # so that the test can also check them.
     async def fake_refresh(refresh_token):
         calls.append(refresh_token)
-        return {"access_token": "new-access", "expires_in": 86400}  # No new refresh token.
+        return {"access_token": "new-access", "expires_in": 86400}  # There is no new refresh token.
 
-    # Patch the name *where it is looked up*: get_access_token calls the
-    # module-level refresh_access_token of osu_oauth, so that's the one to
-    # replace. (A module that did `from osu_oauth import refresh_access_token`
-    # would have its own reference, which this wouldn't affect.)
+    # Patch the name *where the code finds it*. get_access_token calls the
+    # refresh_access_token of the osu_oauth module, so replace that one. (A
+    # module that did `from osu_oauth import refresh_access_token` would have
+    # its own reference, and this patch would not change it.)
     monkeypatch.setattr(osu_oauth, "refresh_access_token", fake_refresh)
 
     assert asyncio.run(osu_oauth.get_access_token(session_id)) == "new-access"
@@ -276,7 +275,7 @@ def test_expiring_access_token_is_refreshed(auth_db, monkeypatch):
 
     stored = token_store.get_tokens(session_id)
     assert stored["access_token"] == "new-access"
-    assert stored["refresh_token"] == "old-refresh"  # Kept when osu! doesn't rotate it.
+    assert stored["refresh_token"] == "old-refresh"  # Kept when osu! does not send a new one.
 
 
 def _http_status_error(status_code):
@@ -287,7 +286,7 @@ def _http_status_error(status_code):
 
 @pytest.mark.parametrize("status_code", [400, 401])
 def test_rejected_refresh_token_ends_the_session(auth_db, monkeypatch, status_code):
-    # E.g. the user revoked this app in their osu! settings.
+    # For example, the user revoked this app in the osu! settings.
     session_id = session.create_session(42)
     token_store.store_tokens(session_id, 42, "old-access", "revoked-refresh", expires_in=30)
 
@@ -320,13 +319,13 @@ def test_osu_outage_during_refresh_keeps_the_session(auth_db, monkeypatch):
 
 def test_refresh_lost_to_a_concurrent_refresh_uses_the_new_token(auth_db, monkeypatch):
     # Two tabs refresh with the same refresh token. osu! accepts the first and
-    # rejects the second; the second should pick up the first's new tokens,
-    # not log the user out.
+    # rejects the second. The second must use the new tokens of the first, and
+    # must not log out the user.
     session_id = session.create_session(42)
     token_store.store_tokens(session_id, 42, "old-access", "old-refresh", expires_in=30)
 
     async def fake_refresh(refresh_token):
-        # The other tab won the race just before osu! answered us.
+        # The other tab refreshed first, just before osu! answered this request.
         token_store.update_tokens(session_id, "other-tab-access", "other-tab-refresh", 86400)
         raise _http_status_error(400)
 
@@ -357,7 +356,7 @@ def test_application_token_is_cached_until_it_expires(monkeypatch):
     assert asyncio.run(osu_oauth.get_application_access_token()) == "app-token-1"
     assert asyncio.run(osu_oauth.get_application_access_token()) == "app-token-1"
 
-    # Refreshed TOKEN_EXPIRY_BUFFER seconds before osu! would expire it.
+    # The token is refreshed TOKEN_EXPIRY_BUFFER seconds before osu! expires it.
     clock.advance(86400 - osu_oauth.TOKEN_EXPIRY_BUFFER)
     assert asyncio.run(osu_oauth.get_application_access_token()) == "app-token-2"
     assert requests == ["client_credentials", "client_credentials"]

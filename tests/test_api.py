@@ -1,17 +1,17 @@
 """
-API tests for main.py, using FastAPI's TestClient.
+API tests for main.py, with the TestClient of FastAPI.
 
-TestClient sends real HTTP requests to the app *in-process*: no server, no
-port, no network. You call `client.get("/health")` and get back a normal
-response object with `.status_code`, `.json()`, `.headers` and `.cookies`.
-These tests check the contract the frontend relies on: URLs, status codes,
-auth rules, and response shapes.
+TestClient sends real HTTP requests to the app *in the same process*: no
+server, no port, no network. You call `client.get("/health")`, and you get a
+normal response object with `.status_code`, `.json()`, `.headers` and
+`.cookies`. These tests check the contract that the frontend needs: URLs,
+status codes, auth rules, and response shapes.
 
-Important detail: `TestClient(app)` is created *without* a `with` block on
-purpose. Entering `with TestClient(app)` runs the app's lifespan, which
-loads every variant of the 583MB recommender database into memory. None of these tests need
-it, so they skip it, and anything that would touch the database or osu! is
-replaced with a fake.
+Important: the code makes `TestClient(app)` *without* a `with` block on
+purpose. `with TestClient(app)` runs the lifespan of the app, which loads all
+the variants of the 583MB recommender database into memory. None of these
+tests need it, so they skip it. A fake replaces all the code that would use
+the database or osu!.
 """
 
 import sqlite3
@@ -36,14 +36,14 @@ PLAYER_ID = 100
 # ---------------------------------------------------------------------------
 @pytest.fixture
 def client(auth_db, monkeypatch):
-    # Fresh, empty result cache per test (it's a module-level global).
+    # A new, empty result cache for each test (the cache is a global of the module).
     monkeypatch.setattr(result_cache, "_results", {})
     return TestClient(main.app)
 
 
 @pytest.fixture
 def logged_in_client(client):
-    """A client carrying a valid session cookie for player 100."""
+    """A client with a valid session cookie for player 100."""
     session_id = session.create_session(PLAYER_ID)
     token_store.store_tokens(session_id, PLAYER_ID, "access", "refresh", expires_in=3600)
     client.cookies.set("session_id", session_id)
@@ -52,7 +52,7 @@ def logged_in_client(client):
 
 
 def fake_recommendation(beatmap_id, final_score=0.5, beatmapset_id="set"):
-    """One row shaped like what rank_variants returns."""
+    """One row in the shape of the rows that rank_variants returns."""
     return {
         "variant_id": int(beatmap_id), "beatmap_id": str(beatmap_id),
         "beatmapset_id": beatmapset_id, "mods": "NM", "status": "ranked",
@@ -69,10 +69,10 @@ def fake_recommendation(beatmap_id, final_score=0.5, beatmapset_id="set"):
 @pytest.fixture
 def fake_recommender(monkeypatch):
     """
-    Replace main.recommend_player with a fake that returns canned rows.
+    Replace main.recommend_player with a fake that returns fixed rows.
 
-    The fake also records the arguments it received, so tests can check
-    what the endpoint passed in, e.g. that the player ID came from the
+    The fake also records its arguments, so that the tests can check what
+    the endpoint passed in. For example, that the player ID came from the
     session cookie.
     """
     state = {"rows": [fake_recommendation(i, final_score=1 - i / 10000) for i in range(2500)], "calls": []}
@@ -85,7 +85,7 @@ def fake_recommender(monkeypatch):
         return state["rows"]
 
     # main.py did `from beatmap_recommender.recommender import recommend_player`,
-    # so the endpoint looks the name up in `main`. That's where it must be patched.
+    # so the endpoint finds the name in `main`. Thus the patch must go there.
     monkeypatch.setattr(main, "recommend_player", fake_recommend_player)
     return state
 
@@ -109,8 +109,8 @@ def test_health(client):
     ],
 )
 def test_protected_endpoints_require_login(client, method, path):
-    # Parametrizing over endpoints means a newly added endpoint is one line
-    # here, and it's obvious at a glance which endpoints are protected.
+    # With one parameter for each endpoint, a new endpoint is one line here, and
+    # it is easy to see which endpoints are protected.
     kwargs = {"json": {}} if method == "post" else {}
     response = getattr(client, method)(path, **kwargs)
     assert response.status_code == 401
@@ -145,7 +145,7 @@ def test_login_redirects_to_osu_with_a_stored_state(client):
     location = response.headers["location"]
     assert location.startswith("https://osu.ppy.sh/oauth/authorize?")
 
-    # The state in the URL must be one the server will accept exactly once.
+    # The server must accept the state in the URL exactly one time.
     state = location.split("state=")[1].split("&")[0]
     assert oauth_state.consume_state(state) is True
 
@@ -208,18 +208,18 @@ def test_post_recommend_returns_first_page(logged_in_client, fake_recommender):
     assert body["total_count"] == 2500
     assert len(body["recommendations"]) == main.RECOMMENDATION_PAGE_SIZE
 
-    # The player ID was filled in from the session, not trusted from the body.
+    # The player ID came from the session. The endpoint did not trust the body.
     assert fake_recommender["calls"][0]["settings"].player_id == PLAYER_ID
 
 
 def test_post_recommend_requires_recommendation_id_header(logged_in_client, fake_recommender):
     response = post_recommend(logged_in_client, recommendation_id=None)
     assert response.status_code == 400
-    assert fake_recommender["calls"] == []  # Rejected before any work happened.
+    assert fake_recommender["calls"] == []  # Rejected before any work started.
 
 
 def test_settings_are_validated(logged_in_client, fake_recommender):
-    # Pydantic rejects out-of-range values with 422 before the endpoint runs.
+    # Before the endpoint runs, Pydantic rejects out-of-range values with 422.
     response = post_recommend(logged_in_client, {"min_year": 1999})
     assert response.status_code == 422
 
@@ -232,7 +232,7 @@ def test_paging_through_a_result(logged_in_client, fake_recommender):
     body = response.json()
     assert body["total_count"] == 2500
     assert body["offset"] == 2000
-    assert len(body["recommendations"]) == 500  # Only 500 rows left after offset 2000.
+    assert len(body["recommendations"]) == 500  # Only 500 rows remain after offset 2000.
     assert body["recommendations"][0]["beatmap_id"] == "2000"
 
 
@@ -252,7 +252,7 @@ def test_unknown_page_is_404(logged_in_client):
 def test_another_player_cannot_page_your_result(logged_in_client, fake_recommender):
     post_recommend(logged_in_client)
 
-    # Log in as a different player and try to read player 100's result.
+    # Log in as a different player, and try to read the result of player 100.
     other_session = session.create_session(200)
     logged_in_client.cookies.set("session_id", other_session)
 
@@ -293,16 +293,17 @@ def test_cancel_endpoint_for_unknown_request(logged_in_client):
 # ---------------------------------------------------------------------------
 def test_recommend_end_to_end_with_test_database(logged_in_client, seeded_db, monkeypatch):
     """
-    The most realistic test in this file: nothing in the recommendation
-    pipeline is faked except the two things that leave this machine:
+    The most realistic test in this file. Nothing in the recommendation
+    pipeline is fake, except the two things that leave this machine:
 
-      * the database connection is pointed at the tiny seeded test DB
-        instead of the 583MB recommender database, and
-      * update_player_scores (which calls the osu! API) is a no-op, so the
-        scores already in the test DB are used as-is.
+      * the database connection goes to the small seeded test database, not
+        to the 583MB recommender database, and
+      * update_player_scores (which calls the osu! API) does nothing, so the
+        code uses the scores in the test database as they are.
 
-    This catches problems the unit tests can't: two pieces that each work
-    alone but disagree about a column name, a dict key, or a data type.
+    This test finds problems that the unit tests cannot find: two parts that
+    each work alone, but do not agree about a column name, a dict key, or a
+    data type.
     """
     monkeypatch.setattr(recommender, "connect_db", lambda read_only=False: sqlite3.connect(seeded_db.path))
     monkeypatch.setattr(recommender, "update_player_scores", lambda conn, api, player_id: None)
@@ -314,9 +315,9 @@ def test_recommend_end_to_end_with_test_database(logged_in_client, seeded_db, mo
     recommended = {r["beatmap_id"] for r in body["recommendations"]}
 
     assert body["total_count"] > 0
-    # Played maps are excluded by default...
+    # By default, the played maps are excluded,
     assert recommended.isdisjoint({"1", "2", "3", "4"})
-    # ...and the far-too-hard / far-too-easy maps fall outside the star window.
+    # and the maps that are much too hard or too easy are outside the star window.
     assert recommended.isdisjoint({"13", "14"})
 
     scores = [r["final_score"] for r in body["recommendations"]]
@@ -332,7 +333,7 @@ DISCORD_USER_ID = 900000000000000001
 
 @pytest.fixture
 def bot_client(client, monkeypatch):
-    """A client sending a valid X-Bot-Key and no session cookie."""
+    """A client that sends a valid X-Bot-Key and no session cookie."""
     monkeypatch.setattr(main, "BOT_API_KEY", BOT_KEY)
     client.headers["X-Bot-Key"] = BOT_KEY
     client.headers["X-Discord-User-Id"] = str(DISCORD_USER_ID)
@@ -350,7 +351,7 @@ def bot_client(client, monkeypatch):
 )
 @pytest.mark.parametrize("configured_key", [None, BOT_KEY])
 def test_bot_endpoints_require_the_bot_key(client, monkeypatch, method, path, configured_key):
-    # With no BOT_API_KEY configured, the endpoints are off entirely.
+    # If BOT_API_KEY is not set, the endpoints are fully off.
     monkeypatch.setattr(main, "BOT_API_KEY", configured_key)
     kwargs = {"json": {"player_id": 1}} if method == "post" else {}
     client.headers["X-Discord-User-Id"] = "1"
@@ -370,7 +371,7 @@ def test_bot_recommend_uses_any_player_without_a_session(bot_client, fake_recomm
 
     call = fake_recommender["calls"][0]
     assert call["settings"].min_stars == 5.0
-    # No session player, so the recommender uses the application token.
+    # There is no session player, so the recommender uses the token of the app.
     assert call["session_player_id"] is None
 
 
@@ -390,7 +391,7 @@ def test_bot_pages_through_the_whole_result(bot_client, fake_recommender):
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["total_count"] == 2500
-    # The last rows of the result: nothing past the end.
+    # The last rows of the result: nothing after the end.
     assert [r["beatmap_id"] for r in body["recommendations"]] == [str(i) for i in range(2450, 2500)]
 
 
@@ -414,8 +415,9 @@ def test_bot_results_belong_to_one_discord_user(bot_client, fake_recommender):
 
 def test_bot_results_do_not_replace_website_results(bot_client, logged_in_client, fake_recommender):
     """
-    The result cache keeps one result per owner. A Discord user asking about
-    a player must not evict the result that player is paging on the website.
+    The result cache keeps one result for each owner. A Discord user who asks
+    about a player must not delete the result that the player reads on the
+    website.
     """
     post_recommend(logged_in_client, recommendation_id="web-1")
     bot_client.post(f"{API}/bot/recommend", json={"player_id": PLAYER_ID})
@@ -452,7 +454,7 @@ def test_bot_player_lookup(bot_client, monkeypatch):
 
     response = bot_client.get(f"{API}/bot/players/some%20one")
     assert response.json() == {"player_id": 42, "username": "Some One"}
-    # The username is looked up as a name, never as an ID, and re-encoded.
+    # The username is found as a name, never as an ID, and encoded again.
     assert requests_made[0] == ("/users/some%20one/osu", {"key": "username"})
 
     assert bot_client.get(f"{API}/bot/players/nobody").status_code == 404
@@ -469,5 +471,5 @@ def test_bot_classify(bot_client, seeded_db, monkeypatch):
     assert body["predictions"] == pytest.approx({"NM1": 0.1, "NM2": 0.1, "NM3": 0.6, "NM4": 0.1, "NM5": 0.1})
 
     assert bot_client.get(f"{API}/bot/classify/999").status_code == 404
-    # In the database, but the classifier has no prediction for it.
+    # The map is in the database, but the classifier has no prediction for it.
     assert bot_client.get(f"{API}/bot/classify/20").status_code == 404

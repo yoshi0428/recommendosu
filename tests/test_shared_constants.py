@@ -1,9 +1,10 @@
 """
 Constants copied between the backend, the website and the Discord bot.
 
-The bot ships in its own Docker image with only bot/ in it, and the website
-is JavaScript, so neither can import the backend's values. These tests fail
-when a copy drifts, e.g. when MAX_BEATMAP_YEAR is bumped in one place only.
+The bot is in its own Docker image, which has only bot/, and the website is
+JavaScript. Thus neither one can import the values of the backend. These tests
+fail when a copy changes, for example when MAX_BEATMAP_YEAR goes up in one
+place only.
 """
 
 import ast
@@ -19,7 +20,7 @@ FRONTEND = PROJECT_ROOT / "frontend/src"
 
 
 def module_constant(path, name):
-    """A literal assigned at the top of a Python file, read without importing it."""
+    """Return a literal assigned at the top of a Python file, read without an import."""
     for node in ast.parse(path.read_text()).body:
         if isinstance(node, ast.Assign) and any(getattr(t, "id", None) == name for t in node.targets):
             return ast.literal_eval(node.value)
@@ -27,18 +28,18 @@ def module_constant(path, name):
 
 
 def js_constant(path, name):
-    """The source of `const NAME = ...;` in a JavaScript file."""
+    """Return the source of `const NAME = ...;` in a JavaScript file."""
     match = re.search(rf"const {name} = (.*?);\n", path.read_text(), re.S)
     assert match, f"{name} not found in {path}"
     return match.group(1)
 
 
 def js_string_lists(source):
-    """Every ["A", "B"] list of strings in a piece of JavaScript source."""
+    """Return each ["A", "B"] list of strings in a piece of JavaScript source."""
     return [re.findall(r'"([^"]*)"', inner) for inner in re.findall(r"\[([^\[\]]*)\]", source)]
 
 
-# The mod combinations populate.py stores a variant for, besides NM.
+# The mod combinations that populate.py stores a variant for, other than NM.
 STORED_COMBINATIONS = {frozenset(mods) for mods in module_constant(POPULATE, "MOD_VARIANTS").values() if mods}
 
 

@@ -1,4 +1,5 @@
 def create_tables(conn):
+    """Create the beatmap tables: beatmaps, beatmap_variants and variant_predictions."""
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -96,6 +97,7 @@ def create_tables(conn):
 
 
 def create_recommender_tables(conn):
+    """Create the player tables: the played-maps tables, scores and its indexes, and classifier_prediction_status."""
     from beatmap_recommender.content_similarity.core_modules.played_maps import create_played_tables
 
     create_played_tables(conn)

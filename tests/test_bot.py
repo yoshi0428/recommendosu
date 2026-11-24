@@ -1,9 +1,9 @@
 """
-Tests for the Discord bot's logic (bot/), without Discord or discord.py.
+Tests for the logic of the Discord bot (bot/), without Discord or discord.py.
 
-The commands themselves are thin: they turn options into a settings dict
-with bot/options.py, call the backend with bot/api.py, and remember /link
-with bot/links.py. Those three modules are what's tested here.
+The commands are thin. They change the options into a settings dict with
+bot/options.py, call the backend with bot/api.py, and remember /link with
+bot/links.py. These tests cover those three modules.
 """
 
 import asyncio
@@ -65,7 +65,7 @@ def test_no_mods_matches_the_website_defaults():
 
 
 def test_asking_for_a_default_excluded_mod_lifts_its_exclusion():
-    # Otherwise the backend's LIKE '%FL%' exclusion would drop every FL variant.
+    # If not, the LIKE '%FL%' exclusion of the backend would drop all FL variants.
     assert mod_settings("HD FL")["excluded_mods"] == ["EZ", "HT"]
     assert mod_settings("~EZ -DT")["excluded_mods"] == ["HT", "FL", "DT"]
 
@@ -80,7 +80,7 @@ def test_exact_mods_option_matches_the_prefix():
     assert mod_settings("HDDT", exact=True) == mod_settings("=HDDT")
     assert mod_settings("HD DT", exact=True)["exact_mods"] is True
     assert mod_settings("HDDT", exact=False)["exact_mods"] is False
-    # Both at once is fine.
+    # Both at the same time are allowed.
     assert mod_settings("=HDDT", exact=True) == mod_settings("=HDDT")
 
 
@@ -126,7 +126,7 @@ def test_parse_range(name, text, expected):
 @pytest.mark.parametrize(
     ("name", "text", "message"),
     [
-        ("stars", "6", "Give a range"),  # One star rating would almost never match.
+        ("stars", "6", "Give a range"),  # One exact star rating almost never matches.
         ("stars", "-", "Give a range"),
         ("stars", "abc", "Give a range"),
         ("stars", "nan+", "Give a range"),
@@ -145,7 +145,7 @@ def test_parse_range_rejects_bad_input(name, text, message):
 # Settings
 # ---------------------------------------------------------------------------
 def test_no_options_only_sends_the_player_and_default_mods():
-    # Everything else is left to the backend's defaults.
+    # The backend uses its defaults for all the other settings.
     assert build_settings(player_id=7) == {
         "player_id": 7,
         "mods": [],
@@ -172,7 +172,7 @@ def test_options_map_to_recommendation_settings():
     assert settings["min_stars"] == 5.5 and settings["max_stars"] == 6.5
     assert settings["min_year"] == 2015 and "max_year" not in settings
     assert settings["max_combo"] == 1500 and "min_combo" not in settings
-    # 0 is a real filter value, not "unset".
+    # 0 is a real filter value, not "not set".
     assert settings["min_length"] == 0.0
     assert "min_bpm" not in settings
 
@@ -257,7 +257,7 @@ def test_format_recommendation_without_numeric_id_pp_or_bpm():
 
 
 def test_link_text_leaves_plain_punctuation_alone():
-    # Escapes inside link text show up as literal backslashes in Discord.
+    # Discord shows escapes in link text as real backslashes.
     assert link_text("ke-ji feat. Nanahira - RE:UNION -Duo Blade Against- (Extended)") == (
         "ke-ji feat. Nanahira - RE:UNION -Duo Blade Against- (Extended)"
     )
@@ -279,7 +279,7 @@ def test_link_text_leaves_markdown_characters_that_cannot_pair(text):
         ("~~x~~", "∼∼x∼∼"),
         ("||spoiler||", "ǀǀspoilerǀǀ"),
         ("`code`", "ˋcodeˋ"),
-        # Only the character that pairs is swapped.
+        # Only the character that makes a pair changes.
         ("Ryu* ~ *x", "Ryu∗ ~ ∗x"),
     ],
 )
@@ -357,7 +357,7 @@ def test_backend_client_sends_the_key_and_settings():
     assert seen[0].headers["X-Bot-Key"] == "secret"
     assert seen[0].headers["X-Discord-User-Id"] == "123"
     assert json.loads(seen[0].content) == {"player_id": 7}
-    # Spaces and slashes in usernames stay inside one path segment.
+    # Spaces and slashes in a username stay in one path segment.
     assert seen[1].url.raw_path == b"/api/v1/bot/players/Some%20One%2Fx"
     assert seen[2].url == "http://backend:8000/api/v1/bot/recommend/abc/page?offset=50&limit=50"
     assert seen[2].headers["X-Discord-User-Id"] == "123"
@@ -399,10 +399,10 @@ def test_unreachable_backend():
 
 
 # ---------------------------------------------------------------------------
-# /rec pages (needs discord.py, which only the bot's image installs)
+# /rec pages (needs discord.py, which only the image of the bot installs)
 # ---------------------------------------------------------------------------
 class FakePagingBackend:
-    """Serves a result of `total` rows, recording which chunks are fetched."""
+    """Serve a result of `total` rows, and record the chunks that the view fetches."""
 
     def __init__(self, total):
         self.rows = [make_row(beatmap_id=str(i), title=f"Song {i}") for i in range(total)]
@@ -438,12 +438,12 @@ def test_view_fetches_chunks_and_clamps_jumps():
         assert [row["beatmap_id"] for row in rows] == ["45", "46", "47", "48", "49"]
         assert backend.fetches == []
 
-        # Page 101 needs the chunk holding rows 500-549.
+        # Page 101 needs the chunk with rows 500-549.
         rows = await view.page_rows(100)
         assert rows[0]["beatmap_id"] == "500"
         assert backend.fetches == [(500, 50)]
 
-        # The last page holds the 4 remaining rows.
+        # The last page has the 4 remaining rows.
         rows = await view.page_rows(246)
         assert [row["beatmap_id"] for row in rows] == ["1230", "1231", "1232", "1233"]
 
@@ -466,7 +466,7 @@ def test_link_store(tmp_path):
     assert store.get(2) == (300, "other")
     store.close()
 
-    # Links survive a restart.
+    # The links stay after a restart.
     reopened = LinkStore(tmp_path / "nested" / "links.db")
     assert reopened.get(1) == (200, "relinked")
     reopened.close()
@@ -479,9 +479,9 @@ def test_unlink(tmp_path):
 
     assert store.delete(1) is True
     assert store.get(1) is None
-    # Only that user's link goes.
+    # Only the link of that user is deleted.
     assert store.get(2) == (300, "other")
-    # Nothing left to remove.
+    # There is nothing more to delete.
     assert store.delete(1) is False
     store.close()
 
@@ -503,7 +503,7 @@ def test_help_fits_in_a_discord_embed():
 
 @pytest.mark.parametrize(("options", "note"), EXAMPLES)
 def test_help_examples_are_valid_rec_input(options, note):
-    """Every example in /help must be something /rec accepts as typed."""
+    """/rec must accept each example in /help exactly as typed."""
     options = dict(options)
     options.pop("user", None)
 

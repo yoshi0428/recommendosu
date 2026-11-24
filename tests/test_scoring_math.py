@@ -2,11 +2,11 @@
 Unit tests for the numeric scoring helpers: ability.py and the classifier
 score in classifier_influence.py.
 
-Testing math code well mostly comes down to:
-    * Work out a few results by hand and check the code agrees.
-    * Check the boundaries: zero, negative, missing, exactly-on-the-edge.
-    * Check *relationships* (e.g. "older scores weigh less") rather than only
-      magic numbers, so the test explains *why* the value matters.
+Good tests of math code mostly do these things:
+    * Calculate a few results by hand, and check that the code agrees.
+    * Check the boundaries: zero, negative, missing, exactly on the edge.
+    * Check *relationships* (for example, "older scores weigh less"), not
+      only magic numbers. Thus the test explains *why* the value matters.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -26,7 +26,7 @@ from beatmap_recommender.content_similarity.core_modules.classifier_influence im
 
 
 def days_ago(days):
-    """An osu!-API-style timestamp (e.g. 2026-10-01T12:00:00Z) `days` ago."""
+    """Return a timestamp in the osu! API format (for example 2026-10-01T12:00:00Z), `days` ago."""
     played_at = datetime.now(timezone.utc) - timedelta(days=days)
     return played_at.strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -34,11 +34,11 @@ def days_ago(days):
 # ---------------------------------------------------------------------------
 # ability.get_recency_weight
 # ---------------------------------------------------------------------------
-# get_recency_weight compares against datetime.now(). Tests that depend on the
-# current time are a classic source of flaky tests (tests that pass or fail at
-# random). Here we avoid that by building the timestamps relative to "now" and
-# comparing with a tolerance, since a few milliseconds pass between creating
-# the timestamp and the function reading the clock.
+# get_recency_weight compares with datetime.now(). Tests that depend on the
+# current time are a usual source of flaky tests (tests that pass or fail at
+# random). These tests prevent that: they build the timestamps relative to
+# "now" and compare with a tolerance, because a few milliseconds pass between
+# the timestamp and the moment that the function reads the clock.
 @pytest.mark.parametrize(
     ("age_days", "expected"),
     [(0, 1.0), (30, 0.5), (60, 0.25), (90, 0.125)],
@@ -54,7 +54,7 @@ def test_recency_weight_keeps_scores_with_unusable_timestamps(bad_timestamp):
 
 
 def test_future_timestamps_are_not_boosted():
-    # max(0, age) means clock skew can't produce a weight above 1.
+    # Because of max(0, age), a clock difference cannot give a weight above 1.
     assert get_recency_weight(days_ago(-10), 30) == pytest.approx(1.0)
 
 
@@ -62,8 +62,8 @@ def test_future_timestamps_are_not_boosted():
 # ability.get_ability_score_weight
 # ---------------------------------------------------------------------------
 def ability_weight(source, pp=None, created_at=None):
-    # A small wrapper with the default settings from api/model.py, so each
-    # test only spells out the arguments it is actually about.
+    # A small wrapper with the default settings from api/model.py, so that
+    # each test writes only the arguments that it checks.
     return get_ability_score_weight(
         source, pp, created_at,
         recency_half_life_days=30.0,
@@ -74,7 +74,7 @@ def ability_weight(source, pp=None, created_at=None):
 
 
 def test_recent_scores_count_more_for_current_ability():
-    # This is the opposite of mod preferences, where top plays count more.
+    # This is the opposite of the mod preferences, where top plays count more.
     assert ability_weight("recent") == 2.0
     assert ability_weight("top") == 1.0
     assert ability_weight("top,recent") == 1.0
@@ -95,7 +95,7 @@ def test_weighted_mean_and_std_matches_numpy():
 
     mean, std = weighted_mean_and_std(values, weights)
 
-    # Cross-check against an independent implementation (numpy).
+    # Compare with a separate implementation (numpy).
     expected_mean = np.average(values, weights=weights)
     expected_std = np.sqrt(np.average((np.array(values) - expected_mean) ** 2, weights=weights))
     assert mean == pytest.approx(expected_mean)
@@ -111,7 +111,7 @@ def test_weighted_mean_and_std_with_zero_weights_falls_back_to_unweighted():
 # classifier_influence.calculate_classifier_scores
 # ---------------------------------------------------------------------------
 def calculate_classifier_score(probabilities, preferences):
-    """calculate_classifier_scores() for one {label: probability} dict; missing data scores 0."""
+    """Call calculate_classifier_scores() for one {label: probability} dict. Missing data scores 0."""
     if not probabilities or not preferences:
         return 0.0
 

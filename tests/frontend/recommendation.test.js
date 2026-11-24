@@ -1,13 +1,13 @@
 // Tests for src/utils/recommendation.js.
 //
-// Vitest works much like pytest, with different spelling:
+// Vitest works much like pytest, with different names:
 //   describe("group", () => {...})  groups related tests (like a test class)
 //   it("does something", () => {})  one test (like `def test_...`)
 //   expect(actual).toBe(expected)   an assertion (like `assert actual == expected`)
 //
-// toBe compares with ===, so it's for numbers, strings and booleans. For
-// objects and arrays use toEqual, which compares contents, the way Python's
-// == compares dicts and lists.
+// toBe compares with ===, so use it for numbers, strings and booleans. For
+// objects and arrays, use toEqual, which compares the contents, as == in
+// Python compares dicts and lists.
 
 import { describe, expect, it } from "vitest";
 
@@ -24,9 +24,9 @@ describe("createDefaultSettings", () => {
   });
 
   it("returns independent copies every time", () => {
-    // The settings object is edited in place by the UI. If two calls shared
-    // the same nested objects, editing one user's weights would silently
-    // change the defaults for everyone afterwards.
+    // The UI edits the settings object in place. If two calls shared the same
+    // nested objects, an edit of the weights of one user would change the
+    // defaults for everyone after that, without an error.
     const first = createDefaultSettings();
     const second = createDefaultSettings();
 
@@ -41,8 +41,8 @@ describe("createDefaultSettings", () => {
   });
 
   it("leaves settings the UI can't change to the backend's defaults", () => {
-    // They're left out of the request, so the backend's
-    // RecommendationSettings defaults apply instead of a second copy here.
+    // They are not in the request, so the RecommendationSettings defaults of
+    // the backend apply, not a second copy here.
     const settings = createDefaultSettings();
 
     for (const key of ["limit", "similarity_feature_weights", "recommendation_config", "feature_target_z", "feature_max_z"]) {

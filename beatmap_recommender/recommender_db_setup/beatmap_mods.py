@@ -1,15 +1,15 @@
 def calculate_difficulty(file_path, mods, star_calculator):
     """
-    Calculate difficulty attributes for a beatmap + mod combination.
+    Calculate the difficulty attributes of a beatmap + mod combination.
 
-    The osu-tools-py calculator accepts mods as strings such as:
+    The osu-tools-py calculator accepts mods as lists of strings, such as:
         []
         ["HD"]
         ["HR"]
         ["DT"]
         ["HD", "DT"]
 
-    Returns the CalculationResult object, or None on failure.
+    Return the CalculationResult object, or None if the calculation fails.
     """
 
     result = star_calculator.calculate(
@@ -27,13 +27,24 @@ def calculate_difficulty(file_path, mods, star_calculator):
     return result
 
 
+def _clock_rate(mods):
+    """Return the speed of the song with these mods: 1.5 for DT, 0.75 for HT, or 1.0."""
+    mods = {mod.upper() for mod in mods}
+
+    if "DT" in mods:
+        return 1.5
+    if "HT" in mods:
+        return 0.75
+    return 1.0
+
+
 def apply_mod_to_stat(value, mods, stat):
     """
-    A difficulty stat (cs, hp, ar or od) with these mods applied.
+    Return a difficulty stat (cs, hp, ar or od) with these mods applied.
 
-    osu-tools-py's CalculationResult doesn't include these stats, so they're
-    calculated here: HR multiplies CS by 1.3 and the rest by 1.4 (capped at
-    10), EZ halves them, and DT/HT change AR and OD through the clock rate.
+    The CalculationResult of osu-tools-py does not have these stats, so this
+    function calculates them. HR multiplies CS by 1.3 and the others by 1.4
+    (10 at most). EZ halves them. DT/HT change AR and OD through the clock rate.
     """
 
     if value is None:
@@ -41,58 +52,31 @@ def apply_mod_to_stat(value, mods, stat):
 
     mods = {mod.upper() for mod in mods}
 
-    # --------------------------------------------------------
-    # CS
-    # --------------------------------------------------------
-
-    if stat == "cs":
+    if stat in ("cs", "hp"):
         if "HR" in mods:
-            return min(10.0, value * 1.3)
+            return min(10.0, value * (1.3 if stat == "cs" else 1.4))
 
         if "EZ" in mods:
             return value * 0.5
 
         return value
-
-    # --------------------------------------------------------
-    # HP
-    # --------------------------------------------------------
-
-    if stat == "hp":
-        if "HR" in mods:
-            return min(10.0, value * 1.4)
-
-        if "EZ" in mods:
-            return value * 0.5
-
-        return value
-
-    # --------------------------------------------------------
-    # AR / OD
-    # --------------------------------------------------------
 
     if stat in ("ar", "od"):
         result = value
 
-        # HR / EZ
         if "HR" in mods:
             result = min(10.0, result * 1.4)
 
         elif "EZ" in mods:
             result *= 0.5
 
-        # Clock rate
-        if "DT" in mods:
-            clock_rate = 1.5
-        elif "HT" in mods:
-            clock_rate = 0.75
-        else:
-            clock_rate = 1.0
+        clock_rate = _clock_rate(mods)
 
         if clock_rate == 1.0:
             return result
 
-        # AR
+        # DT/HT change the time windows, not the values. Change AR or OD into
+        # milliseconds, scale the time, and change it back.
         if stat == "ar":
             if result <= 5.0:
                 milliseconds = 1800.0 - 120.0 * result
@@ -106,8 +90,7 @@ def apply_mod_to_stat(value, mods, stat):
             else:
                 result = 5.0 + (1200.0 - milliseconds) / 150.0
 
-        # OD
-        elif stat == "od":
+        else:
             milliseconds = 79.5 - 6.0 * result
             milliseconds /= clock_rate
             result = (79.5 - milliseconds) / 6.0
@@ -118,34 +101,12 @@ def apply_mod_to_stat(value, mods, stat):
     return value
 
 
-def apply_bpm_mod(
-    bpm,
-    min_bpm,
-    max_bpm,
-    mods,
-):
+def apply_bpm_mod(bpm, min_bpm, max_bpm, mods):
     """
-    Calculate effective BPM values for a modded variant.
-
-    NM / HD / HR:
-        1.0x
-
-    DT:
-        1.5x
-
-    HT:
-        0.75x
+    Return the effective (bpm, min_bpm, max_bpm) of a modded variant: 1.5x for
+    DT, 0.75x for HT, and 1.0x for the other mods.
     """
-
-    mods = {mod.upper() for mod in mods}
-
-    multiplier = 1.0
-
-    if "DT" in mods:
-        multiplier = 1.5
-
-    elif "HT" in mods:
-        multiplier = 0.75
+    multiplier = _clock_rate(mods)
 
     return (
         bpm * multiplier if bpm is not None else None,
@@ -154,42 +115,23 @@ def apply_bpm_mod(
     )
 
 
-def apply_length_mod(
-    length_seconds,
-    mods,
-):
+def apply_length_mod(length_seconds, mods):
     """
-    Calculate effective gameplay length for a modded variant.
-
-    DT:
-        duration / 1.5
-
-    HT:
-        duration / 0.75
-
-    NM / HD / HR:
-        unchanged
+    Return the effective play length of a modded variant: the length / 1.5
+    for DT, / 0.75 for HT, and no change for the other mods.
     """
-
     if length_seconds is None:
         return None
 
-    mods = {mod.upper() for mod in mods}
-
-    if "DT" in mods:
-        return length_seconds / 1.5
-
-    if "HT" in mods:
-        return length_seconds / 0.75
-
-    return length_seconds
+    clock_rate = _clock_rate(mods)
+    return length_seconds if clock_rate == 1.0 else length_seconds / clock_rate
 
 
 def get_modded_stats(base_data, result, mods):
     """
-    Final statistics for a beatmap + mod combination: HP/CS/OD/AR from the
-    base beatmap with apply_mod_to_stat(), and star rating, max combo and pp
-    from osu-tools-py's CalculationResult.
+    Return the final statistics of a beatmap + mod combination: HP/CS/OD/AR
+    from the base beatmap with apply_mod_to_stat(), and the star rating, the
+    max combo and the pp from the CalculationResult of osu-tools-py.
     """
     return {
         "hp_drain": apply_mod_to_stat(base_data["hp_drain"], mods, "hp"),

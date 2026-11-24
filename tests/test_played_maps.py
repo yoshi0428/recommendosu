@@ -1,7 +1,7 @@
 """
-Full played-beatmap lists (beatmap_recommender/content_similarity/core_modules/played_maps.py):
-fetching most_played, storing and refreshing it, using it to exclude played
-maps, and the background worker and low-priority rate limiting it runs with.
+The full lists of played beatmaps (beatmap_recommender/content_similarity/core_modules/played_maps.py):
+the fetch of most_played, its store and refresh, its use to exclude played
+maps, and the background worker and low-priority rate limit that it uses.
 """
 
 import threading
@@ -19,7 +19,7 @@ NOW = datetime(2026, 11, 20, tzinfo=timezone.utc)
 
 
 class FakeMostPlayedAPI:
-    """Serves a most_played list in pages, like /users/{id}/beatmapsets/most_played."""
+    """Serve a most_played list in pages, as /users/{id}/beatmapsets/most_played does."""
 
     def __init__(self, entries):
         self.entries = entries
@@ -53,7 +53,7 @@ def test_fetch_pages_until_a_short_page_and_keeps_only_standard():
 def test_fetch_stops_after_an_exactly_full_last_page():
     api = FakeMostPlayedAPI([entry(i) for i in range(1, 101)])
     assert len(played_maps.fetch_played_beatmaps(api, PLAYER_ID)) == 100
-    assert len(api.calls) == 2  # the second, empty page ends it
+    assert len(api.calls) == 2  # The second, empty page ends the list.
 
 
 def test_store_replaces_the_players_rows(recommender_db):
@@ -85,7 +85,7 @@ def test_sync_skips_a_fresh_list_and_refetches_a_stale_one(recommender_db):
 # ---------------------------------------------------------------------------
 def test_played_ids_combine_scores_and_the_fetched_list(seeded_db):
     conn = seeded_db.conn
-    # The test schema has no played_beatmaps table, like an older read-only copy.
+    # The test schema has no played_beatmaps table, as in an older read-only copy.
     assert played_maps.get_played_beatmap_ids(conn, PLAYER_ID) == {"1", "2", "3", "4"}
 
     played_maps.store_played_beatmaps(conn, PLAYER_ID, {"10": 4, "999": 1}, NOW)
@@ -98,7 +98,7 @@ def test_get_maps_excludes_maps_only_in_the_fetched_list(seeded_db):
     before, _ = get_maps(conn, mods="NM", player_id=PLAYER_ID)
     assert "10" in set(before)
 
-    # 999 isn't in the database (e.g. a graveyard map); it's simply ignored.
+    # 999 is not in the database (for example, a graveyard map). The code ignores it.
     played_maps.store_played_beatmaps(conn, PLAYER_ID, {"10": 4, "999": 1}, NOW)
     after, matrix = get_maps(conn, mods="NM", player_id=PLAYER_ID)
 
@@ -132,7 +132,7 @@ def test_worker_syncs_queued_players_and_ignores_duplicates(recommender_db):
 
     worker = played_maps.SyncWorker(connect=lambda: sqlite3.connect(path), make_api=lambda: api)
     worker.request(PLAYER_ID)
-    worker.request(PLAYER_ID)  # already queued: ignored
+    worker.request(PLAYER_ID)  # Already in the queue, so ignored.
     release.set()
 
     assert wait_for(lambda: played_maps.synced_at(recommender_db.conn, PLAYER_ID) is not None)
@@ -160,53 +160,33 @@ def test_worker_survives_a_failing_player(recommender_db):
 
 def test_request_sync_does_nothing_until_the_worker_starts(monkeypatch):
     monkeypatch.setattr(played_maps, "_worker", None)
-    played_maps.request_sync(PLAYER_ID)  # no error, no thread
+    played_maps.request_sync(PLAYER_ID)  # No error, and no thread.
 
 
 # ---------------------------------------------------------------------------
 # Low-priority rate limiting
 # ---------------------------------------------------------------------------
-class FakeClock:
-    def __init__(self):
-        self.now = 1000.0
-        self.sleeps = []
-
-    def monotonic(self):
-        return self.now
-
-    def sleep(self, seconds):
-        self.sleeps.append(seconds)
-        self.now += seconds
-
-
-@pytest.fixture
-def fake_clock(monkeypatch):
-    clock = FakeClock()
-    monkeypatch.setattr(osu_api_client.time, "monotonic", clock.monotonic)
-    monkeypatch.setattr(osu_api_client.time, "sleep", clock.sleep)
-    return clock
-
-
+# fake_clock is in conftest.py.
 def test_background_waits_for_a_full_bucket_and_idle_live_traffic(fake_clock):
     limiter = osu_api_client.RateLimiter(burst=4, interval=1.0, background_idle=2.0)
-    limiter.acquire()  # a live request: the bucket has 3 left
+    limiter.acquire()  # A live request. The bucket has 3 left.
     start = fake_clock.now
 
     limiter.acquire_background()
 
-    # It waited until the bucket refilled (1 s) and live traffic was 2 s quiet.
+    # It waited until the bucket was full again (1 s) and there was no live traffic for 2 s.
     assert fake_clock.now - start >= 2.0
 
 
 def test_background_leaves_live_requests_their_burst(fake_clock):
     limiter = osu_api_client.RateLimiter(burst=4, interval=1.0, background_idle=2.0)
     fake_clock.now += 10
-    limiter.acquire_background()  # idle server: goes straight out
+    limiter.acquire_background()  # The server is idle, so the request goes out at once.
     assert fake_clock.sleeps == []
 
     sleeps_before = len(fake_clock.sleeps)
     for _ in range(3):
-        limiter.acquire()  # a live refresh right after still gets 3 requests at once
+        limiter.acquire()  # A live refresh just after still gets 3 requests at once.
     assert len(fake_clock.sleeps) == sleeps_before
 
 

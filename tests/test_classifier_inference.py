@@ -1,8 +1,8 @@
 """
-Fast checks of beatmap_classifier/classifier/inference.py and fusion.py with
+Fast checks of beatmap_classifier/classifier/inference.py and fusion.py, with
 a small synthetic .osu file and fake models. (tests/test_classifier_features.py
-compares inference against the real training data, but needs the databases
-and is marked slow.)
+compares inference with the real training data. It needs the databases, so it
+is marked slow.)
 """
 
 import numpy as np
@@ -36,12 +36,12 @@ SLIDER = "300,200,6500,2,0,L|400:200,1,100,0|0,0:0|0:0,0:0:0:0:"
 
 
 class RecordingModel(torch.nn.Module):
-    """Stands in for a fusion model: records (x, mask, tab), returns fixed logits."""
+    """A replacement for a fusion model. It records (x, mask, tab) and returns fixed logits."""
 
     def __init__(self, logits):
         super().__init__()
         self.logits = torch.tensor([logits], dtype=torch.float32)
-        self.head = torch.nn.Sequential(torch.nn.Linear(1, len(logits)))  # predict_logits reads out_features
+        self.head = torch.nn.Sequential(torch.nn.Linear(1, len(logits)))  # predict_logits reads out_features.
         self.inputs = []
 
     def forward(self, x, mask, tab):
@@ -78,12 +78,12 @@ def stats_by_mod():
 def test_rich_sequence_channels(tmp_path):
     sequence = fusion.rich_sequence(osu_file(tmp_path, CIRCLES + [SLIDER]))
 
-    assert sequence.shape == (20, len(fusion.RICH_CHANNELS))  # one row per object after the first
+    assert sequence.shape == (20, len(fusion.RICH_CHANNELS))  # One row for each object after the first.
     channel = {name: i for i, name in enumerate(fusion.RICH_CHANNELS)}
-    last = sequence[-1]  # the slider
+    last = sequence[-1]  # The slider.
     assert last[channel["is_slider"]] == 1
     assert last[channel["slider_path_dx"]] == pytest.approx(100 / 512)
-    assert last[channel["slider_beats"]] == pytest.approx(100 / 140)  # length / (SV * 100) beats
+    assert last[channel["slider_beats"]] == pytest.approx(100 / 140)  # length / (SV * 100) beats.
     assert last[channel["bpm"]] == pytest.approx(120 / 200)
     assert sequence[:-1, channel["is_slider"]].sum() == 0
     assert sequence[0, channel["dx"]] == pytest.approx(50 / 512)
@@ -123,7 +123,7 @@ def test_model_inputs_are_the_rich_sequence_and_tabular_row(tmp_path):
 
     vectors = normalize_beatmap_vectors(inference.read_vectors(str(path)), VECTOR_NORMALIZATION)
     np.testing.assert_allclose(tab[0].numpy(), fusion.tabular_row(stats_by_mod(), vectors), rtol=1e-6)
-    # Stats come first, mod by mod, in TABULAR_FEATURES order (small values: inputs are clipped to +-10).
+    # The stats come first, mod by mod, in TABULAR_FEATURES order (small values: the inputs are clipped to +-10).
     names = fusion.TABULAR_FEATURES
     assert tab[0, names.index("NM_ar")] == 0
     assert tab[0, names.index("HD_od")] == pytest.approx(1.1)
