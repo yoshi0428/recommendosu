@@ -28,6 +28,7 @@ from beatmap_recommender.auth.oauth_state import consume_state, store_state
 from beatmap_recommender.auth.osu_oauth import (
     OSU_CLIENT_ID,
     OSU_REDIRECT_URI,
+    OsuAuthorizationRevoked,
     build_authorization_url,
     exchange_code_for_token,
     generate_state,
@@ -398,6 +399,9 @@ async def run_recommender(settings: RecommendationSettings, **kwargs):
         return await recommend_player(settings, **kwargs)
     except PlayerNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+    except OsuAuthorizationRevoked as exc:
+        # The session was deleted, so the next page load shows the login screen.
+        raise HTTPException(status_code=401, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 

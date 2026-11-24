@@ -14,6 +14,7 @@ New techniques in this file:
 
 import asyncio
 
+import httpx
 import pytest
 
 from beatmap_recommender import cancellation, result_cache
@@ -276,6 +277,63 @@ def test_expiring_access_token_is_refreshed(auth_db, monkeypatch):
     stored = token_store.get_tokens(session_id)
     assert stored["access_token"] == "new-access"
     assert stored["refresh_token"] == "old-refresh"  # Kept when osu! doesn't rotate it.
+
+
+def _http_status_error(status_code):
+    request = httpx.Request("POST", osu_oauth.OSU_TOKEN_URL)
+    response = httpx.Response(status_code, request=request)
+    return httpx.HTTPStatusError("token request failed", request=request, response=response)
+
+
+@pytest.mark.parametrize("status_code", [400, 401])
+def test_rejected_refresh_token_ends_the_session(auth_db, monkeypatch, status_code):
+    # E.g. the user revoked this app in their osu! settings.
+    session_id = session.create_session(42)
+    token_store.store_tokens(session_id, 42, "old-access", "revoked-refresh", expires_in=30)
+
+    async def fake_refresh(refresh_token):
+        raise _http_status_error(status_code)
+
+    monkeypatch.setattr(osu_oauth, "refresh_access_token", fake_refresh)
+
+    with pytest.raises(osu_oauth.OsuAuthorizationRevoked):
+        asyncio.run(osu_oauth.get_access_token(session_id))
+
+    assert session.get_session(session_id) is None
+    assert token_store.get_tokens(session_id) is None
+
+
+def test_osu_outage_during_refresh_keeps_the_session(auth_db, monkeypatch):
+    session_id = session.create_session(42)
+    token_store.store_tokens(session_id, 42, "old-access", "old-refresh", expires_in=30)
+
+    async def fake_refresh(refresh_token):
+        raise _http_status_error(503)
+
+    monkeypatch.setattr(osu_oauth, "refresh_access_token", fake_refresh)
+
+    with pytest.raises(httpx.HTTPStatusError):
+        asyncio.run(osu_oauth.get_access_token(session_id))
+
+    assert session.get_session(session_id) is not None
+
+
+def test_refresh_lost_to_a_concurrent_refresh_uses_the_new_token(auth_db, monkeypatch):
+    # Two tabs refresh with the same refresh token. osu! accepts the first and
+    # rejects the second; the second should pick up the first's new tokens,
+    # not log the user out.
+    session_id = session.create_session(42)
+    token_store.store_tokens(session_id, 42, "old-access", "old-refresh", expires_in=30)
+
+    async def fake_refresh(refresh_token):
+        # The other tab won the race just before osu! answered us.
+        token_store.update_tokens(session_id, "other-tab-access", "other-tab-refresh", 86400)
+        raise _http_status_error(400)
+
+    monkeypatch.setattr(osu_oauth, "refresh_access_token", fake_refresh)
+
+    assert asyncio.run(osu_oauth.get_access_token(session_id)) == "other-tab-access"
+    assert session.get_session(session_id) is not None
 
 
 def test_missing_tokens_raise(auth_db):

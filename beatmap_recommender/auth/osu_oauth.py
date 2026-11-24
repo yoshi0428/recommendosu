@@ -9,6 +9,7 @@ from urllib.parse import urlencode
 import httpx
 from dotenv import load_dotenv
 
+from beatmap_recommender.auth.session import delete_session
 from beatmap_recommender.auth.token_store import get_tokens, update_tokens
 
 logger = logging.getLogger(__name__)
@@ -119,8 +120,23 @@ async def refresh_access_token(refresh_token: str) -> dict:
     )
 
 
+class OsuAuthorizationRevoked(Exception):
+    """osu! no longer accepts this session's refresh token; the user must log in again."""
+
+
+# osu! answers a refresh with an invalid or revoked refresh token with one of these.
+REJECTED_REFRESH_STATUSES = {400, 401}
+
+
 async def get_access_token(session_id: str) -> str:
-    """The logged-in user's access token, refreshed first if it's about to expire."""
+    """
+    The logged-in user's access token, refreshed first if it's about to expire.
+
+    Raises OsuAuthorizationRevoked (and ends the session) if osu! rejects the
+    refresh token, e.g. because the user revoked this app in their osu!
+    settings. Other failures (network errors, osu! being down) are raised
+    as-is, so an outage doesn't log anyone out.
+    """
     tokens = get_tokens(session_id)
 
     if tokens is None:
@@ -129,7 +145,25 @@ async def get_access_token(session_id: str) -> str:
     if tokens["expires_at"] > time.time() + TOKEN_EXPIRY_BUFFER:
         return tokens["access_token"]
 
-    token_data = await refresh_access_token(tokens["refresh_token"])
+    try:
+        token_data = await refresh_access_token(tokens["refresh_token"])
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code not in REJECTED_REFRESH_STATUSES:
+            raise
+
+        # osu! invalidates a refresh token once it's used. If another request
+        # for this session (e.g. a second tab) refreshed first, our copy is
+        # stale but the stored one is new and fine: use that instead.
+        current = get_tokens(session_id)
+        if current is not None and current["refresh_token"] != tokens["refresh_token"]:
+            return current["access_token"]
+
+        logger.info("osu! rejected the refresh token for a session; ending the session.")
+        delete_session(session_id)  # Its tokens go with it (ON DELETE CASCADE).
+        raise OsuAuthorizationRevoked(
+            "Your osu! authorization has expired or was revoked. Please log in again."
+        ) from exc
+
     new_access_token = token_data["access_token"]
 
     update_tokens(
