@@ -15,6 +15,7 @@ from beatmap_recommender.content_similarity.core_modules.content_similarity impo
     build_seed_similarity_index,
     calculate_seed_similarity,
     get_maps,
+    robust_feature_scaling,
 )
 
 N_FEATURES = len(SIMILARITY_FEATURES)
@@ -139,6 +140,52 @@ def test_build_index_excludes_played_maps_by_default(seeded_db):
 def test_build_index_status_filter(seeded_db):
     loved_only = build_seed_similarity_index(seeded_db.conn, 100, status="loved")
     assert set(loved_only) == {"11"}
+
+
+def test_status_filter_does_not_change_similarities(seeded_db):
+    # Regression test: the features were standardized with the mean and std of
+    # the candidate pool. A status filter changed the pool, and thus the
+    # similarity of the same map, so "ranked" reordered the ranked maps of "all".
+    everything = build_seed_similarity_index(seeded_db.conn, 100)
+    ranked = build_seed_similarity_index(seeded_db.conn, 100, status="ranked")
+
+    assert ranked
+    assert ranked == {beatmap_id: everything[beatmap_id] for beatmap_id in ranked}
+
+
+def test_played_maps_do_not_change_similarities(seeded_db):
+    # The same rule for the played maps: they leave the pool, but the other
+    # maps keep their similarity.
+    unplayed = build_seed_similarity_index(seeded_db.conn, 100)
+    with_played = build_seed_similarity_index(seeded_db.conn, 100, exclude_already_played=False)
+
+    assert unplayed == {beatmap_id: with_played[beatmap_id] for beatmap_id in unplayed}
+
+
+def test_robust_scaling_ignores_an_extreme_outlier():
+    # A loved gimmick map with 6 million aim pp once made the std of pp_aim
+    # about 200 times larger, so pp_aim had almost no effect on similarity.
+    rng = np.random.default_rng(0)
+    normal = rng.normal(100.0, 20.0, size=(2000, N_FEATURES))
+    with_outlier = np.vstack([normal, np.full((1, N_FEATURES), 6_000_000.0)])
+
+    _, normal_stds = robust_feature_scaling(normal)
+    _, outlier_stds = robust_feature_scaling(with_outlier)
+
+    assert outlier_stds == pytest.approx(normal_stds, rel=0.05)
+
+
+def test_no_top_k_keeps_every_candidate():
+    # neighbors_k=None (the default) must not drop the candidates that are far
+    # from all seeds. Before, a fixed limit below the pool size dropped them.
+    result = calculate_seed_similarity(
+        seed_beatmap_ids=ids("seed"),
+        seed_matrix=maps(5.0),
+        candidate_beatmap_ids=ids("near", "far", "farther"),
+        candidate_matrix=maps(5.0, 9.0, 50.0),
+    )
+
+    assert set(result) == {"near", "far", "farther"}
 
 
 def test_player_without_scores_gets_empty_index(seeded_db):

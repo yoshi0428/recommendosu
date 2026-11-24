@@ -67,7 +67,9 @@ class RecommendationSettings(BaseModel):
     # ── Internal values for the algorithm, high enough to have no effect ──────
     limit: int = Field(default=10000000, ge=1, le=10000000)
 
-    neighbors_k: int = Field(default=151240, ge=1, le=151240)
+    # The number of nearest candidates that each seed map claims. None means
+    # no limit: each candidate gets its best similarity to any seed.
+    neighbors_k: int | None = Field(default=None, ge=1)
 
     # ── Basic recommendation options ───────────────────────────
     player_id: int | None = None

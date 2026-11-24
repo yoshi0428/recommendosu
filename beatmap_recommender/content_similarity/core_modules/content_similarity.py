@@ -1,5 +1,6 @@
 import logging
 import time
+import weakref
 
 import numpy as np
 from tqdm import tqdm
@@ -25,6 +26,15 @@ SIMILARITY_FEATURES = [
     "pp_speed",
     "pp_acc",
 ]
+
+# The percentiles that robust_feature_scaling() clips each feature to before it
+# calculates the mean and the std. Thus a few extreme gimmick maps (for example,
+# a loved map with 186 stars and 6 million aim pp) cannot change the scale of a
+# feature for all the other maps.
+SCALING_PERCENTILES = (0.1, 99.9)
+
+# VariantTable -> (means, stds) of the full NM pool. The entry goes away with its table.
+_reference_scaling = weakref.WeakKeyDictionary()
 
 
 def _no_maps():
@@ -122,18 +132,60 @@ def get_maps(conn, mods="NM", player_id=None, status=None):
     return beatmap_ids, _clean_features(matrix)
 
 
+def robust_feature_scaling(matrix):
+    """
+    Return (means, stds) of each feature column of matrix, for standardization.
+
+    Before the calculation, each feature is clipped to its SCALING_PERCENTILES.
+    The clip affects only these statistics, not the feature values that the
+    similarity compares. A std of 0 becomes 1, so that the division is safe.
+    """
+    matrix = np.asarray(matrix, dtype=np.float64)
+    low, high = np.percentile(matrix, SCALING_PERCENTILES, axis=0)
+    clipped = np.clip(matrix, low, high)
+
+    means = clipped.mean(axis=0)
+    stds = clipped.std(axis=0)
+    stds[stds == 0] = 1.0
+    return means, stds
+
+
+def get_reference_scaling(conn):
+    """
+    Return robust_feature_scaling() of all the NM variants (all statuses, no
+    maps excluded), cached for each variant table.
+
+    All requests use this one scale. Thus a status filter or the played maps
+    of a player change only which maps are candidates, never the similarity
+    of a map.
+    """
+    table = get_variant_table(conn)
+    scaling = _reference_scaling.get(table)
+
+    if scaling is None:
+        _, matrix = get_maps(conn, mods="NM")
+        scaling = robust_feature_scaling(matrix)
+        _reference_scaling[table] = scaling
+
+    return scaling
+
+
 def calculate_seed_similarity(
     seed_beatmap_ids,
     seed_matrix,
     candidate_beatmap_ids,
     candidate_matrix,
-    top_k=50,
+    top_k=None,
     batch_size=8192,
     similarity_feature_weights=None,
+    scaling=None,
 ):
     """
     Find the top_k nearest candidates of each seed. For each candidate, keep
-    the best similarity to any seed.
+    the best similarity to any seed. top_k=None means all the candidates.
+
+    scaling: (means, stds) for the standardization of the features. If it is
+    None, robust_feature_scaling() of the candidates is used.
 
     Returns:
         dict[str, float]: candidate beatmap_id -> best similarity, for each
@@ -142,9 +194,7 @@ def calculate_seed_similarity(
     if len(seed_beatmap_ids) == 0 or len(candidate_beatmap_ids) == 0:
         return {}
 
-    means = candidate_matrix.mean(axis=0)
-    stds = candidate_matrix.std(axis=0)
-    stds[stds == 0] = 1.0
+    means, stds = scaling if scaling is not None else robust_feature_scaling(candidate_matrix)
 
     seed_matrix = (seed_matrix - means) / stds
     candidate_matrix = (candidate_matrix - means) / stds
@@ -163,7 +213,7 @@ def calculate_seed_similarity(
     candidate_matrix = candidate_matrix.astype(np.float64)
 
     n_candidates = len(candidate_beatmap_ids)
-    query_k = min(top_k, n_candidates)
+    query_k = n_candidates if top_k is None else min(top_k, n_candidates)
 
     # Limit the size of the seed x candidate distance matrix of each batch, to limit memory.
     batch_size = max(1, min(batch_size, MAX_BATCH_DISTANCES // n_candidates))
@@ -212,12 +262,18 @@ def calculate_seed_similarity(
 def build_seed_similarity_index(
     conn,
     player_id,
-    top_k=50,
+    top_k=None,
     batch_size=8192,
     similarity_feature_weights=None,
     exclude_already_played=True,
     status=None,
 ):
+    """
+    Return {candidate beatmap_id: best content similarity} for the NM candidates
+    of the player (with this status, without the played maps if
+    exclude_already_played). The features use the fixed scale of
+    get_reference_scaling().
+    """
     start = time.perf_counter()
     seed_beatmap_ids, seed_matrix = get_player_seed_maps(conn, player_id)
     if len(seed_beatmap_ids) == 0:
@@ -255,6 +311,7 @@ def build_seed_similarity_index(
         top_k=top_k,
         batch_size=batch_size,
         similarity_feature_weights=similarity_feature_weights,
+        scaling=get_reference_scaling(conn),
     )
 
     logger.info("Seed similarity: %.4fs (%s matched)", time.perf_counter() - start, f"{len(similarity_index):,}")
