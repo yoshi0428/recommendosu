@@ -1,5 +1,12 @@
 [
   {
+    "date": "2026-11-26",
+    "title": "edge case",
+    "changes": [
+      "Resolved an edge case where the recommendations do not return, given a player ID that leads to a non osu!std main page in their profile."
+    ]
+  },
+  {
     "date": "2026-11-24",
     "title": "click and preview feedback, terms and privacy pages",
     "changes": [

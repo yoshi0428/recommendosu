@@ -270,8 +270,8 @@ def test_update_player_scores_fetches_and_stores(recommender_db):
     # The request parameters are part of the contract with osu!. The code fetches
     # the two endpoints at the same time, so only the order in each one is fixed.
     assert by_endpoint(api.requests) == [
-        (f"/users/{PLAYER_ID}/scores/best", {"limit": 100, "offset": 0, "include_fails": 1}),
-        (f"/users/{PLAYER_ID}/scores/recent", {"limit": 100, "offset": 0, "include_fails": 1}),
+        (f"/users/{PLAYER_ID}/scores/best", {"limit": 100, "offset": 0, "include_fails": 1, "mode": "osu"}),
+        (f"/users/{PLAYER_ID}/scores/recent", {"limit": 100, "offset": 0, "include_fails": 1, "mode": "osu"}),
     ]
 
 

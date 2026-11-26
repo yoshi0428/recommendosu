@@ -78,11 +78,18 @@ def _fetch_paginated(api, endpoint, limit):
     osu! returns API_PAGE_SIZE scores for each request at most. It lowers a
     larger limit without an error. Thus the code gets more scores page by
     page, with offset. The list of best scores stops at 200.
+
+    Without a mode, osu! returns the scores of the default mode of the
+    profile (for example mania). The database has only osu!standard maps,
+    so each request asks for mode "osu".
     """
     scores = []
     while len(scores) < limit:
         page_size = min(API_PAGE_SIZE, limit - len(scores))
-        page = api.get(endpoint, params={"limit": page_size, "offset": len(scores), "include_fails": 1})
+        page = api.get(
+            endpoint,
+            params={"limit": page_size, "offset": len(scores), "include_fails": 1, "mode": "osu"},
+        )
         scores.extend(page)
 
         # A short page means that the list ended.
