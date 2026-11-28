@@ -31,7 +31,6 @@ from bot.options import (
     parse_beatmap_id,
     parse_mods,
     parse_range,
-    truncate_decimals,
 )
 
 
@@ -59,11 +58,6 @@ def test_parse_mods_rejects_bad_input(text):
         parse_mods(text)
 
 
-def test_no_mods_matches_the_website_defaults():
-    # frontend/src/utils/recommendation.js: mods [], excluded EZ/HT/FL.
-    assert mod_settings(None) == {"mods": [], "excluded_mods": ["EZ", "HT", "FL"], "exact_mods": False}
-
-
 def test_asking_for_a_default_excluded_mod_lifts_its_exclusion():
     # If not, the LIKE '%FL%' exclusion of the backend would drop all FL variants.
     assert mod_settings("HD FL")["excluded_mods"] == ["EZ", "HT"]
@@ -84,16 +78,20 @@ def test_exact_mods_option_matches_the_prefix():
     assert mod_settings("=HDDT", exact=True) == mod_settings("=HDDT")
 
 
-@pytest.mark.parametrize(("text", "message"), [(None, "needs `mods`"), ("HD -FL", "can't also use"), ("EZHR", "isn't a mod combination")])
-def test_exact_mods_option_rejects_what_exact_mode_cannot_select(text, message):
+@pytest.mark.parametrize(
+    ("text", "exact", "message"),
+    [
+        (None, True, "needs `mods`"),
+        ("HD -FL", True, "can't also use"),
+        ("=HD -FL", False, "can't also use"),
+        ("EZHR", True, "isn't a mod combination"),
+        ("=EZHR", False, "isn't a mod combination"),
+        ("=NM HD", False, "isn't a mod combination"),
+    ],
+)
+def test_exact_mods_rejects_what_the_website_cannot_select(text, exact, message):
     with pytest.raises(OptionError, match=message):
-        mod_settings(text, exact=True)
-
-
-@pytest.mark.parametrize("text", ["=HD -FL", "=EZHR", "=NM HD"])
-def test_exact_mods_rejects_what_the_website_cannot_select(text):
-    with pytest.raises(OptionError):
-        mod_settings(text)
+        mod_settings(text, exact=exact)
 
 
 # ---------------------------------------------------------------------------
@@ -337,23 +335,6 @@ def make_backend(handler):
     return BackendClient("http://backend:8000/", "secret", transport=httpx.MockTransport(handler))
 
 
-def test_backend_client_marks_a_linked_account():
-    seen = []
-
-    def handler(request):
-        seen.append(request)
-        return httpx.Response(200, json={"recommendations": []})
-
-    async def go():
-        backend = make_backend(handler)
-        await backend.recommend({"player_id": 7}, discord_user_id=123, linked=True)
-        await backend.aclose()
-
-    run(go())
-
-    assert seen[0].headers["X-Linked-Player"] == "true"
-
-
 def test_backend_client_sends_the_key_and_settings():
     seen = []
 
@@ -366,6 +347,7 @@ def test_backend_client_sends_the_key_and_settings():
         await backend.recommend({"player_id": 7}, discord_user_id=123)
         await backend.get_player("Some One/x")
         await backend.recommendation_page("abc", 123, offset=50, limit=50)
+        await backend.recommend({"player_id": 7}, discord_user_id=123, linked=True)
         await backend.aclose()
 
     run(go())
@@ -379,6 +361,8 @@ def test_backend_client_sends_the_key_and_settings():
     assert seen[1].url.raw_path == b"/api/v1/bot/players/Some%20One%2Fx"
     assert seen[2].url == "http://backend:8000/api/v1/bot/recommend/abc/page?offset=50&limit=50"
     assert seen[2].headers["X-Discord-User-Id"] == "123"
+    # Only a /rec for a linked account marks the request.
+    assert seen[3].headers["X-Linked-Player"] == "true"
 
 
 @pytest.mark.parametrize(

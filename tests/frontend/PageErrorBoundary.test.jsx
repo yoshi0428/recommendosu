@@ -2,7 +2,7 @@
 // render must never leave a blank screen.
 import { lazy, Suspense } from "react";
 import { render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vitest";
 
 import PageErrorBoundary from "@/components/PageErrorBoundary";
 
@@ -24,11 +24,6 @@ beforeEach(() => {
     value: { ...window.location, reload },
   });
   vi.spyOn(console, "error").mockImplementation(() => {});
-});
-
-afterEach(() => {
-  vi.unstubAllGlobals();
-  vi.restoreAllMocks();
 });
 
 function renderPage(Page) {

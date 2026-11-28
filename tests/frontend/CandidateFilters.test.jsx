@@ -4,29 +4,13 @@
 // backend gets that value: numbers (not strings), and null when a box is
 // empty (null means "no filter").
 
-import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { SettingsHarness } from "./SettingsHarness";
+import { renderSettings } from "./SettingsHarness";
 import CandidateFilters from "@/components/CandidateFilters";
 
-function renderFilters(initialSettings = {}) {
-  const latest = { settings: null };
-  const user = userEvent.setup();
-
-  render(
-    <SettingsHarness
-      component={CandidateFilters}
-      initialSettings={initialSettings}
-      onSettingsChange={(settings) => {
-        latest.settings = settings;
-      }}
-    />,
-  );
-
-  return { user, latest };
-}
+const renderFilters = (initialSettings) => renderSettings(CandidateFilters, initialSettings);
 
 describe("CandidateFilters", () => {
   it("starts with every filter empty", () => {

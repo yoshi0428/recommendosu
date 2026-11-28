@@ -314,14 +314,6 @@ def test_fetch_last_page_asks_only_for_the_remainder():
     assert [params["limit"] for endpoint, params in api.requests if endpoint.endswith("best")] == [100, 50]
 
 
-def test_unknown_player_raises_player_not_found(recommender_db):
-    api = FakeOsuAPI(error=OsuAPINotFoundError("404"))
-
-    # main.py changes PlayerNotFoundError into a 404 response.
-    with pytest.raises(PlayerNotFoundError, match=str(PLAYER_ID)):
-        update_player_scores(recommender_db.conn, api, PLAYER_ID)
-
-
 def test_stored_scores_feed_the_recommender(recommender_db):
     """
     An integration check across the boundary: the ranking code must be able to
@@ -515,8 +507,9 @@ def test_successful_update_is_remembered(recommender_db, monkeypatch):
     assert not score_collector.scores_refreshed_recently(PLAYER_ID)
 
 
-def test_failed_update_is_not_remembered(recommender_db):
-    with pytest.raises(PlayerNotFoundError):
+def test_unknown_player_raises_player_not_found_and_is_not_remembered(recommender_db):
+    # main.py changes PlayerNotFoundError into a 404 response.
+    with pytest.raises(PlayerNotFoundError, match=str(PLAYER_ID)):
         update_player_scores(recommender_db.conn, FakeOsuAPI(error=OsuAPINotFoundError("404")), PLAYER_ID)
 
     assert not score_collector.scores_refreshed_recently(PLAYER_ID)

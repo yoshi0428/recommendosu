@@ -92,21 +92,18 @@ def test_canonicalize_mods_is_idempotent():
 # ---------------------------------------------------------------------------
 # get_score_weight
 # ---------------------------------------------------------------------------
-def test_top_plays_weigh_more_than_recent_plays():
-    top = get_score_weight("top", pp=None, top_weight=3.0, recent_weight=1.0, pp_weight=0.0)
-    recent = get_score_weight("recent", pp=None, top_weight=3.0, recent_weight=1.0, pp_weight=0.0)
-    assert top == 3.0
-    assert recent == 1.0
-
-
-def test_score_in_both_top_and_recent_is_not_double_counted():
-    both = get_score_weight("top,recent", None, 3.0, 1.0, 0.0)
-    assert both == 3.0  # The same as a plain top play, not 3.0 + 1.0.
-
-
-def test_unknown_source_falls_back_to_recent_weight():
-    assert get_score_weight("something_new", None, 3.0, 1.0, 0.0) == 1.0
-    assert get_score_weight(None, None, 3.0, 1.0, 0.0) == 1.0
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        ("top", 3.0),  # Top plays weigh more than recent plays.
+        ("recent", 1.0),
+        ("top,recent", 3.0),  # The same as a plain top play, not 3.0 + 1.0.
+        ("something_new", 1.0),  # An unknown source falls back to the recent weight.
+        (None, 1.0),
+    ],
+)
+def test_score_weight_by_source(source, expected):
+    assert get_score_weight(source, pp=None, top_weight=3.0, recent_weight=1.0, pp_weight=0.0) == expected
 
 
 def test_pp_factor_uses_square_root():

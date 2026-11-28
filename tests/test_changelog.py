@@ -40,11 +40,6 @@ def changelog_file(tmp_path, monkeypatch):
     return write
 
 
-def test_the_repository_changelog_is_valid():
-    # A typo in changelog.json would break the page and /changelog.
-    changelog.read_changelog()
-
-
 def test_entries_come_newest_first(changelog_file):
     changelog_file(ENTRIES)
     assert [entry.title for entry in changelog.read_changelog()] == ["Fixes", "Discord bot"]
@@ -154,6 +149,8 @@ def test_a_newest_entry_that_never_fits_points_to_the_website():
 
 
 def test_the_newest_entry_of_the_repository_shows_in_full():
+    # This also reads changelog.json. A typo there, which would break the page
+    # and /changelog, fails here with a ValidationError.
     entries = [e.model_dump(mode="json") for e in changelog.read_changelog()]
     _, embeds = changelog_parts(entries)
 

@@ -55,9 +55,9 @@ function RecommendationsPage({ user, logout }) {
   const [error, setError] = useState(null);
   const [selectedRecommendation, setSelectedRecommendation] = useState(null);
 
-  // The AbortController and the ID of the running recommendation request.
-  const abortControllerRef = useRef(null);
-  const recommendationIdRef = useRef(null);
+  // The running recommendation request as { controller, id }, or null if no
+  // request runs. `loading` is true exactly when this is not null.
+  const runRef = useRef(null);
 
   // The page requests that run for the current result, and their AbortController.
   const loadingPagesRef = useRef(new Set());
@@ -93,15 +93,22 @@ function RecommendationsPage({ user, logout }) {
     }));
   };
 
+  // Move to "no request runs", but only if `run` is still the current run.
+  // An older run must not stop the spinner of a newer run.
+  const finishRun = (run) => {
+    if (runRef.current === run) {
+      runRef.current = null;
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async () => {
     // Cancel the request that runs now, if there is one.
-    abortControllerRef.current?.abort();
+    runRef.current?.controller.abort();
 
-    const controller = new AbortController();
-    const recommendationId = crypto.randomUUID();
-
-    abortControllerRef.current = controller;
-    recommendationIdRef.current = recommendationId;
+    const run = { controller: new AbortController(), id: crypto.randomUUID() };
+    const { controller, id: recommendationId } = run;
+    runRef.current = run;
 
     setLoading(true);
     setError(null);
@@ -150,11 +157,7 @@ function RecommendationsPage({ user, logout }) {
       pageAbortControllerRef.current?.abort();
       setResult(EMPTY_RESULT);
     } finally {
-      if (abortControllerRef.current === controller) {
-        abortControllerRef.current = null;
-        recommendationIdRef.current = null;
-        setLoading(false);
-      }
+      finishRun(run);
     }
   };
 
@@ -233,24 +236,21 @@ function RecommendationsPage({ user, logout }) {
   );
 
   const handleCancel = async () => {
-    const controller = abortControllerRef.current;
-    const recommendationId = recommendationIdRef.current;
+    const run = runRef.current;
+    if (!run) {
+      return;
+    }
 
     // Tell the backend to stop the running recommendation.
-    if (recommendationId) {
-      try {
-        await cancelRecommendation(recommendationId);
-      } catch (err) {
-        console.error("Failed to send recommendation cancellation:", err);
-      }
+    try {
+      await cancelRecommendation(run.id);
+    } catch (err) {
+      console.error("Failed to send recommendation cancellation:", err);
     }
 
     // Also abort the request of the browser.
-    controller?.abort();
-
-    abortControllerRef.current = null;
-    recommendationIdRef.current = null;
-    setLoading(false);
+    run.controller.abort();
+    finishRun(run);
   };
 
   const handleLogout = async () => {

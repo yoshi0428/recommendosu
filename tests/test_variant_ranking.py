@@ -71,12 +71,8 @@ def test_difficulty_score_is_neutral_without_profile():
 # ---------------------------------------------------------------------------
 # get_candidate_variants (SQL filters)
 # ---------------------------------------------------------------------------
-def test_requested_mods_include_subsets(seeded_db):
-    # A request for HD + DT (not exact) allows HD, DT, and HDDT.
-    variants = get_candidate_variants(seeded_db.conn, ["10"], requested_mods={"HD", "DT"})
-    assert {v["mods"] for v in variants} == {"HD", "DT", "HDDT"}
-
-
+# test_filters_match_sqlite below covers the plain cases: requested mods (with
+# their subsets), excluded mods, and the numeric ranges.
 def test_requested_mods_with_nm(seeded_db):
     variants = get_candidate_variants(seeded_db.conn, ["10"], requested_mods={"NM", "HD"})
     assert {v["mods"] for v in variants} == {"NM", "HD"}
@@ -85,11 +81,6 @@ def test_requested_mods_with_nm(seeded_db):
 def test_exact_mods_only_returns_that_combination(seeded_db):
     variants = get_candidate_variants(seeded_db.conn, ["10"], requested_mods={"DT", "HD"}, exact_mods=True)
     assert {v["mods"] for v in variants} == {"HDDT"}
-
-
-def test_excluded_mods(seeded_db):
-    variants = get_candidate_variants(seeded_db.conn, ["10"], excluded_mods={"DT", "NM"})
-    assert {v["mods"] for v in variants} == {"HD", "HR", "HDHR"}
 
 
 def test_numeric_filters_and_status(seeded_db):
@@ -300,18 +291,21 @@ def test_min_pp_alone_lifts_star_ceiling(seeded_db):
     assert all(r["star_rating"] >= 4.7 and r["pp"] >= 100 for r in ranked)
 
 
-def test_min_pp_with_max_pp_still_lifts_star_ceiling(seeded_db):
-    # The 9* variants of map 13 are worth 20 * 9**2 = 1620 pp.
-    ranked = rank(seeded_db.conn, ranges={"pp": (100, 2000)})
+@pytest.mark.parametrize(
+    "ranges",
+    [
+        # The 9* variants of map 13 are worth 20 * 9**2 = 1620 pp.
+        {"pp": (100, 2000)},
+        {"pp": (100, None), "bpm": (1, None)},
+    ],
+    ids=["with max_pp", "with a non-star filter"],
+)
+def test_min_pp_with_other_filters_still_lifts_star_ceiling(seeded_db, ranges):
+    ranked = rank(seeded_db.conn, ranges=ranges)
+    min_pp, max_pp = ranges["pp"]
 
     assert "13" in {r["beatmap_id"] for r in ranked}
-    assert all(100 <= r["pp"] <= 2000 for r in ranked)
-
-
-def test_min_pp_with_non_star_filters_still_lifts_star_ceiling(seeded_db):
-    ranked = rank(seeded_db.conn, ranges={"pp": (100, None), "bpm": (1, None)})
-
-    assert "13" in {r["beatmap_id"] for r in ranked}
+    assert all(min_pp <= r["pp"] <= (max_pp or float("inf")) for r in ranked)
 
 
 def test_explicit_max_stars_wins_over_min_pp(seeded_db):

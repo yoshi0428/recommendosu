@@ -11,30 +11,13 @@
 //   userEvent.setup() + user.click simulates a real click, including focus
 //   expect(el).toBeChecked()       jest-dom matchers, from tests/frontend/setup.js
 
-import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { SettingsHarness } from "./SettingsHarness";
+import { renderSettings } from "./SettingsHarness";
 import ModOptions from "@/components/ModOptions";
 
-function renderModOptions(initialSettings = {}) {
-  // Keep a reference to the latest settings, updated after each change.
-  const latest = { settings: null };
-  const user = userEvent.setup();
-
-  render(
-    <SettingsHarness
-      component={ModOptions}
-      initialSettings={initialSettings}
-      onSettingsChange={(settings) => {
-        latest.settings = settings;
-      }}
-    />,
-  );
-
-  return { user, latest };
-}
+const renderModOptions = (initialSettings) => renderSettings(ModOptions, initialSettings);
 
 const mod = (name) => screen.getByRole("checkbox", { name });
 

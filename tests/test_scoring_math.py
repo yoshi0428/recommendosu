@@ -110,24 +110,20 @@ def test_weighted_mean_and_std_with_zero_weights_falls_back_to_unweighted():
 # ---------------------------------------------------------------------------
 # classifier_influence.calculate_classifier_scores
 # ---------------------------------------------------------------------------
-def calculate_classifier_score(probabilities, preferences):
-    """Call calculate_classifier_scores() for one {label: probability} dict. Missing data scores 0."""
-    if not probabilities or not preferences:
-        return 0.0
-
-    row = [probabilities.get(label) or 0.0 for label in NM_LABELS]
-    return float(calculate_classifier_scores([row], preferences)[0])
-
-
 def test_classifier_score_rewards_matching_category():
-    preferences = {"NM1": 0.0, "NM2": 0.0, "NM3": 1.0, "NM4": 0.0, "NM5": 0.0}
-    matching = {"NM1": 0.0, "NM2": 0.0, "NM3": 1.0, "NM4": 0.0, "NM5": 0.0}
-    other = {"NM1": 1.0, "NM2": 0.0, "NM3": 0.0, "NM4": 0.0, "NM5": 0.0}
+    # Each row holds the NM1-NM5 probabilities of one map, in NM_LABELS order.
+    assert NM_LABELS == ("NM1", "NM2", "NM3", "NM4", "NM5")
+    matching = [0.0, 0.0, 1.0, 0.0, 0.0]
+    other = [1.0, 0.0, 0.0, 0.0, 0.0]
 
-    assert calculate_classifier_score(matching, preferences) == 1.0
-    assert calculate_classifier_score(other, preferences) == 0.0
+    scores = calculate_classifier_scores([matching, other], {"NM3": 1.0})
+
+    assert scores.tolist() == [1.0, 0.0]
 
 
 def test_classifier_score_missing_data_is_zero():
-    assert calculate_classifier_score(None, {"NM1": 1.0}) == 0.0
-    assert calculate_classifier_score({"NM1": 1.0}, {}) == 0.0
+    # A map without a prediction has a row of zeros in the variant table.
+    assert calculate_classifier_scores([[0.0] * 5], {"NM1": 1.0}).tolist() == [0.0]
+    # A player without category preferences gets 0 for every map.
+    for preferences in ({}, None, {"NM1": 0.0}):
+        assert calculate_classifier_scores([[0.2] * 5], preferences).tolist() == [0.0]

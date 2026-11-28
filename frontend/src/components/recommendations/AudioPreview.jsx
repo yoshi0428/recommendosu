@@ -101,16 +101,27 @@ const neighbour = (playlist, activeKey, step) => {
   return null;
 };
 
+// The player is always in one of these phases:
+//   closed:  no preview is loaded, and the bar is hidden.
+//   loading: the audio element loads the preview of `key`. The bar stays
+//            visible only if it was visible before (`barVisible`).
+//   open:    the preview of `key` is loaded, and the bar is visible.
+// Each loading object is new, so a slow load can compare its own object with
+// the current phase to know if the user moved on.
+const CLOSED = { phase: "closed", key: null, barVisible: false };
+const loadingPhase = (key, barVisible) => ({ phase: "loading", key, barVisible });
+const openPhase = (key) => ({ phase: "open", key, barVisible: true });
+
 // Play one audio preview at a time for the whole page. The provider is above
 // the virtualized table. Thus the playback continues when its row scrolls out
 // of view (and unmounts).
 // playlist: the result rows in table order, for the previous/next buttons.
 // onFeedback: the code calls it when a preview starts, but not when it resumes.
 export function AudioPreviewProvider({ children, playlist = null, onFeedback }) {
-  // The key of the row with the loaded preview, or null if the player is closed.
-  const [activeKey, setActiveKey] = useState(null);
-  // The key of the row with the preview that loads now.
-  const [loadingKey, setLoadingKey] = useState(null);
+  // The phase for rendering, and a ref with the same value for the async code.
+  const [preview, setPreviewState] = useState(CLOSED);
+  const previewRef = useRef(CLOSED);
+  // These mirror the events of the audio element.
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -119,28 +130,25 @@ export function AudioPreviewProvider({ children, playlist = null, onFeedback }) 
   const [repeat, setRepeat] = useState(false);
 
   const audioRef = useRef(null);
-  const activeKeyRef = useRef(null);
   const volumeRef = useRef(volume);
-  // This goes up on each new preview or close. Thus a slow load that ends
-  // after the user moved on does not open the player.
-  const requestIdRef = useRef(0);
+
+  const setPreview = useCallback((next) => {
+    previewRef.current = next;
+    setPreviewState(next);
+  }, []);
 
   const closePreview = useCallback(() => {
-    requestIdRef.current += 1;
-
     const audio = audioRef.current;
     if (audio) {
       audio.pause();
       unloadAudio(audio);
     }
 
-    activeKeyRef.current = null;
-    setActiveKey(null);
-    setLoadingKey(null);
+    setPreview(CLOSED);
     setIsPlaying(false);
     setCurrentTime(0);
     setDuration(0);
-  }, []);
+  }, [setPreview]);
 
   // Play or pause the preview of the given row. If another preview (or no
   // preview) is loaded, load this one first.
@@ -150,13 +158,15 @@ export function AudioPreviewProvider({ children, playlist = null, onFeedback }) 
     const audio = audioRef.current;
     if (!audio || !beatmapsetId) return;
 
-    if (activeKeyRef.current === key) {
-      playOrPause(audio);
+    const current = previewRef.current;
+    if (current.key === key) {
+      // While this preview loads, a second click does nothing.
+      if (current.phase === "open") playOrPause(audio);
       return;
     }
 
-    const requestId = ++requestIdRef.current;
-    setLoadingKey(key);
+    const loading = loadingPhase(key, current.barVisible);
+    setPreview(loading);
 
     setDuration(0);
     setCurrentTime(0);
@@ -168,26 +178,25 @@ export function AudioPreviewProvider({ children, playlist = null, onFeedback }) 
       // cannot load (for example, osu! has no preview for this set).
       await audio.play();
 
-      if (requestId !== requestIdRef.current) return;
+      if (previewRef.current !== loading) return;
 
-      activeKeyRef.current = key;
-      setActiveKey(key);
+      setPreview(openPhase(key));
       onFeedback?.("preview", row);
     } catch (error) {
       // A newer preview or a close replaced this one, so there is nothing to report.
-      if (requestId !== requestIdRef.current) return;
+      if (previewRef.current !== loading) return;
 
       console.error("Failed to play audio preview:", error);
-      unloadAudio(audio);
-    } finally {
-      if (requestId === requestIdRef.current) {
-        setLoadingKey(null);
-      }
+      // The earlier preview is not in the audio element anymore, so close
+      // the bar. Do not show controls for an empty player.
+      closePreview();
     }
-  }, [onFeedback]);
+  }, [onFeedback, setPreview, closePreview]);
 
   const togglePlayback = () => {
-    if (audioRef.current) playOrPause(audioRef.current);
+    if (audioRef.current && previewRef.current.phase === "open") {
+      playOrPause(audioRef.current);
+    }
   };
 
   const changeVolume = (newVolume) => {
@@ -207,17 +216,19 @@ export function AudioPreviewProvider({ children, playlist = null, onFeedback }) 
 
   const value = useMemo(
     () => ({
-      activeKey,
-      loadingKey,
+      activeKey: preview.phase === "open" ? preview.key : null,
+      loadingKey: preview.phase === "loading" ? preview.key : null,
       isPlaying,
-      playerOpen: activeKey !== null,
+      playerOpen: preview.barVisible,
       togglePreview,
     }),
-    [activeKey, loadingKey, isPlaying, togglePreview]
+    [preview, isPlaying, togglePreview]
   );
 
-  const previous = neighbour(playlist, activeKey, -1);
-  const next = neighbour(playlist, activeKey, 1);
+  // During a load, "Previous" and "Next" start from the row that loads. Thus
+  // each quick click on "Next" moves one more row down the list.
+  const previous = neighbour(playlist, preview.key, -1);
+  const next = neighbour(playlist, preview.key, 1);
   const playRow = (row) => row && togglePreview(row);
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
@@ -241,7 +252,7 @@ export function AudioPreviewProvider({ children, playlist = null, onFeedback }) 
         }}
       />
 
-      {activeKey !== null && (
+      {preview.barVisible && (
         <div
           className="audio-preview-bar position-fixed d-flex align-items-center shadow"
           role="region"

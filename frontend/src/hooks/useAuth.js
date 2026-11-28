@@ -1,19 +1,26 @@
 import { useEffect, useState } from "react";
 import { getCurrentUser, logout } from "../api/client";
 
+// The auth state is one of:
+//   { status: "checking", user: null }  the first check did not end yet
+//   { status: "signedOut", user: null }
+//   { status: "signedIn", user }
+const CHECKING = { status: "checking", user: null };
+const SIGNED_OUT = { status: "signedOut", user: null };
+const signedIn = (user) => ({ status: "signedIn", user });
+
 export function useAuth() {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [auth, setAuth] = useState(CHECKING);
 
   useEffect(() => {
     async function checkAuthentication() {
       try {
-        setUser(await getCurrentUser());
+        const user = await getCurrentUser();
+        setAuth(user ? signedIn(user) : SIGNED_OUT);
       } catch {
         // If the backend does not answer, treat the user as logged out, so
         // that the login screen shows.
-      } finally {
-        setLoading(false);
+        setAuth(SIGNED_OUT);
       }
     }
 
@@ -23,8 +30,12 @@ export function useAuth() {
   // If the server refuses, this throws, and the caller shows the error.
   async function handleLogout() {
     await logout();
-    setUser(null);
+    setAuth(SIGNED_OUT);
   }
 
-  return { user, loading, logout: handleLogout };
+  return {
+    user: auth.user,
+    loading: auth.status === "checking",
+    logout: handleLogout,
+  };
 }

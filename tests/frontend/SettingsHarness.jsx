@@ -9,9 +9,30 @@
 // `onSettingsChange` reports the latest settings object, so that the tests can
 // check exactly what the backend would get.
 
+import { render } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { useEffect, useState } from "react";
 
 import { createDefaultSettings } from "@/utils/recommendation";
+
+// Render a settings component in the harness. `latest.settings` is always the
+// newest settings object.
+export function renderSettings(component, initialSettings = {}) {
+  const latest = { settings: null };
+  const user = userEvent.setup();
+
+  render(
+    <SettingsHarness
+      component={component}
+      initialSettings={initialSettings}
+      onSettingsChange={(settings) => {
+        latest.settings = settings;
+      }}
+    />,
+  );
+
+  return { user, latest };
+}
 
 export function SettingsHarness({ component: Component, initialSettings, onSettingsChange }) {
   const [settings, setSettings] = useState(() => ({

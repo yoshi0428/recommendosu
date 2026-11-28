@@ -54,13 +54,8 @@ def test_feature_weight_tables_match(frontend_defaults):
     assert settings["difficulty_feature_weights"] == model.DIFFICULTY_FEATURE_WEIGHTS
 
 
-@pytest.mark.parametrize(
-    "field",
-    ["limit", "similarity_feature_weights", "recommendation_config"],
-)
-def test_settings_the_ui_cant_change_are_left_to_the_backend(frontend_defaults, field):
-    # Not sent, so a change in model.py gets to the site without a JS change.
-    assert field not in frontend_defaults["settings"]
+# tests/frontend/recommendation.test.js checks that the settings that the UI
+# cannot change are not sent. It runs without Node in the Python environment.
 
 
 # Each scalar default that the frontend sends, with the backend default.

@@ -49,6 +49,24 @@ beforeEach(() => {
   });
 });
 
+// Make each later play() fail, as for a set that has no preview on osu!.
+function failPlayback() {
+  HTMLMediaElement.prototype.play.mockImplementation(() =>
+    Promise.reject(new Error("no preview"))
+  );
+  vi.spyOn(console, "error").mockImplementation(() => {});
+}
+
+// The bar is hidden and the audio element has no source.
+async function expectPlayerClosed(container) {
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("button", { name: "Close audio preview" })
+    ).not.toBeInTheDocument()
+  );
+  expect(container.querySelector("audio").hasAttribute("src")).toBe(false);
+}
+
 describe("AudioPreviewProvider", () => {
   it("plays osu!'s preview for the row's beatmapset", async () => {
     const user = userEvent.setup();
@@ -65,20 +83,15 @@ describe("AudioPreviewProvider", () => {
   });
 
   it("doesn't open the player when the preview fails to load", async () => {
-    HTMLMediaElement.prototype.play.mockImplementation(() =>
-      Promise.reject(new Error("no preview"))
-    );
-    vi.spyOn(console, "error").mockImplementation(() => {});
+    failPlayback();
     const user = userEvent.setup();
     const { container } = render(<Results showRow />);
 
     await user.click(container.querySelector(".recommendation-cover"));
 
+    // The bar was never open, so wait for the failure first.
     await waitFor(() => expect(console.error).toHaveBeenCalled());
-    expect(
-      screen.queryByRole("button", { name: "Close audio preview" })
-    ).not.toBeInTheDocument();
-    expect(container.querySelector("audio").hasAttribute("src")).toBe(false);
+    await expectPlayerClosed(container);
   });
 
   it("keeps playing after the row that started it unmounts", async () => {
@@ -109,12 +122,7 @@ describe("AudioPreviewProvider", () => {
       await screen.findByRole("button", { name: "Close audio preview" })
     );
 
-    await waitFor(() =>
-      expect(
-        screen.queryByRole("button", { name: "Close audio preview" })
-      ).not.toBeInTheDocument()
-    );
-    expect(container.querySelector("audio").hasAttribute("src")).toBe(false);
+    await expectPlayerClosed(container);
   });
 });
 
@@ -165,6 +173,21 @@ describe("previous, next and repeat", () => {
     await waitFor(() => expect(src()).toBe("https://b.ppy.sh/preview/3.mp3"));
   });
 
+  it("closes the player when the next preview fails to load", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<Player />);
+
+    await user.click(container.querySelector(".recommendation-cover"));
+    await screen.findByRole("button", { name: "Pause preview" });
+
+    // The failed preview replaced the source of the audio element, so the
+    // first preview is gone. The bar must not stay open for an empty player.
+    failPlayback();
+    await user.click(screen.getByRole("button", { name: "Next preview" }));
+
+    await expectPlayerClosed(container);
+  });
+
   it("repeat loops the preview", async () => {
     const user = userEvent.setup();
     const { container } = render(<Player />);
@@ -212,8 +235,7 @@ describe("feedback", () => {
   });
 
   it("doesn't report a preview that fails to load", async () => {
-    HTMLMediaElement.prototype.play.mockImplementation(() => Promise.reject(new Error("no preview")));
-    vi.spyOn(console, "error").mockImplementation(() => {});
+    failPlayback();
     const onFeedback = vi.fn();
     const user = userEvent.setup();
     const { container } = render(<Row onFeedback={onFeedback} />);
