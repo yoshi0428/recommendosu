@@ -44,7 +44,7 @@ I developed this project on my PC (specifications below).
 The recommender does not need a GPU.
 I used the GPU only to train the classifier. The classifier sorts maps into the tournament categories NM1 to NM5.
 I calculated the classifier predictions for the ranked beatmaps from 2007 to 2026 before deployment.
-The predictions are in `/beatmap_recommender/recommender.local.db`. The file `beatmap_recommender/recommender.db` has the same data.
+The predictions are in `beatmap_recommender/recommender.local.db`. The file `beatmap_recommender/recommender.db` has the same data.
 
 ```
 OS - Fedora 44
@@ -89,25 +89,29 @@ discord.py
 # Running the code
 
 This section lists the entry points.
+Each subsection names the folder that its file paths start from.
+Run all commands from the repository root.
 
 ### Beatmap Classifier
 
-- `/beatmap_classifier/dot_osu_extract/downloader_backoff.py`: Downloads the .osu files of the beatmap IDs in a .txt file from osu.direct. If a download fails, the script waits for an exponentially longer time before it tries again.
+The paths in this subsection are in `beatmap_classifier/`.
+
+- `dot_osu_extract/downloader_backoff.py`: Downloads the .osu files of the beatmap IDs in a .txt file from osu.direct. If a download fails, the script waits for an exponentially longer time before it tries again.
   - Give it a .txt file, or a folder to download all of its .txt files.
   - Each list goes to a subfolder of `outputs/` with the name of its list folder: `tournament/NM1.txt` goes to `outputs/tournament/NM1/`, `general/aim.txt` to `outputs/general/aim/`, and `expanded_collection/NM1.txt` to `outputs/expanded_collection/NM1/`. Thus, lists from different folders do not share an output folder.
-- `/beatmap_classifier/classifier_db_setup/populate.py`: Fills a classifier database from the .osu files in `/beatmap_classifier/data/<SLOT>/`. The default database is `/beatmap_classifier/expanded_collection.db`. The options are `--db`, `--data-dir`, and `--keep-multicategory`. Use `--keep-multicategory` to keep the maps that are in more than one slot. `train_fusion.py` needs them. The command is `PYTHONPATH=. python beatmap_classifier/classifier_db_setup/populate.py --keep-multicategory`.
-- `/beatmap_classifier/dot_osu_extract/osucollector_scraper.py`: Gets the tournament-slot collections from osu!collector. It sorts their beatmap IDs into one list for each slot, in `dot_osu_extract/expanded_collection/<SLOT>.txt`. These maps are the training data of the current model.
+- `classifier_db_setup/populate.py`: Fills a classifier database from the .osu files in `data/<SLOT>/`. The default database is `expanded_collection.db`. The options are `--db`, `--data-dir`, and `--keep-multicategory`. Use `--keep-multicategory` to keep the maps that are in more than one slot. `train_fusion.py` needs them. The command is `PYTHONPATH=. python beatmap_classifier/classifier_db_setup/populate.py --keep-multicategory`.
+- `dot_osu_extract/osucollector_scraper.py`: Gets the tournament-slot collections from osu!collector. It sorts their beatmap IDs into one list for each slot, in `dot_osu_extract/expanded_collection/<SLOT>.txt`. These maps are the training data of the current model.
   - It keeps the collection JSON and a manifest (slot, skill, beatmapset ID and checksum of each map) in `dot_osu_extract/outputs/expanded_collection_cache/`.
   - To download the .osu files, use `downloader_backoff.py expanded_collection`. To make a classifier database from them, use `populate.py --data-dir dot_osu_extract/outputs/expanded_collection`.
-- `/beatmap_classifier/train_fusion.py`: Trains the fusion classifier that the website uses, and saves it in `/beatmap_classifier/models/fusion/`. The command is `python -m beatmap_classifier.train_fusion`. By default, it reads `expanded_collection.db` and `data/`. `--db` and `--osu-dir` select others.
+- `train_fusion.py`: Trains the fusion classifier that the website uses, and saves it in `models/fusion/`. The command is `python -m beatmap_classifier.train_fusion`. By default, it reads `expanded_collection.db` and `data/`. `--db` and `--osu-dir` select others.
   - One network reads the hit objects of each map from the .osu file (21 channels for each object). It also reads the NM/HD/HR/DT stats and the movement features of the map.
   - The network gives a different probability to each of NM1 to NM5, because a map can be in more than one slot.
   - The training keeps an exponential moving average of the weights.
   - The training makes one model for each fold. The folds keep all difficulties of a beatmapset together. The prediction is the average of the 5 models.
-- `/beatmap_classifier/test_model.py`: Shows the prediction probabilities for the beatmap IDs that you type.
-- `/beatmap_classifier/classifier/inference.py`: Runs the trained model on one beatmap. `test_model.py` and `precompute_nm1-5.py` use it.
-  - `/beatmap_classifier/classifier/fusion.py` contains the model: the input parser, the network, and the training.
-  - `/beatmap_classifier/classifier/training_data.py` loads a classifier database for `train_fusion.py`.
+- `classify_beatmap.py`: Shows the prediction probabilities for the beatmap IDs that you type.
+- `classifier/inference.py`: Runs the trained model on one beatmap. `classify_beatmap.py` and `precompute_nm1-5.py` use it.
+  - `classifier/fusion.py` contains the model: the input parser, the network, and the training.
+  - `classifier/training_data.py` loads a classifier database for `train_fusion.py`.
 
 #### The fusion network
 
@@ -151,38 +155,40 @@ The training uses these items:
 The parser stores all vector channels, including `speed_change` and `time_diff_change`. Thus, the training reads them directly from the database.
 The training and the prediction divide `time_diff` and `time_diff_change` by the same `max_time_diff`.
 This value is in `models/fusion/fusion_config.json`. Thus, the training and the prediction always make the same inputs.
-`tests/test_classifier_features.py` makes sure that the inputs are the same.
+The test `tests/test_classifier_features.py` in the repository root makes sure that the inputs are the same.
 
-When `populate.py` is complete, it runs `/beatmap_classifier/clean_multicategory_maps.sql`.
+When `populate.py` is complete, it runs `clean_multicategory_maps.sql`.
 This script removes the maps that are in more than one tournament slot.
 The option `--keep-multicategory` stops this step.
-To see these maps before they are removed, run `/beatmap_classifier/view_multicategory_maps.sql` in a database browser. I used DB Browser for SQLite.
+To see these maps before they are removed, run `view_multicategory_maps.sql` in a database browser. I used DB Browser for SQLite.
 
 ### Beatmap Recommender
 
-- `/beatmap_recommender/data/extract_osu.py`: Extracts the .osu files from directories of .osz archives.
-- `/beatmap_recommender/recommender_db_setup/populate.py`: Fills the recommender database. The default database is `beatmap_recommender/dummy.db` (refer to `--db`). This is a different script from the classifier script, because the recommender needs the beatmapset IDs and does not need the CNN vectors.
-- `/beatmap_recommender/recommender_db_setup/beatmap_id_resolution.py`: Finds the real beatmap ID of each .osu file before `populate.py` inserts it.
-- `/beatmap_recommender/recommender_db_setup/precompute_nm1-5.py`: Stores the NM1-NM5 probabilities of the fusion classifier for each NM variant in the recommender database. The default database is `beatmap_recommender/dummy.db` (refer to `DB_PATH` at the top of the file).
-- `/beatmap_recommender/content_similarity/test_recommender.py`: Shows examples of recommendations. To run it from the CLI, use this command: `PYTHONPATH=. python beatmap_recommender/content_similarity/test_recommender.py`
-- `/beatmap_recommender/changelog.json`: The changelog that the website shows at `/changelog` and that the bot shows with `/changelog`. The newest entry is first. Each entry has this format: `{"date": "2026-11-01", "title": "...", "changes": ["...", "..."]}`.
+The paths in this subsection and in the next subsection are in `beatmap_recommender/`.
+
+- `data/extract_osu.py`: Extracts the .osu files from directories of .osz archives.
+- `recommender_db_setup/populate.py`: Fills the recommender database. The default database is `dummy.db` (refer to `--db`). This is a different script from the classifier script, because the recommender needs the beatmapset IDs and does not need the CNN vectors.
+- `recommender_db_setup/beatmap_id_resolution.py`: Finds the real beatmap ID of each .osu file before `populate.py` inserts it.
+- `recommender_db_setup/precompute_nm1-5.py`: Stores the NM1-NM5 probabilities of the fusion classifier for each NM variant in the recommender database. The default database is `dummy.db` (refer to `DB_PATH` at the top of the file).
+- `content_similarity/demo_recommender.py`: Shows examples of recommendations. To run it from the CLI, use this command: `PYTHONPATH=. python beatmap_recommender/content_similarity/demo_recommender.py`
+- `changelog.json`: The changelog that the website shows at `/changelog` and that the bot shows with `/changelog`. The newest entry is first. Each entry has this format: `{"date": "2026-11-01", "title": "...", "changes": ["...", "..."]}`.
   - The backend reads this file at each request. Thus, on the server, a change shows immediately, and a restart is not necessary.
   - This is possible because `beatmap_recommender/` is mounted in the backend container.
-- `/beatmap_recommender/recommender.py`: The recommender of the backend. You can change some of its global variables.
-- `/beatmap_recommender/benchmarks/profile_recommender.py` and `/beatmap_recommender/benchmarks/snapshot_recommender.py`: Measure the time of the recommender, and make sure that a change does not change its output. Refer to [PERFORMANCE.md](PERFORMANCE.md).
+- `recommender.py`: The recommender of the backend. You can change some of its global variables.
+- `benchmarks/profile_recommender.py` and `benchmarks/snapshot_recommender.py`: Measure the time of the recommender, and make sure that a change does not change its output. Refer to [PERFORMANCE.md](PERFORMANCE.md).
 
 ### Rebuilding the recommender database
 
 If you want to make the database again from the .osu files, do this procedure. If not, you do not need it.
 The [download link](#data) includes a complete database.
 
-The scripts read the .osu files from `beatmap_recommender/data/<Ranked|Loved>/<year>/*.osu`.
+The scripts read the .osu files from `data/<Ranked|Loved>/<year>/*.osu`.
 The scripts get the beatmap status and the year from the folder names.
 
 The application does not use the new database until you copy or rename it:
 
-- For a local run, use `beatmap_recommender/recommender.local.db`.
-- For production, use `beatmap_recommender/recommender.db`.
+- For a local run, use `recommender.local.db`.
+- For production, use `recommender.db`.
 
 Do the two steps from the project root, in this sequence:
 
@@ -204,7 +210,7 @@ Do the two steps from the project root, in this sequence:
    This adds approximately 6 hours before the difficulty calculation starts.
    The API requests need `OSU_CLIENT_ID` and `OSU_CLIENT_SECRET` in `.env`.
 
-   The script keeps the API responses in `populate_logs/api_lookup_cache.json`.
+   The script keeps the API responses in `recommender_db_setup/populate_logs/api_lookup_cache.json`.
    If the run stops, run the same command again. The script continues from the last request.
    You can also run `--resolve-only` first, without `--seed-db`. This sends all the requests. Then, examine the log before you start the full run.
 
@@ -229,7 +235,7 @@ Do the two steps from the project root, in this sequence:
    Each value is the probability of the slot, scaled so that the five values add up to 1.
    If a GPU is available, the script uses it.
    - The script reads and writes the database in `DB_PATH` at the top of the file. Set it to the database that you filled in step 1.
-   - The script reads the model files in `beatmap_classifier/models/fusion/`. `train_fusion.py` writes these files.
+   - The script reads the model files in `beatmap_classifier/models/fusion/` in the repository root. `train_fusion.py` writes these files.
    - The script also reads the NM/HD/HR/DT `beatmap_variants` rows of each map.
    - `SELECTION_MODE` selects the variants to classify:
      - `"pending"`: the variants that are not classified.
@@ -243,7 +249,7 @@ Use Docker Compose to run the frontend. Refer to the section Docker Commands.
 # Testing
 
 The backend tests use pytest. The frontend tests use Vitest.
-The two test suites are in `/tests`. The frontend tests are in `/tests/frontend`.
+The two test suites are in `tests/`. The frontend tests are in `tests/frontend/`.
 
 ```
 ### backend, from the repository root
@@ -304,7 +310,7 @@ Each event is one row of `feedback_events` in `beatmap_recommender/feedback.db`.
 - `preview`: the audio preview started.
 - `open`: the player opened the osu! page of the map.
 
-A background thread then finds out if the player played the map in the 7 days after the event.
+A background thread then finds out whether the player played the map in the 7 days after the event.
 It reads the scores that the backend stored. Failed plays count as plays.
 The thread also fetches the recent scores of the player one time, approximately 20 hours after an event.
 If you do not want the thread, set `FEEDBACK_CHECK=0`.
@@ -341,6 +347,21 @@ To get the same file outside Docker Compose, set `LOG_FILE` to a path.
 
 This section gives some Docker commands.
 
+Each stack needs a long `docker compose` prefix: the project name and two compose files.
+These two shell functions hold the prefixes, so that the commands below show only what changes.
+Run them in your shell from the repository root before you use the commands. They work in bash and zsh.
+
+```bash
+# The local stack. The local compose file runs the containers as your user.
+dc_local() { HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -p recommendosu-local -f compose.yml -f compose.local.yml "$@"; }
+
+# The production stack.
+dc_prod() { docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml "$@"; }
+```
+
+The functions stay only for the current shell session.
+To keep them, add the two lines to your `~/.bashrc` or `~/.zshrc`.
+
 ### Local and dev Discord bot
 
 The local stack also runs a dev Discord bot. This bot is a second Discord application. It is different from the deployed bot:
@@ -360,30 +381,28 @@ To set up the dev bot, do these steps:
 If `DEV_DISCORD_TOKEN` is not set, all other services start. The dev bot cannot log in, and it stops.
 The links of the dev bot go to the live website. These links are the "full list at recommendosu.com" footer and the link of `/changelog`.
 
-```
+```bash
 ### everything, website and dev bot
-HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -p recommendosu-local -f compose.yml -f compose.local.yml --profile bot up --build -d
+dc_local --profile bot up --build -d
 
 ### rebuild/recreate nginx first
-HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -p recommendosu-local -f compose.yml -f compose.local.yml build nginx && \
-HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -p recommendosu-local -f compose.yml -f compose.local.yml up -d --no-deps nginx
+dc_local build nginx && dc_local up -d --no-deps nginx
 
 ### rebuild/recreate frontend and backend without touching nginx
-HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -p recommendosu-local -f compose.yml -f compose.local.yml build frontend backend && \
-HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -p recommendosu-local -f compose.yml -f compose.local.yml up -d --no-deps frontend backend
+dc_local build frontend backend && dc_local up -d --no-deps frontend backend
 
 ### start or rebuild only the dev bot, without touching the website
-HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -p recommendosu-local -f compose.yml -f compose.local.yml --profile bot up --build -d --no-deps bot
+dc_local --profile bot up --build -d --no-deps bot
 
 ### soft shutdown and restart to test nginx-only page
-docker compose -p recommendosu-local -f compose.yml -f compose.local.yml stop frontend backend
-docker compose -p recommendosu-local -f compose.yml -f compose.local.yml start frontend backend
+dc_local stop frontend backend
+dc_local start frontend backend
 
 ### logs (add bot, backend, ... at the end for one service)
-docker compose -p recommendosu-local -f compose.yml -f compose.local.yml --profile bot logs -f
+dc_local --profile bot logs -f
 
 ### full shutdown, website and dev bot
-docker compose -p recommendosu-local -f compose.yml -f compose.local.yml --profile bot down
+dc_local --profile bot down
 ```
 
 ### Production and Discord bot
@@ -403,51 +422,47 @@ The `/link` data is in `bot/data/`.
 The local stack never uses `DISCORD_TOKEN`. Its bot logs in with `DEV_DISCORD_TOKEN` (refer to Local and dev Discord bot).
 If two bots log in with the same token, both bots reply to each command.
 
-```
+```bash
 ### everything, website and bot
-docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml --profile bot up --build -d
+dc_prod --profile bot up --build -d
 
 ### website only, without touching the bot
-docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml up --build -d
+dc_prod up --build -d
 
 ### rebuild/recreate nginx first
-docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml build nginx && \
-docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml up -d --no-deps nginx
+dc_prod build nginx && dc_prod up -d --no-deps nginx
 
 ### rebuild/recreate frontend and backend without touching nginx
-docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml build frontend backend && \
-docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml up -d --no-deps frontend backend
+dc_prod build frontend backend && dc_prod up -d --no-deps frontend backend
 
 ### start or rebuild the bot, without touching the website
-docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml --profile bot build bot && \
-docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml --profile bot up -d --no-deps bot
+dc_prod --profile bot build bot && dc_prod --profile bot up -d --no-deps bot
 
 ### rebuild/recreate the backend and the bot (after changing the bot endpoints in main.py)
-docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml --profile bot build backend bot && \
-docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml --profile bot up -d --no-deps backend bot
+dc_prod --profile bot build backend bot && dc_prod --profile bot up -d --no-deps backend bot
 
 ### soft shutdown and restart to test nginx-only page
-docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml stop frontend backend
-docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml start frontend backend
+dc_prod stop frontend backend
+dc_prod start frontend backend
 
 ### stop and start the bot only
-docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml --profile bot stop bot
-docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml --profile bot start bot
+dc_prod --profile bot stop bot
+dc_prod --profile bot start bot
 
 ### frontend, backend, and nginx logs
-docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml logs -f
+dc_prod logs -f
 
 ### frontend, backend, nginx, and Discord bot logs
-docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml --profile bot logs -f
+dc_prod --profile bot logs -f
 
 ### only Discord bot logs
-docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml --profile bot logs -f bot
+dc_prod --profile bot logs -f bot
 
 ### full shutdown, website only
-docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml down
+dc_prod down
 
 ### full shutdown, website and bot
-docker compose -p recommendosu-prod -f compose.yml -f compose.production.yml --profile bot down
+dc_prod --profile bot down
 ```
 
 ### Clearing Cache

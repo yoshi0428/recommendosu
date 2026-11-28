@@ -62,7 +62,7 @@ def get_vector_normalization(cursor):
     channels by.
 
     The model learns from these scaled values. Thus all the code that gives it
-    input later (precompute_nm1-5.py, test_model.py) must apply the same
+    input later (precompute_nm1-5.py, classify_beatmap.py) must apply the same
     scales. train_fusion.py saves them with the model.
     """
     cursor.execute("SELECT MAX(v.time_diff), MAX(v.length) FROM beatmap_vectors v")

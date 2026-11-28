@@ -3,7 +3,7 @@ Run the trained fusion classifier (classifier/fusion.py) on one beatmap.
 
 beatmap_recommender/recommender_db_setup/precompute_nm1-5.py uses it (for all
 the NM variants in the recommender database), and so does
-beatmap_classifier/test_model.py (one map at a time). Its inputs must match
+beatmap_classifier/classify_beatmap.py (one map at a time). Its inputs must match
 the training data from train_fusion.py. tests/test_classifier_features.py
 makes sure that they match.
 """
